@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+
+jobs:
+  backend-lint-and-test:
+    name: Backend — lint, type-check, test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vishakan_ffm
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: vishakan_ffm
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vishakan_ffm"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      JWT_SECRET_KEY: ci-test-secret-key-not-for-production
+      POSTGRES_HOST: localhost
+      POSTGRES_USER: vishakan_ffm
+      POSTGRES_PASSWORD: ci_test_password
+      POSTGRES_DB: vishakan_ffm
+      REDIS_HOST: localhost
+      ENVIRONMENT: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Type-check (mypy)
+        run: mypy app --ignore-missing-imports
+        continue-on-error: true # tightened once later phases stabilize types
+
+      - name: Run database migrations
+        run: alembic upgrade head
+
+      - name: Run tests
+        run: pytest -v --maxfail=1
+
+  frontend-lint-and-build:
+    name: Frontend — lint, type-check, build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  docker-build:
+    name: Docker — build images
+    runs-on: ubuntu-latest
+    needs: [backend-lint-and-test, frontend-lint-and-build]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t vishakan-ffm-backend:ci ./backend
+
+      - name: Build frontend image
+        run: docker build -t vishakan-ffm-frontend:ci ./frontend

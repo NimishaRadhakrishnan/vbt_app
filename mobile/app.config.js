@@ -1,0 +1,166 @@
+// SINGLE SOURCE OF EXPO CONFIGURATION.
+//
+// app.json has been DELETED. Previously both files existed with the same
+// slug and package but DIFFERENT app names ("VBT One" in app.json vs
+// "Vishakan Biotech FFM" here) and permission strings that had already
+// drifted apart between them. Expo merges app.json and app.config.js
+// with app.config.js winning, so app.json was silently dead config that
+// still looked authoritative to anyone reading the repo - and a store
+// listing name that doesn't match the in-app name is itself a Play
+// review flag.
+//
+// Name resolved to "VBT One": it is the shorter, officer-facing name,
+// it is what the iOS permission strings in app.json already used, and
+// it is what fits under a launcher icon. "Vishakan Biotech" appears in
+// the store listing description and the About screen instead.
+
+const IS_DEV = process.env.APP_VARIANT === "development";
+
+module.exports = {
+  expo: {
+    name: IS_DEV ? "VBT One (Dev)" : "VBT One",
+    slug: "vishakan-biotech-ffm",
+    version: "1.0.0",
+    orientation: "portrait",
+    userInterfaceStyle: "light",
+
+    // ------------------------------------------------------------------
+    // PHASE 3A ITEM 5 — Android 14 / API 34 target.
+    //
+    // SDK 49 targeted Android 13 (API 33). Google Play requires new apps
+    // to target API 34 or higher, so the previous configuration could not
+    // be submitted at all - this was a hard submission blocker, not a
+    // modernisation nicety.
+    //
+    // Bumping sdkVersion here is only the DECLARATION. The actual upgrade
+    // is a package.json + native-dependency change; run:
+    //
+    //   npx expo install --fix
+    //   npx expo-doctor
+    //
+    // and see docs/PHASE_3A_EXPO_UPGRADE.md for the ordered steps and the
+    // known breaking changes on this path (expo-location 16 -> 17 changes
+    // the background-permission flow, and @react-navigation v6 -> v7 is
+    // NOT required by the SDK bump and should be deferred to its own
+    // change so a navigation regression can't be confused with an SDK
+    // regression).
+    // ------------------------------------------------------------------
+
+    ios: {
+      supportsTablet: false,
+      bundleIdentifier: "com.vishakanbiotech.ffm",
+      buildNumber: "1",
+      infoPlist: {
+        NSCameraUsageDescription:
+          "VBT One needs camera access so you can attach a photo to crop issue reports and visit logs.",
+
+        // ----------------------------------------------------------------
+        // PHASE 3A ITEM 2 — disclosure now matches actual behaviour.
+        //
+        // These strings previously said location was tracked "throughout
+        // company working hours (9 AM-6 PM)". That was NOT what the app
+        // does. src/services/LocationService.ts documents that the
+        // business-hours check was deliberately REMOVED, because it
+        // silently discarded pings from officers who checked in at 8:45am
+        // or were still finishing a visit at 6:10pm - making a working
+        // phone look broken on the admin map.
+        //
+        // So the app collected location outside the window its own
+        // disclosure promised. That mismatch is exactly what Play and App
+        // Store reviewers test for, and it is the kind of finding that
+        // turns one rejection into repeated rejections.
+        //
+        // The code's real rule - check-in to check-out - is also the
+        // STRONGER justification: it is narrower than a fixed 9-6 window
+        // and it is verifiable by the reviewer in the demo video (the
+        // persistent notification appears on check-in and disappears on
+        // check-out). Fixed the text, not the code.
+        // ----------------------------------------------------------------
+        NSLocationWhenInUseUsageDescription:
+          "VBT One records your location when you check in and when you log a visit, so your attendance and field visits can be confirmed.",
+        NSLocationAlwaysAndWhenInUseUsageDescription:
+          "VBT One records your location only while you are checked in for work, so your field visits and attendance can be confirmed. Tracking starts when you check in and stops the moment you check out. It never runs when you are checked out.",
+        NSLocationAlwaysUsageDescription:
+          "VBT One records your location only while you are checked in for work, so your field visits and attendance can be confirmed. Tracking starts when you check in and stops the moment you check out. It never runs when you are checked out.",
+        UIBackgroundModes: ["location"],
+      },
+    },
+
+    android: {
+      package: "com.vishakanbiotech.ffm",
+      versionCode: 1,
+
+      // ----------------------------------------------------------------
+      // PHASE 3A ITEM 4 — the full location permission set.
+      //
+      // This array previously contained ONLY "CAMERA". No location
+      // permission of any kind was declared. The expo-location config
+      // plugin does inject some of these, but relying on that while an
+      // explicit `permissions` array is also present is exactly the kind
+      // of ambiguity that produces the worst possible failure mode:
+      // tracking reports "started" in the app while the admin map stays
+      // empty, with no error anywhere.
+      //
+      // Declared explicitly so the manifest is readable and auditable -
+      // a Play reviewer reads the merged manifest, and so should we.
+      //
+      // FOREGROUND_SERVICE_LOCATION is required from Android 14 (API 34)
+      // onward for any foreground service of type `location`, which is
+      // precisely what LocationService.startTracking() creates. Without
+      // it the service throws at runtime on API 34+ devices - so this
+      // pairs with the SDK bump above and cannot be done separately.
+      // ----------------------------------------------------------------
+      permissions: [
+        "CAMERA",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+      ],
+    },
+
+    plugins: [
+      [
+        "expo-image-picker",
+        {
+          cameraPermission:
+            "VBT One needs camera access so you can attach a photo to crop issue reports and visit logs.",
+          microphonePermission: false,
+          photosPermission: false,
+        },
+      ],
+      [
+        "expo-location",
+        {
+          locationAlwaysAndWhenInUsePermission:
+            "VBT One records your location only while you are checked in for work, so your field visits and attendance can be confirmed. Tracking starts when you check in and stops the moment you check out. It never runs when you are checked out.",
+          locationAlwaysPermission:
+            "VBT One records your location only while you are checked in for work, so your field visits and attendance can be confirmed. Tracking starts when you check in and stops the moment you check out. It never runs when you are checked out.",
+          locationWhenInUsePermission:
+            "VBT One records your location when you check in and when you log a visit, so your attendance and field visits can be confirmed.",
+          isIosBackgroundLocationEnabled: true,
+          isAndroidBackgroundLocationEnabled: true,
+        },
+      ],
+
+      // expo-task-manager was a dependency but was never declared as a
+      // plugin. LocationService.ts registers its background task through
+      // it, so it belongs in the build configuration explicitly.
+      "expo-task-manager",
+
+      // PHASE 3A ITEM 3 — see plugins/withMonitoringTool.js.
+      "./plugins/withMonitoringTool",
+    ],
+
+    extra: {
+      apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000/api/v1",
+      eas: {
+        // Filled in by `eas init`. Kept here so the field is visibly
+        // expected rather than silently missing at first build.
+        projectId: process.env.EAS_PROJECT_ID || undefined,
+      },
+    },
+  },
+};

@@ -1,0 +1,34 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+email-validator==2.2.0
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+psycopg2-binary==2.9.10
+alembic==1.14.0
+redis==5.2.1
+passlib[bcrypt]==1.7.4
+# passlib 1.7.4 reads bcrypt.__about__, which bcrypt >= 4.1 removed. The error is
+# trapped, so login still works, but every password hash logs
+#   (trapped) error reading bcrypt version
+# AttributeError: module 'bcrypt' has no attribute '__about__'
+# Pinned to the last release passlib can introspect, to keep production logs
+# free of a recurring stack trace that is not a real failure.
+bcrypt==4.0.1
+pyjwt==2.10.1
+python-multipart==0.0.20
+GeoAlchemy2==0.14.1
+numpy<2
+shapely>=2.0.2
+reportlab==4.1.0
+openpyxl==3.1.2
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+httpx==0.28.1
+
+# Dev tooling
+ruff==0.8.4
+mypy==1.13.0

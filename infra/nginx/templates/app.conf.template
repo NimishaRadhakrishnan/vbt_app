@@ -1,0 +1,108 @@
+# ------------------------------------------------------------------
+# HTTP
+# ------------------------------------------------------------------
+# With Cloudflare in front on "Full (strict)", Cloudflare speaks HTTPS to
+# this box, so this server block handles that traffic on port 80 behind
+# Cloudflare's tunnel OR redirects direct visitors to HTTPS.
+#
+# Keep the ACME location reachable over plain HTTP: certbot's HTTP-01
+# challenge needs it, and redirecting it to HTTPS breaks renewal on a
+# certificate that has not been issued yet.
+server {
+    # IPv4 only, deliberately. `listen [::]:80` makes nginx REFUSE TO START
+    # on a host without IPv6 - not degrade, refuse - and the whole site stays
+    # down. Hostinger VPSs vary on this. Cloudflare serves IPv6 visitors from
+    # its own edge whatever the origin speaks, so nothing is lost.
+    listen 80;
+    server_name _;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ------------------------------------------------------------------
+# HTTPS
+# ------------------------------------------------------------------
+# Certificate paths assume certbot's standard layout, mounted into the
+# container. See DEPLOYMENT.md for how they get there.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${SERVER_NAME};
+
+    ssl_certificate     /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${SERVER_NAME}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    add_header X-Content-Type-Options nosniff always;
+    # SAMEORIGIN, not DENY: the phone preview simulator embeds the app in
+    # its own iframe. Cross-origin framing is still fully blocked. This
+    # matches the header Next.js sets in frontend/next.config.js - if the
+    # two disagree, the stricter one wins and the simulator breaks.
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    location /api/ {
+        limit_req zone=api_limit burst=40 nodelay;
+
+        proxy_pass http://backend_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Passed through so the backend can use it directly, which it
+        # does - see client_ip_of() in the rate limiter.
+        proxy_set_header CF-Connecting-IP $http_cf_connecting_ip;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        # A WebSocket that is idle between alerts must not be cut at the
+        # default 60s, or every client reconnects every minute.
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    # Uploaded photos are served from /files/, NOT /uploads/ - see the
+    # file_router mount in app/main.py. It is registered at the root, outside
+    # /api/v1, because save_upload() builds absolute URLs from
+    # PUBLIC_BACKEND_URL + /files/... and those URLs are already stored in the
+    # database. Send this to the frontend by mistake and every crop photo in
+    # the app 404s.
+    location /files/ {
+        proxy_pass http://backend_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Next.js build assets are content-hashed, so they can be cached hard
+    # and for a long time: a new build produces new filenames.
+    location /_next/static/ {
+        proxy_pass http://frontend_upstream;
+        proxy_set_header Host $host;
+        proxy_cache_valid 200 30d;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    location / {
+        proxy_pass http://frontend_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+    }
+}

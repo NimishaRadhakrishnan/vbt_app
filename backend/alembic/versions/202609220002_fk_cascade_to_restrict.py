@@ -1,0 +1,123 @@
+"""fk cascade to restrict
+
+Revision ID: 202609220002
+Revises: 202609220001
+Create Date: 2026-09-22 10:00:00.000000
+
+"""
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision = '202609220002'
+down_revision = '202609220001'
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    op.drop_constraint('officer_locations_officer_id_fkey', 'officer_locations', type_='foreignkey')
+    op.create_foreign_key('officer_locations_officer_id_fkey', 'officer_locations', 'users', ['officer_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('device_registry_user_id_fkey', 'device_registry', type_='foreignkey')
+    op.create_foreign_key('device_registry_user_id_fkey', 'device_registry', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('user_territories_user_id_fkey', 'user_territories', type_='foreignkey')
+    op.create_foreign_key('user_territories_user_id_fkey', 'user_territories', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('attendance_user_id_fkey', 'attendance', type_='foreignkey')
+    op.create_foreign_key('attendance_user_id_fkey', 'attendance', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('weekly_plans_user_id_fkey', 'weekly_plans', type_='foreignkey')
+    op.create_foreign_key('weekly_plans_user_id_fkey', 'weekly_plans', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('visits_user_id_fkey', 'visits', type_='foreignkey')
+    op.create_foreign_key('visits_user_id_fkey', 'visits', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('crop_issues_user_id_fkey', 'crop_issues', type_='foreignkey')
+    op.create_foreign_key('crop_issues_user_id_fkey', 'crop_issues', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('notifications_user_id_fkey', 'notifications', type_='foreignkey')
+    op.create_foreign_key('notifications_user_id_fkey', 'notifications', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('expenses_user_id_fkey', 'expenses', type_='foreignkey')
+    op.create_foreign_key('expenses_user_id_fkey', 'expenses', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('tasks_assigned_to_fkey', 'tasks', type_='foreignkey')
+    op.create_foreign_key('tasks_assigned_to_fkey', 'tasks', 'users', ['assigned_to'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('leave_requests_officer_id_fkey', 'leave_requests', type_='foreignkey')
+    op.create_foreign_key('leave_requests_officer_id_fkey', 'leave_requests', 'users', ['officer_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('enquiries_reported_by_fkey', 'enquiries', type_='foreignkey')
+    op.create_foreign_key('enquiries_reported_by_fkey', 'enquiries', 'users', ['reported_by'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('day_closures_officer_id_fkey', 'day_closures', type_='foreignkey')
+    op.create_foreign_key('day_closures_officer_id_fkey', 'day_closures', 'users', ['officer_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('daily_work_reports_user_id_fkey', 'daily_work_reports', type_='foreignkey')
+    op.create_foreign_key('daily_work_reports_user_id_fkey', 'daily_work_reports', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('personal_bests_user_id_fkey', 'personal_bests', type_='foreignkey')
+    op.create_foreign_key('personal_bests_user_id_fkey', 'personal_bests', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('user_badges_user_id_fkey', 'user_badges', type_='foreignkey')
+    op.create_foreign_key('user_badges_user_id_fkey', 'user_badges', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('kudos_from_user_id_fkey', 'kudos', type_='foreignkey')
+    op.create_foreign_key('kudos_from_user_id_fkey', 'kudos', 'users', ['from_user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('kudos_to_user_id_fkey', 'kudos', type_='foreignkey')
+    op.create_foreign_key('kudos_to_user_id_fkey', 'kudos', 'users', ['to_user_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('file_uploads_uploaded_by_fkey', 'file_uploads', type_='foreignkey')
+    op.create_foreign_key('file_uploads_uploaded_by_fkey', 'file_uploads', 'users', ['uploaded_by'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('visit_drafts_officer_id_fkey', 'visit_drafts', type_='foreignkey')
+    op.create_foreign_key('visit_drafts_officer_id_fkey', 'visit_drafts', 'users', ['officer_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('officer_product_stock_officer_id_fkey', 'officer_product_stock', type_='foreignkey')
+    op.create_foreign_key('officer_product_stock_officer_id_fkey', 'officer_product_stock', 'users', ['officer_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('officer_stock_adjustments_officer_id_fkey', 'officer_stock_adjustments', type_='foreignkey')
+    op.create_foreign_key('officer_stock_adjustments_officer_id_fkey', 'officer_stock_adjustments', 'users', ['officer_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('marketing_materials_officer_id_fkey', 'marketing_materials', type_='foreignkey')
+    op.create_foreign_key('marketing_materials_officer_id_fkey', 'marketing_materials', 'users', ['officer_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('officer_monthly_targets_officer_id_fkey', 'officer_monthly_targets', type_='foreignkey')
+    op.create_foreign_key('officer_monthly_targets_officer_id_fkey', 'officer_monthly_targets', 'users', ['officer_id'], ['id'], ondelete='RESTRICT')
+    op.drop_constraint('location_consent_acceptances_user_id_fkey', 'location_consent_acceptances', type_='foreignkey')
+    op.create_foreign_key('location_consent_acceptances_user_id_fkey', 'location_consent_acceptances', 'users', ['user_id'], ['id'], ondelete='RESTRICT')
+
+
+def downgrade():
+    op.drop_constraint('officer_locations_officer_id_fkey', 'officer_locations', type_='foreignkey')
+    op.create_foreign_key('officer_locations_officer_id_fkey', 'officer_locations', 'users', ['officer_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('device_registry_user_id_fkey', 'device_registry', type_='foreignkey')
+    op.create_foreign_key('device_registry_user_id_fkey', 'device_registry', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('user_territories_user_id_fkey', 'user_territories', type_='foreignkey')
+    op.create_foreign_key('user_territories_user_id_fkey', 'user_territories', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('attendance_user_id_fkey', 'attendance', type_='foreignkey')
+    op.create_foreign_key('attendance_user_id_fkey', 'attendance', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('weekly_plans_user_id_fkey', 'weekly_plans', type_='foreignkey')
+    op.create_foreign_key('weekly_plans_user_id_fkey', 'weekly_plans', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('visits_user_id_fkey', 'visits', type_='foreignkey')
+    op.create_foreign_key('visits_user_id_fkey', 'visits', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('crop_issues_user_id_fkey', 'crop_issues', type_='foreignkey')
+    op.create_foreign_key('crop_issues_user_id_fkey', 'crop_issues', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('notifications_user_id_fkey', 'notifications', type_='foreignkey')
+    op.create_foreign_key('notifications_user_id_fkey', 'notifications', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('expenses_user_id_fkey', 'expenses', type_='foreignkey')
+    op.create_foreign_key('expenses_user_id_fkey', 'expenses', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('tasks_assigned_to_fkey', 'tasks', type_='foreignkey')
+    op.create_foreign_key('tasks_assigned_to_fkey', 'tasks', 'users', ['assigned_to'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('leave_requests_officer_id_fkey', 'leave_requests', type_='foreignkey')
+    op.create_foreign_key('leave_requests_officer_id_fkey', 'leave_requests', 'users', ['officer_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('enquiries_reported_by_fkey', 'enquiries', type_='foreignkey')
+    op.create_foreign_key('enquiries_reported_by_fkey', 'enquiries', 'users', ['reported_by'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('day_closures_officer_id_fkey', 'day_closures', type_='foreignkey')
+    op.create_foreign_key('day_closures_officer_id_fkey', 'day_closures', 'users', ['officer_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('daily_work_reports_user_id_fkey', 'daily_work_reports', type_='foreignkey')
+    op.create_foreign_key('daily_work_reports_user_id_fkey', 'daily_work_reports', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('personal_bests_user_id_fkey', 'personal_bests', type_='foreignkey')
+    op.create_foreign_key('personal_bests_user_id_fkey', 'personal_bests', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('user_badges_user_id_fkey', 'user_badges', type_='foreignkey')
+    op.create_foreign_key('user_badges_user_id_fkey', 'user_badges', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('kudos_from_user_id_fkey', 'kudos', type_='foreignkey')
+    op.create_foreign_key('kudos_from_user_id_fkey', 'kudos', 'users', ['from_user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('kudos_to_user_id_fkey', 'kudos', type_='foreignkey')
+    op.create_foreign_key('kudos_to_user_id_fkey', 'kudos', 'users', ['to_user_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('file_uploads_uploaded_by_fkey', 'file_uploads', type_='foreignkey')
+    op.create_foreign_key('file_uploads_uploaded_by_fkey', 'file_uploads', 'users', ['uploaded_by'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('visit_drafts_officer_id_fkey', 'visit_drafts', type_='foreignkey')
+    op.create_foreign_key('visit_drafts_officer_id_fkey', 'visit_drafts', 'users', ['officer_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('officer_product_stock_officer_id_fkey', 'officer_product_stock', type_='foreignkey')
+    op.create_foreign_key('officer_product_stock_officer_id_fkey', 'officer_product_stock', 'users', ['officer_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('officer_stock_adjustments_officer_id_fkey', 'officer_stock_adjustments', type_='foreignkey')
+    op.create_foreign_key('officer_stock_adjustments_officer_id_fkey', 'officer_stock_adjustments', 'users', ['officer_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('marketing_materials_officer_id_fkey', 'marketing_materials', type_='foreignkey')
+    op.create_foreign_key('marketing_materials_officer_id_fkey', 'marketing_materials', 'users', ['officer_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('officer_monthly_targets_officer_id_fkey', 'officer_monthly_targets', type_='foreignkey')
+    op.create_foreign_key('officer_monthly_targets_officer_id_fkey', 'officer_monthly_targets', 'users', ['officer_id'], ['id'], ondelete='CASCADE')
+    op.drop_constraint('location_consent_acceptances_user_id_fkey', 'location_consent_acceptances', type_='foreignkey')
+    op.create_foreign_key('location_consent_acceptances_user_id_fkey', 'location_consent_acceptances', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+

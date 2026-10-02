@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>VBT One Handover</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+/* Layout: one reading column with a sticky section rail from 960px up.
+   Findings are an enumerated, filterable list; wide tables scroll inside
+   their own box so the page body never moves sideways. */
+:root{
+  --paper:#f6f4f2;
+  --surface:#ffffff;
+  --surface-2:#faf8f7;
+  --ink:#1c1917;
+  --ink-soft:#57514c;
+  --ink-faint:#8a817a;
+  --line:#e4dfda;
+  --line-strong:#cdc5bd;
+  --accent:#9f1d1d;
+  --accent-ink:#9f1d1d;
+  --accent-wash:#fbe9e7;
+  --ok:#186a3b;
+  --ok-wash:#e4f2e9;
+  --warn:#8a5206;
+  --warn-wash:#fbeed9;
+  --alert:#a8201a;
+  --alert-wash:#fbe4e2;
+  --shadow:0 1px 2px rgba(28,25,23,.05), 0 8px 24px -16px rgba(28,25,23,.28);
+  --display:"IBM Plex Sans Condensed", "Helvetica Neue", Arial, sans-serif;
+  --body:"IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#171514;
+    --surface:#201d1b;
+    --surface-2:#262220;
+    --ink:#f2ede9;
+    --ink-soft:#c0b7b0;
+    --ink-faint:#8e837c;
+    --line:#332e2b;
+    --line-strong:#4a423d;
+    --accent:#e87a75;
+    --accent-ink:#f0a2a2;
+    --accent-wash:#3a1d1c;
+    --ok:#6fcf97;
+    --ok-wash:#17301f;
+    --warn:#e0a45c;
+    --warn-wash:#33260f;
+    --alert:#ef8177;
+    --alert-wash:#3a1a18;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#171514;
+  --surface:#201d1b;
+  --surface-2:#262220;
+  --ink:#f2ede9;
+  --ink-soft:#c0b7b0;
+  --ink-faint:#8e837c;
+  --line:#332e2b;
+  --line-strong:#4a423d;
+  --accent:#e87a75;
+  --accent-ink:#f0a2a2;
+  --accent-wash:#3a1d1c;
+  --ok:#6fcf97;
+  --ok-wash:#17301f;
+  --warn:#e0a45c;
+  --warn-wash:#33260f;
+  --alert:#ef8177;
+  --alert-wash:#3a1a18;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:16px;
+  line-height:1.62;
+  margin:0;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{
+  max-width:1180px;
+  margin:0 auto;
+  padding-inline:20px;
+  padding-block:0 72px;
+}
+h1,h2,h3,h4{font-family:var(--display); text-wrap:balance; margin:0; line-height:1.18}
+p{margin:0}
+a{color:var(--accent-ink)}
+code,kbd{font-family:var(--mono); font-size:.86em}
+code{background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:.08em .34em}
+
+/* ---------- masthead ---------- */
+.masthead{
+  border-bottom:2px solid var(--ink);
+  padding-block:56px 22px;
+  display:flex; flex-wrap:wrap; gap:28px; align-items:flex-end; justify-content:space-between;
+}
+.masthead .lede{min-width:0; flex:1 1 420px}
+.eyebrow{
+  font-family:var(--display); font-weight:600; font-size:12px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent-ink);
+  margin-bottom:12px;
+}
+h1{font-size:clamp(36px,6.2vw,60px); font-weight:700; letter-spacing:-.015em}
+.sub{margin-top:14px; color:var(--ink-soft); max-width:62ch; font-size:17px}
+.stamp{
+  font-family:var(--mono); font-size:12px; color:var(--ink-faint);
+  text-align:right; line-height:1.9; flex:0 0 auto;
+}
+.stamp b{display:block; color:var(--ink); font-weight:500; font-size:13px}
+
+/* ---------- headline figures ---------- */
+.figures{
+  display:grid; gap:1px; background:var(--line);
+  grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
+  border:1px solid var(--line); margin-top:34px;
+}
+.fig{background:var(--surface); padding:20px 20px 18px; min-width:0}
+.fig .n{
+  font-family:var(--display); font-weight:700; font-size:34px; line-height:1;
+  font-variant-numeric:tabular-nums; letter-spacing:-.02em;
+}
+.fig .k{
+  font-family:var(--display); font-size:11px; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--ink-faint); margin-top:9px;
+}
+.fig.good .n{color:var(--ok)}
+.fig.act .n{color:var(--alert)}
+
+/* ---------- body grid ---------- */
+.grid{display:grid; grid-template-columns:minmax(0,1fr); gap:0}
+/* Base state first: a later bare rule would override the media query and
+   hide the rail at every width, leaving `main` as the only grid item and
+   collapsing it into the narrow track. */
+.rail{display:none; padding-top:52px}
+@media (min-width:960px){
+  .grid{grid-template-columns:196px minmax(0,1fr); gap:56px; align-items:start}
+  .rail{display:block; position:sticky; top:calc(env(safe-area-inset-top,0px) + 24px)}
+}
+.rail p{
+  font-family:var(--display); font-size:11px; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px;
+}
+.rail a{
+  display:block; font-family:var(--display); font-size:14px; font-weight:500;
+  color:var(--ink-soft); text-decoration:none; padding:5px 0 5px 12px;
+  border-left:2px solid var(--line); transition:color .15s, border-color .15s;
+}
+.rail a:hover,.rail a:focus-visible{color:var(--accent-ink); border-left-color:var(--accent)}
+
+section{padding-top:52px; scroll-margin-top:24px}
+h2{
+  font-size:26px; font-weight:700; letter-spacing:-.01em;
+  padding-bottom:10px; border-bottom:1px solid var(--line-strong);
+}
+.intro{margin-top:16px; color:var(--ink-soft); max-width:66ch}
+.body-col{min-width:0}
+
+/* ---------- tables ---------- */
+.tscroll{overflow-x:auto; margin-top:22px; border:1px solid var(--line); background:var(--surface)}
+table{border-collapse:collapse; width:100%; font-size:14.5px; min-width:480px}
+th,td{text-align:left; padding:11px 15px; border-bottom:1px solid var(--line); vertical-align:top}
+th{
+  font-family:var(--display); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-faint); font-weight:600; background:var(--surface-2); white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:none}
+td.num{font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+
+/* ---------- filter ---------- */
+.filter{display:flex; flex-wrap:wrap; gap:8px; margin-top:24px; align-items:center}
+.filter .lbl{
+  font-family:var(--display); font-size:11px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-faint); margin-right:4px;
+}
+.chip{
+  font-family:var(--display); font-size:13px; font-weight:500;
+  border:1px solid var(--line-strong); background:var(--surface);
+  color:var(--ink-soft); border-radius:999px; padding:5px 14px; cursor:pointer;
+  transition:background .15s, color .15s, border-color .15s;
+}
+.chip:hover{border-color:var(--ink-faint)}
+.chip[aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+.chip:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+/* ---------- findings ---------- */
+.findings{display:flex; flex-direction:column; gap:2px; margin-top:20px}
+.find{
+  background:var(--surface); border:1px solid var(--line);
+  padding:22px 22px 20px; display:grid; gap:12px;
+  grid-template-columns:auto 1fr; align-items:start; min-width:0;
+}
+.find .idx{
+  font-family:var(--mono); font-size:12px; color:var(--ink-faint);
+  padding-top:5px; font-variant-numeric:tabular-nums;
+}
+.find .main{min-width:0; display:flex; flex-direction:column; gap:10px}
+.find h3{font-size:19px; font-weight:600; letter-spacing:-.005em}
+.find p{color:var(--ink-soft); max-width:70ch}
+.find .why{
+  border-left:2px solid var(--accent); padding-left:14px;
+  color:var(--ink); font-style:italic;
+}
+.tag{
+  display:inline-flex; align-items:center; gap:6px; align-self:flex-start;
+  font-family:var(--display); font-size:11px; font-weight:600;
+  letter-spacing:.08em; text-transform:uppercase;
+  padding:3px 9px; border-radius:3px;
+}
+.tag.fixed{background:var(--ok-wash); color:var(--ok)}
+.tag.config{background:var(--warn-wash); color:var(--warn)}
+.tag.open{background:var(--alert-wash); color:var(--alert)}
+.ev{
+  font-family:var(--mono); font-size:12.5px; color:var(--ink-faint);
+  border-top:1px dashed var(--line-strong); padding-top:10px; margin-top:2px;
+}
+.ev b{color:var(--ink-soft); font-weight:500}
+
+pre{
+  font-family:var(--mono); font-size:13px; line-height:1.6;
+  background:var(--surface-2); border:1px solid var(--line);
+  padding:14px 16px; overflow-x:auto; margin:16px 0 0; color:var(--ink);
+}
+pre .c{color:var(--ink-faint)}
+
+/* ---------- open items ---------- */
+.openwrap{display:grid; gap:18px; margin-top:24px; grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.opencard{background:var(--surface); border:1px solid var(--line); padding:20px; min-width:0}
+.opencard h3{font-size:16px; font-weight:600; margin-bottom:12px}
+.opencard ul{margin:0; padding-left:18px; color:var(--ink-soft); font-size:15px; display:grid; gap:9px}
+
+/* ---------- steps ---------- */
+ol.steps{margin:22px 0 0; padding-left:0; list-style:none; counter-reset:s; display:grid; gap:14px}
+ol.steps li{
+  counter-increment:s; position:relative; padding-left:42px; color:var(--ink-soft); min-width:0;
+}
+ol.steps li::before{
+  content:counter(s); position:absolute; left:0; top:1px;
+  font-family:var(--mono); font-size:12px; color:var(--accent-ink);
+  border:1px solid var(--line-strong); border-radius:50%;
+  width:26px; height:26px; display:grid; place-items:center; background:var(--surface);
+}
+ol.steps li b{color:var(--ink); font-family:var(--display); font-weight:600}
+
+.callout{
+  border:1px solid var(--alert); background:var(--alert-wash);
+  padding:16px 18px; margin-top:24px; display:flex; gap:12px; align-items:flex-start;
+}
+.callout .t{
+  font-family:var(--display); font-weight:700; font-size:11px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--alert); flex:0 0 auto; padding-top:2px;
+}
+.callout p{color:var(--ink); max-width:62ch}
+
+.script{display:grid; gap:26px; margin-top:26px}
+.part{border-top:1px solid var(--line-strong); padding-top:18px; min-width:0}
+.part .h{display:flex; flex-wrap:wrap; gap:10px; align-items:baseline; justify-content:space-between}
+.part h3{font-size:18px; font-weight:600}
+.part .dur{font-family:var(--mono); font-size:12px; color:var(--ink-faint); white-space:nowrap}
+.part p{color:var(--ink-soft); margin-top:9px; max-width:68ch}
+.part ol{margin:12px 0 0; padding-left:20px; color:var(--ink-soft); display:grid; gap:7px}
+.say{
+  margin-top:13px; padding:12px 15px; background:var(--accent-wash);
+  border-left:3px solid var(--accent); color:var(--ink); font-style:italic; max-width:66ch;
+}
+
+footer{
+  margin-top:64px; padding-top:20px; border-top:2px solid var(--ink);
+  font-family:var(--mono); font-size:12px; color:var(--ink-faint);
+  display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between;
+}
+@media (prefers-reduced-motion: reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="lede">
+      <div class="eyebrow">Vishakan Biotech &middot; Field Force Platform</div>
+      <h1>VBT One Handover</h1>
+      <p class="sub">What was verified, what was broken, and what is still open — after standing the whole stack up, migrating an empty database, seeding it, running the suite, and driving the admin portal in a real browser.</p>
+    </div>
+    <div class="stamp">
+      <b>29 September 2026</b>
+      backend · web · mobile<br>
+      FastAPI / Next.js / Expo<br>
+      PostgreSQL 16 + PostGIS
+    </div>
+  </header>
+
+  <div class="figures">
+    <div class="fig good"><div class="n">191</div><div class="k">Tests passing</div></div>
+    <div class="fig"><div class="n">14</div><div class="k">Defects fixed</div></div>
+    <div class="fig"><div class="n">7</div><div class="k">Returned 500 in use</div></div>
+    <div class="fig act"><div class="n">1</div><div class="k">Must change on deploy</div></div>
+  </div>
+
+  <div class="grid">
+    <nav class="rail" aria-label="Sections">
+      <p>Contents</p>
+      <a href="#verified">Verified</a>
+      <a href="#findings">Findings</a>
+      <a href="#crud">CRUD coverage</a>
+      <a href="#open">Still open</a>
+      <a href="#deploy">Deployment</a>
+      <a href="#demo">Demo script</a>
+    </nav>
+
+    <main class="body-col">
+
+      <section id="verified">
+        <h2>Verified state</h2>
+        <p class="intro">Nothing in this report is inferred from reading code. Every row below was executed, and the result is what the system actually returned.</p>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>Check</th><th>Result</th></tr></thead>
+            <tbody>
+              <tr><td>Migrations on an empty database</td><td>60 migrations, clean, 97 tables</td></tr>
+              <tr><td>Backend test suite</td><td class="num">191 passed, 1 skipped — stable over three consecutive runs</td></tr>
+              <tr><td>TypeScript</td><td><code>tsc --noEmit</code> clean</td></tr>
+              <tr><td>Frontend production build</td><td>clean, 14 routes</td></tr>
+              <tr><td>Every admin page loaded in a browser</td><td>no 5xx, no uncaught page errors</td></tr>
+              <tr><td>Login throttling, in a browser</td><td>6 wrong passwords throttle; another account on the same address still signs in; 6 correct sign-ins in a row all succeed</td></tr>
+              <tr><td>CORS</td><td>an unlisted origin is refused in development and production</td></tr>
+              <tr><td>Production config guard</td><td>refuses to boot on unsafe settings, accepts a correct one</td></tr>
+              <tr><td>Stock loop, driven through the real UI</td><td class="num">issue 50 → My Stock 50 → trial of 5 → 45 → both movements in Stock History</td></tr><tr><td>Stock loop, end to end over HTTP</td><td class="num">issue 50 → give 5 → reads 45; overdraw of 999 refused, balance unchanged</td></tr>
+              <tr><td>Packaged build re-verified from a fresh extract</td><td>migrate, seed, suite — twice, into an empty database</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="intro" style="margin-top:18px">The single skip is <code>test_working_hours_logout.py</code>, which is only meaningful after working hours on a working day. It skips by design, not by failure.</p>
+      </section>
+
+      <section id="findings">
+        <h2>Findings</h2>
+        <p class="intro">Seven of these returned a 500 to a real user. None of them failed a test — which is the reason they survived this long, and why the last two were only found by driving the actual screens.</p>
+
+        <div class="filter" role="group" aria-label="Filter findings">
+          <span class="lbl">Show</span>
+          <button class="chip" data-f="all" aria-pressed="true">All 14</button>
+          <button class="chip" data-f="fixed" aria-pressed="false">Code fixed</button>
+          <button class="chip" data-f="config" aria-pressed="false">Config &amp; secrets</button>
+        </div>
+
+        <div class="findings" id="findings-list">
+
+          <article class="find" data-k="fixed">
+            <div class="idx">01</div>
+            <div class="main">
+              <span class="tag fixed">Fixed</span>
+              <h3>Deleting a farmer or dealer returned 500</h3>
+              <p><code>visits.farmer_id</code> was <code>ON DELETE SET NULL</code> while <code>check_visit_target</code> required it to be non-null. The two constraints contradicted each other, so deleting any farmer who had ever been visited raised a check violation and the request died. The delete could never have succeeded.</p>
+              <p class="why">The endpoint also checked nothing, logged nothing, and returned <code>{"status":"success"}</code> for a farmer that did not exist.</p>
+              <p>Foreign keys are now <code>RESTRICT</code>, matching the policy already used for the other history tables. The endpoint archives a farmer who has visits, deletes one who has none, 404s on a missing id, and writes an audit entry either way.</p>
+              <div class="ev"><b>Evidence:</b> migration 202609290001 · test_farmer_delete.py, 3 tests</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="fixed">
+            <div class="idx">02</div>
+            <div class="main">
+              <span class="tag fixed">Fixed</span>
+              <h3>Roster status returned 500 on every call</h3>
+              <p>A fix for the UTC day-boundary bug added <code>from app.domain.services.time_utils import …</code> inside the function body. That module does not exist. <code>timedelta</code> was never imported either.</p>
+              <p class="why">Because the import was nested in the function, it only failed when a request arrived — so it passed every import check and the entire test suite. In the browser it surfaced as a CORS error, because the 500 carried no CORS headers, which hid the real cause completely.</p>
+              <p>A source guard now resolves every import target in every router and fails on one that points at nothing. It was confirmed by reintroducing the exact bug, then removing it again.</p>
+              <div class="ev"><b>Evidence:</b> test_dashboard_endpoints_smoke.py · guard proven to fail and pass</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="fixed">
+            <div class="idx">03</div>
+            <div class="main">
+              <span class="tag fixed">Fixed</span>
+              <h3>Refreshing any page logged the admin out</h3>
+              <p><code>GET /auth/me</code> answered a missing token with <strong>403</strong> — FastAPI's <code>HTTPBearer</code> default. The web client only attempts a silent token refresh on <strong>401</strong>, so after any reload the refresh never fired and the user was returned to the login screen. Bookmarks and deep links never worked.</p>
+              <p><code>get_current_user</code> now raises 401 itself; 403 stays reserved for "authenticated but not permitted".</p>
+              <div class="ev"><b>Evidence:</b> confirmed in a real browser · test_auth_flow.py</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="fixed">
+            <div class="idx">04</div>
+            <div class="main">
+              <span class="tag fixed">Fixed</span>
+              <h3>An invalid visit purpose returned 500</h3>
+              <p>The API schema did not constrain the field, so an unexpected value reached Postgres and tripped <code>ck_visit_trial_purpose</code>. Officers saw a bare 500. The schema now mirrors the constraint and returns a 422 naming the allowed values. <code>trial_plot_size_cents</code> was <code>ge=0</code> against a database constraint of <code>&gt; 0</code>; also corrected.</p>
+              <p class="why">An existing test had been passing on a coincidence — its payload carried an invalid purpose, and the stock check happened to answer 400 before the row reached the database. Its payload is now valid, so it tests what its name says.</p>
+              <div class="ev"><b>Evidence:</b> test_stock_walkthrough.py</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="fixed">
+            <div class="idx">05</div>
+            <div class="main">
+              <span class="tag fixed">Fixed</span>
+              <h3>The login screen rejected correct passwords</h3>
+              <p>"Select Your Role" defaulted to Field Officer. An admin entering the right credentials was logged in, the app compared the account's real role to the dropdown, logged them straight back out, and showed <em>"This account is registered as a Admin."</em></p>
+              <p>The dropdown gated nothing — roles are enforced server-side — and could only ever cost a login. Removed.</p>
+              <div class="ev"><b>Evidence:</b> login verified in a browser after the change</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="fixed">
+            <div class="idx">06</div>
+            <div class="main">
+              <span class="tag fixed">Fixed</span>
+              <h3>Seven tables belonged to a different product</h3>
+              <p>The repository was scaffolded from an <em>MCP Server Risk Scanner</em> project and its migrations came along: <code>mcp_servers</code>, <code>tool_capabilities</code>, <code>risk_findings</code>, <code>risk_cards</code>, <code>governance_recommendations</code>, <code>alerts</code>, <code>connections</code>, <code>policies</code>. No file under <code>app/</code> referenced any of them. The two Marketing tables were also still present after that module was cut.</p>
+              <p class="why">The app identified itself as <code>APP_NAME="MCP Server Risk Scanner"</code>, and the browser stored its session under <code>mcp_scanner_refresh_token</code>. Both renamed.</p>
+              <div class="ev"><b>Evidence:</b> migration 202609290002 — ten tables dropped in dependency order</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="fixed">
+            <div class="idx">07</div>
+            <div class="main">
+              <span class="tag fixed">Fixed</span>
+              <h3>The demo seed could only ever run once</h3>
+              <p>It cleared tables from a hand-written list, so the first table it missed (<code>kudos</code>) made <code>DELETE FROM users</code> fail on a foreign key and rolled the whole seed back. It now asks <code>pg_constraint</code> which tables actually block a delete and clears those, leaving the day-closure form configuration that migrations own intact.</p>
+              <div class="ev"><b>Evidence:</b> run three times in a row, config row counts unchanged</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="fixed">
+            <div class="idx">08</div>
+            <div class="main">
+              <span class="tag fixed">Fixed</span>
+              <h3>Smaller corrections</h3>
+              <p>An over-broad fixture ran <code>DELETE FROM farmers WHERE name = 'Test Farmer'</code> across all modules, taking eight unrelated tests down with it. A test pointed at <code>/api/v1/daily-visit-tracker/…</code> when the real route is <code>/api/v1/visits/daily-tracker/…</code> and had been left failing. <code>bcrypt</code> pinned to 4.0.1, which stops a trapped stack trace on every password hash. Off-brand indigo and blue primary buttons brought to the maroon brand colour. Missing <code>alt</code> on visit photos. Login fields given real autocomplete values.</p>
+              <p class="why">About 50 <code>patch_*.py</code> scratch files, ad-hoc debug scripts, a committed virtualenv and a committed build output removed — the tree went from 895&nbsp;MB to roughly 5&nbsp;MB excluding dependencies.</p>
+              <div class="ev"><b>Evidence:</b> <code>.gitignore</code> extended so none of it returns</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="config">
+            <div class="idx">09</div>
+            <div class="main">
+              <span class="tag config">Config</span>
+              <h3>Brute-force protection was off in code, not just in the env file</h3>
+              <p>Settings declared 5000 attempts per 1 second. That is the limiter switched off, and it applied even with no <code>.env</code> present — so a clean deployment inherited it.</p>
+              <p class="why">Tightening the numbers alone would have made things worse. The counter was keyed on client IP, and officers reach the API over mobile networks that put a whole region behind a few addresses: a five-attempt IP limit would let one colleague's typo lock out the rest. It was also too weak in the other direction, since an attacker simply rotates addresses.</p>
+              <p>Throttling now counts <strong>failures, not sign-ins</strong>. The dependency in front of login reads the counters; the increment happens on the failure path. A correct password costs nothing and clears the account's counter. Five failures per five minutes per account; one hundred per source address; Redis unreachable fails open, because a limiter that cannot reach its store must not lock out the field force.</p>
+              <div class="ev"><b>A wrong first attempt, recorded because it is the useful part:</b> the first version counted every attempt against a 50-per-5-minutes IP bucket. It passed in isolation, then failed when the packaged build was re-verified from scratch — ordinary sign-ins exhausted the bucket and cascaded into 17 failures. In the field that is a district checking in at nine in the morning.</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="config">
+            <div class="idx">10</div>
+            <div class="main">
+              <span class="tag config">Config</span>
+              <h3>The CORS allowlist did nothing</h3>
+              <p>An <code>allow_origin_regex</code> of <code>https?://.*</code> sat next to the allowlist. Starlette treats the regex as an OR, and that pattern matches every origin there is — so the allowlist was decorative and, with credentials enabled, any site a signed-in admin visited could call this API with their session.</p>
+              <p>The regex is gone. Outside production a narrow localhost pattern remains so development servers on arbitrary ports still work.</p>
+              <div class="ev"><b>Evidence:</b> unlisted origin refused in both environments · test_security_config.py</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="config">
+            <div class="idx">11</div>
+            <div class="main">
+              <span class="tag config">Config</span>
+              <h3>Secrets regenerated</h3>
+              <p>The development <code>.env</code> has a freshly generated JWT key and the corrected login limits. The key that was committed to the repository's history is no longer in use — anyone with a copy of that history could mint a valid admin token with it.</p>
+              <p><code>backend/.env.production.example</code> is filled in and ready: production environment, debug off, correct limits, a separate generated JWT key and a generated database password.</p>
+              <p class="why">Those keys travelled through a chat and a zip. Regenerate on the server with <code>openssl rand -hex 32</code> if you want one that has never left the machine. Rotating the JWT key signs out every existing session — harmless before launch.</p>
+              <div class="ev"><b>Evidence:</b> shipped <code>.env</code> confirmed to differ from the committed key</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="config">
+            <div class="idx">12</div>
+            <div class="main">
+              <span class="tag config">Config</span>
+              <h3>A startup guard, so none of this regresses quietly</h3>
+              <p>In production the app now refuses to start when debug is on, the JWT key is a known example or shorter than 32 characters, the login limit is above 10 attempts or the window under 60 seconds, or the CORS list holds a wildcard. It fails at boot with the specific reasons listed. Development is never blocked.</p>
+              <p class="why">Every one of those values was live in the shipped <code>.env</code> at least once. None of them break anything visibly — the app starts, the login page loads, and the weakness is invisible until it is exploited. Boot is the only moment it reliably gets noticed.</p>
+              <div class="ev"><b>Evidence:</b> test_security_config.py — each unsafe setting refused, a correct one accepted</div>
+            </div>
+          </article>
+
+          <article class="find" data-k="fixed">
+            <div class="idx">13</div>
+            <div class="main">
+              <span class="tag fixed">Fixed</span>
+              <h3>Sixteen business rules reached the user as server crashes</h3>
+              <p><code>raise ValueError("You have already checked in for today.")</code> — and fifteen more like it across the application layer. No handler mapped <code>ValueError</code>, so every one fell through to the catch-all and the officer was shown <em>"An unexpected error occurred. Our team has been notified."</em></p>
+              <p class="why">The messages were already written for a person, and none of them ever arrived. An officer who taps check-in twice, or whose first request succeeded while the reply was lost on a rural connection, saw a crash instead of an explanation.</p>
+              <p>Two domain exceptions were added and all sixteen sites converted — 409 where the request would duplicate something, 400 otherwise. A source guard fails the build if a bare <code>ValueError</code> reappears in the application layer.</p>
+              <div class="ev"><b>Found by:</b> driving the real UI, not by reading code — the check-in call returned 500 with a perfectly good message behind it. <b>Now:</b> <code>409 {"message": "You have already checked in for today."}</code></div>
+            </div>
+          </article>
+
+          <article class="find" data-k="fixed">
+            <div class="idx">14</div>
+            <div class="main">
+              <span class="tag fixed">Fixed</span>
+              <h3>The Stock History screen was permanently blank</h3>
+              <p><code>GET /stock/ledger</code> with no <code>officer_id</code> fell back to the caller's own id. Admins hold no stock, so an admin asking for the whole movement history was silently asking for their own and always got an empty list — and the History tab calls it exactly that way.</p>
+              <p class="why">The movement audit trail, which is the thing that makes an append-only ledger worth having, could not be reached from the UI at all. The docstring said "admin/manager see anyone's". The code never did.</p>
+              <p>An officer now sees their own, an admin a named officer's or — with no filter — everyone's. Widening the admin case did not widen the officer case: an officer passing someone else's id still gets only their own.</p>
+              <div class="ev"><b>Evidence:</b> History now lists the +50 allocation and the −5 trial with the officer's name · two tests, both confirmed to fail when the old line is restored</div>
+            </div>
+          </article>
+
+        </div>
+      </section>
+
+      <section id="crud">
+        <h2>CRUD coverage</h2>
+        <p class="intro">227 registered API routes. Every business entity has create, read, update and delete reachable from the admin portal, with four deliberate exceptions.</p>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>Table</th><th>Missing</th><th>Why it should stay missing</th></tr></thead>
+            <tbody>
+              <tr><td><code>stock_ledger</code></td><td>update, delete</td><td>Append-only by design. A balance is the sum of movements, so a correction is a compensating row and drift is not representable.</td></tr>
+              <tr><td><code>audit_logs</code></td><td>update, delete</td><td>An audit trail an admin can edit is not an audit trail.</td></tr>
+              <tr><td><code>gps_tracks</code></td><td>update, delete</td><td>Location history is evidence. The retention job deletes it on a schedule; nothing edits it.</td></tr>
+              <tr><td><code>attendance</code></td><td>update, delete</td><td>Check-in and check-out are events, not editable records.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="open">
+        <h2>Still open</h2>
+        <p class="intro">None of this blocks a submission. None of it should be described as done.</p>
+        <div class="openwrap">
+          <div class="opencard">
+            <h3>Design decisions not made for you</h3>
+            <ul>
+              <li>Sub-pages lose the navigation. Overview has the maroon header and the sidebar; Field Network has neither; Products has a dark navy header. Three page chromes — the most visible inconsistency in the product.</li>
+              <li>At 1440px the Overview content column stops around 770px, leaving a wide empty band. Other pages run full width.</li>
+              <li>On Field Network, <strong>Delete is the only action on a farmer card</strong>, and its red tint makes it the most prominent thing on the row. There is no view or edit.</li>
+            </ul>
+          </div>
+          <div class="opencard">
+            <h3>Not done</h3>
+            <ul>
+              <li><code>dashboard/page.tsx</code> is 5,096 lines. It builds and works, but every change to it carries more risk than it needs to.</li>
+              <li>No automated tests for the frontend or the mobile app. All 187 are backend.</li>
+              <li>The mobile app was not built or run — no Android toolchain was available. Its code was not changed.</li>
+              <li><strong>Admin password viewing was never implemented.</strong> Existing passwords are bcrypt-hashed and unrecoverable by anyone, including you.</li>
+            </ul>
+          </div>
+          <div class="opencard">
+            <h3>Play Store</h3>
+            <ul>
+              <li>60–90 second demo video on an API-34 build, showing the disclosure before the OS permission prompt.</li>
+              <li>Background-location and precise-location declarations.</li>
+              <li>A permanent reviewer test account.</li>
+              <li>Store description and privacy policy URL.</li>
+              <li>Managed Google Play private distribution.</li>
+            </ul>
+          </div>
+        </div>
+        <p class="intro" style="margin-top:20px">The GPS retention job <em>is</em> scheduled — the <code>scheduler</code> service in <code>docker-compose.yml</code> runs it daily at 02:00 IST.</p>
+      </section>
+
+      <section id="deploy">
+        <h2>Deployment</h2>
+        <div class="callout">
+          <span class="t">Do first</span>
+          <p><code>CORS_ALLOWED_ORIGINS</code> still reads <code>http://localhost:3000</code>. It is the one value in the production template that is certainly wrong, and the API will refuse the real portal until it is changed.</p>
+        </div>
+        <ol class="steps">
+          <li><b>Copy the template.</b> <code>cp backend/.env.production.example backend/.env</code></li>
+          <li><b>Set the portal origin.</b> The real domain, not localhost.</li>
+          <li><b>Match the database password</b> on the Postgres service.</li>
+          <li><b>Optionally regenerate</b> the JWT key and database password with <code>openssl rand -hex 32</code>, so neither has ever left the server.</li>
+          <li><b>Set a Redis password</b> and keep Redis off the public network — it holds live officer positions and refresh-token state.</li>
+          <li><b>Build and start.</b> If the backend refuses to boot, read the error: the guard lists exactly which settings it objected to. That is the guard working, not a failed deploy.</li>
+          <li><b>Migrate.</b> <code>docker compose exec backend alembic upgrade head</code></li>
+          <li><b>Create the real admin account</b> and change every seeded password. The demo accounts and their shared password are published in the demo script below.</li>
+        </ol>
+        <pre><span class="c"># the whole thing, from a clean machine</span>
+docker compose up -d postgres redis
+docker compose up -d --build backend frontend scheduler
+docker compose exec backend alembic upgrade head
+docker compose exec backend python -m pytest tests/ -q</pre>
+        <p class="intro" style="margin-top:14px"><strong>demo_seed.py has been removed from this production handover.</strong> It created the 8 demo accounts below with a single shared password - safe for a throwaway dev database, not for anything that will hold real data. If it was ever run against this installation's database, run <code>python3 scripts/purge_demo_accounts.py --confirm</code> now to deactivate those accounts before going live.</p>
+      </section>
+
+      <section id="demo">
+        <h2>Demo script</h2>
+        <p class="intro">A twelve-minute walkthrough. Every step was run against the real stack; the expected values are what the system returned, not what it ought to return.</p>
+
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>Role</th><th>Email</th><th>Employee ID</th></tr></thead>
+            <tbody>
+              <tr><td>Administrator</td><td class="num">admin@vishakan.com</td><td class="num">VB-0001</td></tr>
+              <tr><td>Regional Manager</td><td class="num">manager@vishakan.com</td><td class="num">VB-0002</td></tr>
+              <tr><td>Field Officer</td><td class="num">karthik@vishakan.com</td><td class="num">VB-1002</td></tr>
+              <tr><td>Field Officer</td><td class="num">suresh@vishakan.com</td><td class="num">VB-1003</td></tr>
+              <tr><td>Sales Officer</td><td class="num">dinesh@vishakan.com</td><td class="num">VB-1004</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="intro" style="margin-top:14px">These were the demo accounts' credentials while this walkthrough was being developed against a dev database. <strong>They are not valid for a production installation</strong> - demo_seed.py has been removed, and <code>scripts/purge_demo_accounts.py</code> deactivates these exact accounts if they exist in a database you are about to put into production.</p>
+
+        <div class="script">
+
+          <div class="part">
+            <div class="h"><h3>What the CEO sees</h3><span class="dur">2 min</span></div>
+            <p>Sign in as the administrator. Point at three things and move on: <strong>Active Officers</strong>, how many of the field force are checked in right now; <strong>Needs attention</strong>, unresolved crop-disease questions and plans awaiting approval; and <strong>Live officer tracking</strong>, which opens the map.</p>
+            <p>Needs attention is a work queue, not an alert list. It persists until someone acts, which is the point — it does not reset overnight.</p>
+            <div class="say">This screen is built from what officers actually did today, not from what anyone typed into a report.</div>
+          </div>
+
+          <div class="part">
+            <div class="h"><h3>Stock, the part that has to be right</h3><span class="dur">4 min</span></div>
+            <p>The strongest sequence in the demo, because one number moves through three screens and stays consistent.</p>
+            <ol>
+              <li>Admin Stock → Issue Stock. Choose Dinesh Prabhu, enter <strong>50</strong> against Bio-NPK Liquid, submit.</li>
+              <li>Sign in as Dinesh in a second browser profile or on the phone. My Stock reads <strong>50</strong>.</li>
+              <li>Log a visit from the Daily Visit Tracker. Mark it a trial, give <strong>5</strong> units.</li>
+              <li>Re-open My Stock. It reads <strong>45</strong>.</li>
+              <li>Back as admin, Admin Stock → History shows both movements, each with who did it and when.</li>
+            </ol>
+            <p>Then show the guard: as Dinesh, try to give <strong>999</strong> units. The submission is refused and the balance is still 45 — nothing was written.</p>
+            <div class="say">An officer's stock is not a number we store and hope stays right. It is the sum of every movement ever recorded, so it cannot drift out of step with the history.</div>
+          </div>
+
+          <div class="part">
+            <div class="h"><h3>The field officer's day</h3><span class="dur">3 min</span></div>
+            <p>Sign in as Karthik. Check in — the app asks for location permission with a plain-language disclosure first, and explains that tracking stops at check-out. Walk through a farmer visit in the Daily Visit Tracker: farmer details, crop, what was observed, any trial given, photos. Then Day Closure: distance travelled, expenses, what was completed.</p>
+            <p>Back as admin, open Daily Visit Reports to show the same visit from the other side, and Movement History to replay the officer's route.</p>
+          </div>
+
+          <div class="part">
+            <div class="h"><h3>Admin control</h3><span class="dur">3 min</span></div>
+            <ol>
+              <li><strong>User Management</strong> — create an officer, edit, disable, delete. A user with history is archived rather than destroyed, and the app says so. The last remaining admin cannot be deleted.</li>
+              <li><strong>Products</strong> — add a product, then issue stock against it immediately.</li>
+              <li><strong>Day Closure Form Builder</strong> — add a field and show it appearing on the officer's side.</li>
+              <li><strong>Knowledge Base</strong> — an expert's answer to a crop-disease question is published automatically, so the same question from another officer is already answered.</li>
+            </ol>
+            <div class="say">Every figure on the admin screens traces back to a specific action by a specific officer at a specific time. There is no separate reporting step to fall behind.</div>
+          </div>
+
+        </div>
+
+        <h3 style="margin-top:34px; font-size:17px; font-weight:600">If something looks wrong during the demo</h3>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>Symptom</th><th>Cause</th><th>What to do</th></tr></thead>
+            <tbody>
+              <tr><td>"Insufficient stock … Available: 0.0"</td><td>The officer has no stock issued yet.</td><td>Admin Stock → Issue Stock. This is step 1 for a reason — the seed deliberately leaves balances at zero.</td></tr>
+              <tr><td>Login rejected for a correct password</td><td>Five failed attempts within five minutes on that account.</td><td>Wait out the window, or clear the Redis key.</td></tr>
+              <tr><td>Map shows nothing</td><td>Live positions live in Redis, which is empty after a restart.</td><td>Have an officer check in, or re-run the seed.</td></tr>
+              <tr><td>Officer shows "Never reported"</td><td>Intentional — the seed includes one live officer, one stale, one that never reported.</td><td>Nothing to fix.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="margin-top:30px; font-size:17px; font-weight:600">Reset between demos (dev/staging only - not for this production handover)</h3>
+        <p class="intro" style="margin-top:12px">demo_seed.py has been removed from this production delivery, since it recreates accounts with a single shared password. If you need a disposable demo environment again later, restore the script from an earlier revision of this repo rather than reintroducing it here.</p>
+      </section>
+
+      <footer>
+        <span>VBT One · Field Force Operations Platform</span>
+        <span>Verified 29 September 2026</span>
+      </footer>
+
+    </main>
+  </div>
+</div>
+
+<script>
+(function () {
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+  var cards = Array.prototype.slice.call(document.querySelectorAll('#findings-list .find'));
+  buttons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var want = btn.getAttribute('data-f');
+      buttons.forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
+      cards.forEach(function (card) {
+        card.hidden = !(want === 'all' || card.getAttribute('data-k') === want);
+      });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
