@@ -37,8 +37,23 @@ class LoginUserUseCase:
         self._notification_repository = notification_repository
 
     async def execute(self, data: LoginInput) -> LoginOutput:
+        # BUG FIX: the mobile app's single "Employee ID or Email" field
+        # always posts whatever was typed as `employee_id` - it never
+        # populates `email`, even when the text is clearly an email
+        # address. This use case previously looked up ONLY by employee_id
+        # whenever that field was non-empty, so any mobile login using an
+        # email address failed with "invalid credentials" for any account
+        # whose employee_id column is null. An employee_id containing "@"
+        # is unambiguously not a real employee ID, so it is treated as an
+        # email instead.
         user = None
-        if data.employee_id:
+        if data.employee_id and "@" in data.employee_id:
+            try:
+                email = Email(data.employee_id)
+                user = await self._user_repository.get_by_email(email)
+            except ValueError:
+                user = await self._user_repository.get_by_employee_id(data.employee_id)
+        elif data.employee_id:
             user = await self._user_repository.get_by_employee_id(data.employee_id)
         elif data.email:
             try:
