@@ -23,6 +23,10 @@ module.exports = {
     version: "1.0.0",
     orientation: "portrait",
     userInterfaceStyle: "light",
+    splash: {
+      backgroundColor: "#ffffff",
+      resizeMode: "contain",
+    },
 
     // ------------------------------------------------------------------
     // PHASE 3A ITEM 5 — Android 14 / API 34 target.
