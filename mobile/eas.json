@@ -23,19 +23,19 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "REPLACE_ME_STAGING_API_URL_NOT_YET_DECIDED"
+        "EXPO_PUBLIC_API_URL": "https://app.vishakanbiotech.com/api/v1"
       }
     },
     "production": {
-      "distribution": "store",
+      "distribution": "internal",
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
       },
       "ios": {
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "REPLACE_ME_PRODUCTION_API_URL_NOT_YET_DECIDED"
+        "EXPO_PUBLIC_API_URL": "https://app.vishakanbiotech.com/api/v1"
       }
     }
   }
