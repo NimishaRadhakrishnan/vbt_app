@@ -57,10 +57,44 @@ async def async_insert_gps_track(officer_id: uuid.UUID, payload: LocationPingReq
     """
     async with AsyncSessionLocal() as session:
         if payload.status == "active" and payload.lat is not None and payload.lng is not None:
+            # Reject fixes too poor to be worth drawing on a map before they
+            # ever reach gps_tracks. Two checks, both deliberately
+            # conservative so a real but imperfect reading is never thrown
+            # away: (1) accuracy radius > 500m is dropped outright; (2) an
+            # implausible jump vs. the officer's own last point today
+            # (>2km in <60s, ~120+ km/h) is dropped too - same thresholds
+            # the diagnostics endpoint already uses to flag suspect points.
+            if payload.accuracy is not None and payload.accuracy > 500:
+                return
+
+            prev_row = (
+                await session.execute(
+                    text("""
+                        SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng, recorded_at
+                        FROM gps_tracks
+                        WHERE user_id = :user_id
+                          AND DATE(recorded_at AT TIME ZONE :company_tz) = DATE(:recorded_at AT TIME ZONE :company_tz)
+                        ORDER BY recorded_at DESC
+                        LIMIT 1
+                    """).bindparams(
+                        user_id=officer_id,
+                        company_tz=get_settings().company_timezone,
+                        recorded_at=payload.timestamp,
+                    )
+                )
+            ).first()
+
+            if prev_row and prev_row.lat is not None:
+                gap_seconds = (payload.timestamp - prev_row.recorded_at).total_seconds()
+                if 0 <= gap_seconds < 60:
+                    distance_m = _haversine_meters(prev_row.lat, prev_row.lng, payload.lat, payload.lng)
+                    if distance_m > 2000:
+                        return
+
             await session.execute(
                 text("""
                     INSERT INTO gps_tracks (
-                        id, user_id, recorded_at, location, accuracy, speed, is_idle, 
+                        id, user_id, recorded_at, location, accuracy, speed, is_idle,
                         distance_from_prev, territory_violation, battery_level, created_at
                     )
                     SELECT
