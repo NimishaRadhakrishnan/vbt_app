@@ -57,16 +57,21 @@ async def async_insert_gps_track(officer_id: uuid.UUID, payload: LocationPingReq
     """
     async with AsyncSessionLocal() as session:
         if payload.status == "active" and payload.lat is not None and payload.lng is not None:
-            # Reject fixes too poor to be worth drawing on a map before they
-            # ever reach gps_tracks. Two checks, both deliberately
-            # conservative so a real but imperfect reading is never thrown
-            # away: (1) accuracy radius > 500m is dropped outright; (2) an
-            # implausible jump vs. the officer's own last point today
-            # (>2km in <60s, ~120+ km/h) is dropped too - same thresholds
-            # the diagnostics endpoint already uses to flag suspect points.
-            if payload.accuracy is not None and payload.accuracy > 500:
-                return
-
+            # Only an implausible jump vs. the officer's own last point
+            # today (>2km in <60s, ~120+ km/h - a GPS teleport artifact,
+            # never a real walk/drive) is dropped outright here. A flat
+            # accuracy>500m cutoff used to live here too and was removed:
+            # an officer with a genuinely weak signal (indoors, dense
+            # cover) can report >500m accuracy on every single fix for
+            # their whole shift, and dropping all of them silently erased
+            # their entire Movement History for the day while the live
+            # map still showed them "Active" (that status comes from the
+            # unfiltered Redis cache, not this table) - looking broken
+            # when tracking was in fact working, just imprecise. A real,
+            # if imprecise, point is still worth a breadcrumb on the map;
+            # the diagnostics endpoint already flags low-accuracy pings
+            # for review rather than hiding them, and this now matches
+            # that same stored-but-flagged philosophy instead of erasing.
             prev_row = (
                 await session.execute(
                     text("""
