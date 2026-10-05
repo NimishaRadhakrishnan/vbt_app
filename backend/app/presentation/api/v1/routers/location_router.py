@@ -57,10 +57,49 @@ async def async_insert_gps_track(officer_id: uuid.UUID, payload: LocationPingReq
     """
     async with AsyncSessionLocal() as session:
         if payload.status == "active" and payload.lat is not None and payload.lng is not None:
+            # Only an implausible jump vs. the officer's own last point
+            # today (>2km in <60s, ~120+ km/h - a GPS teleport artifact,
+            # never a real walk/drive) is dropped outright here. A flat
+            # accuracy>500m cutoff used to live here too and was removed:
+            # an officer with a genuinely weak signal (indoors, dense
+            # cover) can report >500m accuracy on every single fix for
+            # their whole shift, and dropping all of them silently erased
+            # their entire Movement History for the day while the live
+            # map still showed them "Active" (that status comes from the
+            # unfiltered Redis cache, not this table) - looking broken
+            # when tracking was in fact working, just imprecise. A real,
+            # if imprecise, point is still worth a breadcrumb on the map;
+            # the diagnostics endpoint already flags low-accuracy pings
+            # for review rather than hiding them, and this now matches
+            # that same stored-but-flagged philosophy instead of erasing.
+            prev_row = (
+                await session.execute(
+                    text("""
+                        SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng, recorded_at
+                        FROM gps_tracks
+                        WHERE user_id = :user_id
+                          AND DATE(recorded_at AT TIME ZONE :company_tz) = DATE(:recorded_at AT TIME ZONE :company_tz)
+                        ORDER BY recorded_at DESC
+                        LIMIT 1
+                    """).bindparams(
+                        user_id=officer_id,
+                        company_tz=get_settings().company_timezone,
+                        recorded_at=payload.timestamp,
+                    )
+                )
+            ).first()
+
+            if prev_row and prev_row.lat is not None:
+                gap_seconds = (payload.timestamp - prev_row.recorded_at).total_seconds()
+                if 0 <= gap_seconds < 60:
+                    distance_m = _haversine_meters(prev_row.lat, prev_row.lng, payload.lat, payload.lng)
+                    if distance_m > 2000:
+                        return
+
             await session.execute(
                 text("""
                     INSERT INTO gps_tracks (
-                        id, user_id, recorded_at, location, accuracy, speed, is_idle, 
+                        id, user_id, recorded_at, location, accuracy, speed, is_idle,
                         distance_from_prev, territory_violation, battery_level, created_at
                     )
                     SELECT

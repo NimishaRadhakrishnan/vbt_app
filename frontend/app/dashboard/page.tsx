@@ -181,6 +181,19 @@ export default function Dashboard() {
   const [routeHistoryOfficerId, setRouteHistoryOfficerId] = useState("");
   const [routeHistoryDate, setRouteHistoryDate] = useState(() => new Date().toISOString().split("T")[0]);
 
+  // BUG FIX: the location-consent disclosure that gates check-in
+  // (backend: require_location_consent on POST /attendance/check-in)
+  // was only ever built for the native mobile app's LocationDisclosure
+  // screen. A field/sales officer using the web dashboard had no way to
+  // ever see or accept it, so "Check In Now" silently 403'd forever -
+  // the button's onClick handler swallows errors with console.error
+  // only, so nothing visible told them why. This state/modal gives the
+  // web app the same consent flow the mobile app already has.
+  const [locationConsent, setLocationConsent] = useState<any>(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [isAcceptingConsent, setIsAcceptingConsent] = useState(false);
+  const [consentError, setConsentError] = useState("");
+
   // Ticks once a second so the "Synced Xs ago" label near the Refresh
   // button stays accurate without needing its own network call.
   useEffect(() => {
@@ -1026,6 +1039,14 @@ export default function Dashboard() {
       fetchUsers(isArchivedTab);
       fetchTasks();
 
+      // Admins are exempt server-side (require_location_consent returns
+      // early for Role.ADMIN) - only field/sales officers ever need this.
+      if (user.role === "field_officer" || user.role === "sales_officer") {
+        apiFetch("/consent/location")
+          .then((status: any) => setLocationConsent(status))
+          .catch((err: any) => console.error("Failed to load location consent status", err));
+      }
+
       // Poll every 5 seconds to receive requests, status changes, and notifications in real-time
       const interval = setInterval(() => {
         fetchDashboardData();
@@ -1251,6 +1272,22 @@ export default function Dashboard() {
   };
 
   const handleWebCheckIn = async () => {
+    // Gate client-side on the consent status we already fetched, so the
+    // officer sees an actual disclosure screen instead of a silent 403.
+    // The server still enforces this independently either way (see
+    // require_location_consent) - this is purely a better experience,
+    // not a security boundary. An officer who somehow slips past this
+    // (e.g. stale/unfetched locationConsent) still gets the 403 catch
+    // below, which now surfaces the real reason instead of eating it.
+    if (
+      (user?.role === "field_officer" || user?.role === "sales_officer") &&
+      (!locationConsent || locationConsent.accepted_version == null ||
+        locationConsent.accepted_version < locationConsent.required_version)
+    ) {
+      setShowConsentModal(true);
+      return;
+    }
+
     setIsCheckingIn(true);
     try {
       const getPosition = (): Promise<GeolocationPosition> => {
@@ -1286,10 +1323,47 @@ export default function Dashboard() {
       });
       // Refresh dashboard after check-in
       fetchDashboardData();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to check in via web", err);
+      // BUG FIX: this previously swallowed every failure silently - the
+      // button just reverted to "Check In Now" with no feedback at all,
+      // which is exactly how the missing-consent 403 presented (see the
+      // comment above this function). A 403 specifically means the
+      // consent check failed server-side (it's the only thing that
+      // returns 403 on this endpoint) - reopen the modal so the officer
+      // can actually resolve it instead of retrying the same click
+      // forever. Any other error is shown directly rather than hidden.
+      if (err?.status === 403) {
+        setShowConsentModal(true);
+      } else {
+        alert(err?.message || "Couldn't check in. Please try again.");
+      }
     } finally {
       setIsCheckingIn(false);
+    }
+  };
+
+  const handleAcceptLocationConsent = async () => {
+    if (!locationConsent) return;
+    setIsAcceptingConsent(true);
+    setConsentError("");
+    try {
+      await apiFetch("/consent/location", {
+        method: "POST",
+        body: JSON.stringify({ version: locationConsent.required_version, source: "server" }),
+      });
+      setLocationConsent({
+        ...locationConsent,
+        accepted_version: locationConsent.required_version,
+      });
+      setShowConsentModal(false);
+      // Proceed straight into the check-in the officer was originally
+      // trying to do, rather than making them click twice.
+      handleWebCheckIn();
+    } catch (err: any) {
+      setConsentError(err.message || "Couldn't record your acceptance. Please try again.");
+    } finally {
+      setIsAcceptingConsent(false);
     }
   };
 
@@ -1298,6 +1372,32 @@ export default function Dashboard() {
       fetchProductivity(productivityPeriod);
     }
   }, [activeTab, productivityPeriod, user]);
+
+  const mappedProductivityTeam = useMemo(() => {
+    return (productivityData || []).map((row: any) => {
+      const officerUser = usersList.find((u: any) => u.id === row.officer_id);
+      const manager = usersList.find((u: any) => u.id === officerUser?.manager_id);
+      const rate = row.task_completion_rate;
+      const status: 'On Track' | 'At Risk' | 'Behind' =
+        rate === null || rate === undefined || rate >= 0.8
+          ? 'On Track'
+          : rate >= 0.5
+          ? 'At Risk'
+          : 'Behind';
+      return {
+        id: row.officer_id,
+        name: row.officer_name,
+        role: row.officer_role,
+        tasksCompleted: row.tasks_completed ?? 0,
+        tasksTotal: row.tasks_assigned ?? 0,
+        visitsLogged: row.visits_completed ?? 0,
+        hoursLogged: (row.days_present ?? 0) * 8,
+        status,
+        manager: manager?.full_name || 'Unassigned',
+        team: manager?.full_name || 'Unassigned',
+      };
+    });
+  }, [productivityData, usersList]);
 
   // Dashboard opens immediately with the Overview screen for every role
   // (Section 26) - previously Admin landed on the Live Tracking Map and
@@ -2106,9 +2206,16 @@ export default function Dashboard() {
                       className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 min-w-[200px]"
                     >
                       <option value="">-- Select Officer --</option>
-                      {activeLocations.map(o => (
-                        <option key={o.id} value={o.id}>{o.name}</option>
-                      ))}
+                      {/* Historical Route Replay is for PAST days, so this must list every
+                          trackable officer, not just activeLocations (officers currently
+                          mid-shift and pinging right now) - that emptied the dropdown
+                          whenever nobody happened to be live at the moment an admin opened
+                          this screen, even though plenty of past-day GPS history existed. */}
+                      {usersList
+                        .filter((u: any) => ["field_officer", "sales_officer", "manager"].includes(u.role))
+                        .map((u: any) => (
+                          <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
+                        ))}
                     </select>
                   </div>
                   <div className="flex flex-col gap-1">
@@ -3089,9 +3196,9 @@ export default function Dashboard() {
           {activeTab === "productivity" && (
             <div className="space-y-6">
               {user?.role === "admin" ? (
-                <AdminProductivity />
+                <AdminProductivity organizationData={mappedProductivityTeam} alerts={[]} />
               ) : user?.role === "manager" ? (
-                <ManagerProductivity />
+                <ManagerProductivity teamData={mappedProductivityTeam} alerts={[]} />
               ) : (
                 <OfficerProductivity />
               )}
@@ -5116,6 +5223,51 @@ export default function Dashboard() {
 
       {showPhonePreview && (
         <PhoneSimulator onClose={() => setShowPhonePreview(false)} />
+      )}
+
+      {/* Location consent disclosure - the web equivalent of the mobile
+          app's LocationDisclosure screen. Required before check-in
+          (require_location_consent, enforced server-side independent of
+          this UI) because check-in is the action that starts location
+          tracking for the day. Deliberately not dismissible by clicking
+          the backdrop - unlike other modals here, declining this one
+          must be a real choice the officer makes via Decline, not an
+          accidental outside click that looks like acceptance. */}
+      {showConsentModal && locationConsent && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-slate-800">{locationConsent.title}</h3>
+            <ul className="space-y-2">
+              {locationConsent.points?.map((p: any, i: number) => (
+                <li key={i} className="text-sm text-slate-600">
+                  <span className="font-semibold text-slate-700">{p.label}: </span>
+                  {p.text}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-slate-400">{locationConsent.footer}</p>
+            {consentError && (
+              <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-100">
+                {consentError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowConsentModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg transition"
+              >
+                Not Now
+              </button>
+              <button
+                onClick={handleAcceptLocationConsent}
+                disabled={isAcceptingConsent}
+                className="px-4 py-2 bg-green-700 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition"
+              >
+                {isAcceptingConsent ? "Saving..." : "I Agree & Check In"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Play, Pause, RefreshCw } from "lucide-react";
+import { Play, Pause, RefreshCw, AlertTriangle, ShieldCheck } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 
 // Fix custom icon rendering
@@ -52,6 +52,39 @@ export default function RouteReplay({ officer_id, date }: RouteReplayProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // On-demand data-quality check for this officer/date, backed by the
+  // existing GET /location/diagnostics/{officer_id} QA endpoint - it
+  // already computed delivery rate, accuracy distribution, and suspect
+  // "implausible jump" points, but had no UI anywhere. Fetched only when
+  // the admin asks for it (not on every load) since it's a second,
+  // heavier query the map itself doesn't need to render.
+  const [diagnostics, setDiagnostics] = useState<any | null>(null);
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
+
+  const checkDataQuality = async () => {
+    setDiagnosticsLoading(true);
+    setDiagnosticsError(null);
+    try {
+      const data = await apiFetch(
+        `/location/diagnostics/${officer_id}?date=${encodeURIComponent(date)}`
+      );
+      setDiagnostics(data);
+    } catch (err: any) {
+      setDiagnosticsError(err?.message || "Failed to run data-quality check");
+    } finally {
+      setDiagnosticsLoading(false);
+    }
+  };
+
+  // A fresh officer/date selection invalidates whatever diagnostics were
+  // showing for the previous one - otherwise stale numbers for a
+  // different officer could linger on screen looking current.
+  useEffect(() => {
+    setDiagnostics(null);
+    setDiagnosticsError(null);
+  }, [officer_id, date]);
 
   useEffect(() => {
     // GET /location/history/{officer_id}?date=YYYY-MM-DD - admin/manager
@@ -188,8 +221,8 @@ export default function RouteReplay({ officer_id, date }: RouteReplayProps) {
 
         <div className="flex flex-col min-w-[120px]">
           <span className="text-xs text-slate-500 uppercase font-bold">Speed</span>
-          <select 
-            value={playbackSpeed} 
+          <select
+            value={playbackSpeed}
             onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
             className="p-1 border border-slate-300 rounded text-sm bg-slate-50 text-slate-900"
           >
@@ -199,7 +232,77 @@ export default function RouteReplay({ officer_id, date }: RouteReplayProps) {
             <option value={5}>5x Very Fast</option>
           </select>
         </div>
+
+        <button
+          onClick={checkDataQuality}
+          disabled={diagnosticsLoading}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
+        >
+          {diagnosticsLoading ? (
+            <RefreshCw className="w-4 h-4 animate-spin" />
+          ) : (
+            <ShieldCheck className="w-4 h-4" />
+          )}
+          Check Data Quality
+        </button>
       </div>
+
+      {diagnosticsError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+          {diagnosticsError}
+        </div>
+      )}
+
+      {diagnostics && !diagnosticsError && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <h4 className="text-sm font-bold text-slate-800 mb-3">
+            GPS Data Quality — {diagnostics.date}
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            <div className="bg-slate-50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 font-medium">Pings Recorded</div>
+              <div className="text-lg font-bold text-slate-900">{diagnostics.ping_count}</div>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 font-medium">Delivery Rate</div>
+              <div className="text-lg font-bold text-slate-900">
+                {diagnostics.delivery_rate_pct !== null && diagnostics.delivery_rate_pct !== undefined
+                  ? `${diagnostics.delivery_rate_pct}%`
+                  : "—"}
+              </div>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 font-medium">Accuracy (avg)</div>
+              <div className="text-lg font-bold text-slate-900">
+                {diagnostics.accuracy_summary?.avg !== null && diagnostics.accuracy_summary?.avg !== undefined
+                  ? `${diagnostics.accuracy_summary.avg}m`
+                  : "—"}
+              </div>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3">
+              <div className="text-xs text-slate-500 font-medium">Low-Accuracy Pings</div>
+              <div className="text-lg font-bold text-slate-900">
+                {diagnostics.low_accuracy_pct !== null && diagnostics.low_accuracy_pct !== undefined
+                  ? `${diagnostics.low_accuracy_pct}%`
+                  : "—"}
+              </div>
+            </div>
+          </div>
+
+          {diagnostics.suspect_jumps && diagnostics.suspect_jumps.length > 0 ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <div className="text-sm text-amber-800">
+                <span className="font-semibold">{diagnostics.suspect_jumps.length} suspicious jump(s)</span>{" "}
+                flagged — a point moved more than 2km in under a minute, which usually means a GPS
+                glitch or a spoofed location rather than real movement.
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-slate-500">No suspicious jumps found for this day.</div>
+          )}
+        </div>
+      )}
 
       <div className="relative w-full h-[500px] rounded-xl overflow-hidden border border-slate-300 shadow-inner z-10">
         {/* We use a div covering the map when playing is active if we want to avoid interaction, but leaflet is fine. */}
