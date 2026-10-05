@@ -1373,6 +1373,32 @@ export default function Dashboard() {
     }
   }, [activeTab, productivityPeriod, user]);
 
+  const mappedProductivityTeam = useMemo(() => {
+    return (productivityData || []).map((row: any) => {
+      const officerUser = usersList.find((u: any) => u.id === row.officer_id);
+      const manager = usersList.find((u: any) => u.id === officerUser?.manager_id);
+      const rate = row.task_completion_rate;
+      const status: 'On Track' | 'At Risk' | 'Behind' =
+        rate === null || rate === undefined || rate >= 0.8
+          ? 'On Track'
+          : rate >= 0.5
+          ? 'At Risk'
+          : 'Behind';
+      return {
+        id: row.officer_id,
+        name: row.officer_name,
+        role: row.officer_role,
+        tasksCompleted: row.tasks_completed ?? 0,
+        tasksTotal: row.tasks_assigned ?? 0,
+        visitsLogged: row.visits_completed ?? 0,
+        hoursLogged: (row.days_present ?? 0) * 8,
+        status,
+        manager: manager?.full_name || 'Unassigned',
+        team: manager?.full_name || 'Unassigned',
+      };
+    });
+  }, [productivityData, usersList]);
+
   // Dashboard opens immediately with the Overview screen for every role
   // (Section 26) - previously Admin landed on the Live Tracking Map and
   // everyone else on Weekly Plans, neither of which is an "at a glance"
@@ -3163,9 +3189,9 @@ export default function Dashboard() {
           {activeTab === "productivity" && (
             <div className="space-y-6">
               {user?.role === "admin" ? (
-                <AdminProductivity />
+                <AdminProductivity organizationData={mappedProductivityTeam} alerts={[]} />
               ) : user?.role === "manager" ? (
-                <ManagerProductivity />
+                <ManagerProductivity teamData={mappedProductivityTeam} alerts={[]} />
               ) : (
                 <OfficerProductivity />
               )}
