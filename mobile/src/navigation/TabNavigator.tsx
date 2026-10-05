@@ -28,11 +28,15 @@ import AdminLeaveApprovalsScreen from '../screens/admin/AdminLeaveApprovalsScree
 import AdminTasksScreen from '../screens/admin/AdminTasksScreen';
 import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
 import AdminDayClosureScreen from '../screens/admin/AdminDayClosureScreen';
+import AdminSalesClosuresScreen from '../screens/admin/AdminSalesClosuresScreen';
 import AdminMasterDataScreen from '../screens/admin/AdminMasterDataScreen';
 import AdminVisitReportsScreen from '../screens/admin/AdminVisitReportsScreen';
 import AdminVisitDetailScreen from '../screens/admin/AdminVisitDetailScreen';
 import AdminDealersScreen from '../screens/admin/AdminDealersScreen';
 import AdminStockScreen from '../screens/admin/AdminStockScreen';
+import AdminLiveMapScreen from '../screens/admin/AdminLiveMapScreen';
+import AdminLocationHistoryScreen from '../screens/admin/AdminLocationHistoryScreen';
+import AdminFileClosureScreen from '../screens/admin/AdminFileClosureScreen';
 import HelpScreen from '../screens/HelpScreen';
 import QuickActionSheet from '../components/QuickActionSheet';
 import { apiClient } from '../services/api';
@@ -238,11 +242,21 @@ function ProfileStackScreen() {
       <ProfileStack.Screen name="AdminTasks" component={AdminTasksScreen} options={{ title: 'Task Management' }} />
       <ProfileStack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
       <ProfileStack.Screen name="AdminDayClosure" component={AdminDayClosureScreen} options={{ title: 'Day Closure Overview' }} />
+      <ProfileStack.Screen name="AdminSalesClosures" component={AdminSalesClosuresScreen} options={{ title: 'Sales Day Closures' }} />
       <ProfileStack.Screen name="AdminMasterData" component={AdminMasterDataScreen} options={{ title: 'Master Data' }} />
       <ProfileStack.Screen name="AdminVisitReports" component={AdminVisitReportsScreen} options={{ title: 'Daily Visit Reports' }} />
       <ProfileStack.Screen name="AdminVisitDetail" component={AdminVisitDetailScreen} options={{ title: 'Visit Detail' }} />
       <ProfileStack.Screen name="AdminDealers" component={AdminDealersScreen} options={{ title: 'Dealers' }} />
-      <ProfileStack.Screen name="AdminStock" component={AdminStockScreen} options={{ title: 'Stock Reconciliation' }} />
+      <ProfileStack.Screen name="AdminStock" component={AdminStockScreen} options={{ title: 'Stock Management' }} />
+      <ProfileStack.Screen name="AdminLiveMap" component={AdminLiveMapScreen} options={{ title: "Team's Live Location" }} />
+      <ProfileStack.Screen name="AdminLocationHistory" component={AdminLocationHistoryScreen} options={{ title: 'Movement History' }} />
+      <ProfileStack.Screen name="AdminFileClosure" component={AdminFileClosureScreen} options={{ title: 'File Missed Closure' }} />
+      {/* Same screen component registered under a different route name in
+          THIS stack (DailyVisitTracker already lives in FieldNetworkStack,
+          not reachable by name from here) - AdminFileClosureScreen
+          navigates to this name after the admin picks an officer, passing
+          adminOfficerId so the submit redirects to POST /admin/day-closures. */}
+      <ProfileStack.Screen name="DailyVisitTracker" component={DailyVisitTrackerScreen} options={{ title: 'Daily Visit Tracker' }} />
       <ProfileStack.Screen name="Help" component={HelpScreen} options={{ title: 'Help & Getting Started' }} />
     </ProfileStack.Navigator>
   );

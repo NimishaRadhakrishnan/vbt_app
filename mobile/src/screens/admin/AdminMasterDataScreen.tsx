@@ -99,6 +99,37 @@ export default function AdminMasterDataScreen() {
     }
   };
 
+  // Mirrors the web Master Data page's "Delete Permanently" button added
+  // alongside this same /permanent endpoint - only reachable once an item
+  // is already deactivated, and the backend still refuses with a clear
+  // 409 if anything (a past visit record) still references the item, so
+  // this can never silently corrupt history, only remove something truly
+  // unused.
+  const deleteForever = (item: AdminItem) => {
+    Alert.alert(
+      'Permanently Delete',
+      `Permanently delete "${item.name}"? This cannot be undone. It will only succeed if no existing visit records use it.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setBusyId(item.id);
+            try {
+              await apiClient.request(`/master-data/${selected.key}/${item.id}/permanent`, 'DELETE', 'admin_action');
+              retry();
+            } catch (err: any) {
+              Alert.alert('Could Not Delete', err?.message ?? 'Please try again.');
+            } finally {
+              setBusyId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeTabs} contentContainerStyle={{ paddingHorizontal: spacing.md }}>
@@ -157,17 +188,28 @@ export default function AdminMasterDataScreen() {
           renderItem={({ item }) => (
             <View style={styles.row}>
               <Text style={[styles.rowName, !item.is_active && styles.rowNameInactive]}>{item.name}</Text>
-              <TouchableOpacity
-                style={[styles.toggleBtn, { backgroundColor: item.is_active ? color.error : color.success }]}
-                disabled={busyId === item.id}
-                onPress={() => toggleActive(item)}
-              >
-                {busyId === item.id ? (
-                  <ActivityIndicator color={color.white} size="small" />
-                ) : (
-                  <Text style={styles.toggleText}>{item.is_active ? 'Deactivate' : 'Activate'}</Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, { backgroundColor: item.is_active ? color.error : color.success }]}
+                  disabled={busyId === item.id}
+                  onPress={() => toggleActive(item)}
+                >
+                  {busyId === item.id ? (
+                    <ActivityIndicator color={color.white} size="small" />
+                  ) : (
+                    <Text style={styles.toggleText}>{item.is_active ? 'Deactivate' : 'Activate'}</Text>
+                  )}
+                </TouchableOpacity>
+                {!item.is_active && (
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, { backgroundColor: color.textDisabled }]}
+                    disabled={busyId === item.id}
+                    onPress={() => deleteForever(item)}
+                  >
+                    <Text style={styles.toggleText}>Delete</Text>
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+              </View>
             </View>
           )}
         />

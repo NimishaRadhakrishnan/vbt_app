@@ -52,6 +52,18 @@ export default function AdminHomeScreen({ navigation }: any) {
         onPress={() => navigation.navigate('AdminDayClosure')}
       />
       <Tile
+        icon="🧾"
+        title="Sales Day Closures"
+        desc="Review sales officers' daily dealer visit summaries"
+        onPress={() => navigation.navigate('AdminSalesClosures')}
+      />
+      <Tile
+        icon="📝"
+        title="File Missed Closure"
+        desc="Fill out today's closure on behalf of an officer who missed it"
+        onPress={() => navigation.navigate('AdminFileClosure')}
+      />
+      <Tile
         icon="🧑‍🤝‍🧑"
         title="Users"
         desc="View all officers, activate/deactivate accounts"
@@ -71,9 +83,21 @@ export default function AdminHomeScreen({ navigation }: any) {
       />
       <Tile
         icon="📦"
-        title="Stock Reconciliation"
-        desc="Allocated, given, sold and on-hand per officer"
+        title="Stock Management"
+        desc="Issue stock, see reconciliation, and movement history"
         onPress={() => navigation.navigate('AdminStock')}
+      />
+      <Tile
+        icon="📍"
+        title="Team's Live Location"
+        desc="Who's where right now - status, speed, battery"
+        onPress={() => navigation.navigate('AdminLiveMap')}
+      />
+      <Tile
+        icon="🧭"
+        title="Movement History"
+        desc="Replay an officer's GPS route for any past day"
+        onPress={() => navigation.navigate('AdminLocationHistory')}
       />
       {isAdmin && (
         <Tile

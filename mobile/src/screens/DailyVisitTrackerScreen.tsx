@@ -63,6 +63,15 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
   // set from ever being able to drift between "a normal visit" and
   // "today's closure" - they're the same form either way.
   const isDayClosureMode: boolean = !!route?.params?.dayClosureMode;
+  // Admin's "File Missed Closure" screen (AdminFileClosureScreen.tsx)
+  // launches this same screen with an officer already chosen, so the
+  // admin fills out one FIELD OFFICER'S missed day on their behalf -
+  // same exact form, only the submit target changes to POST
+  // /admin/day-closures?officer_id=... (admin_create_day_closure in
+  // admin_router.py), matching web's DayClosureForm adminOfficerId prop
+  // exactly. Implies day-closure mode, since an admin is never filing an
+  // ordinary ad-hoc visit on someone else's behalf.
+  const adminOfficerId: string | undefined = route?.params?.adminOfficerId;
   const [draftId, setDraftId] = useState<string | undefined>(resumeDraftId);
   const [savingDraft, setSavingDraft] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState(!!resumeDraftId);
@@ -490,12 +499,20 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const endpoint = isDayClosureMode ? '/day-closure' : '/visits/daily-tracker/submit';
+      const endpoint = adminOfficerId
+        ? `/admin/day-closures?officer_id=${encodeURIComponent(adminOfficerId)}`
+        : isDayClosureMode
+        ? '/day-closure'
+        : '/visits/daily-tracker/submit';
       const res = await apiClient.request(endpoint, 'POST', 'visit_tracker_submit', {
         ...buildPayload(),
-        draft_id: draftId,
+        // draft_id only makes sense for the officer's own draft - an
+        // admin filing on someone else's behalf never has one.
+        draft_id: adminOfficerId ? undefined : draftId,
       });
-      if (isDayClosureMode) {
+      if (adminOfficerId) {
+        showSubmitResult(res, 'Closure Filed', "The missed closure has been recorded for this officer.");
+      } else if (isDayClosureMode) {
         showSubmitResult(res, 'Closure Submitted', "Today's closure has been recorded.");
       } else {
         showSubmitResult(res, 'Visit Submitted', 'The visit report has been saved.');
@@ -1018,7 +1035,7 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
         <TouchableOpacity style={styles.footerBtnSecondary} onPress={goBack}>
           <Text style={styles.footerBtnSecondaryText}>{step === 0 ? 'Cancel' : 'Back'}</Text>
         </TouchableOpacity>
-        {step < STEP_TITLES.length - 1 && (
+        {step < STEP_TITLES.length - 1 && !adminOfficerId && (
           <TouchableOpacity style={styles.footerBtnSaveDraft} onPress={handleSaveDraft} disabled={savingDraft}>
             {savingDraft ? (
               <ActivityIndicator color={color.primary} size="small" />
