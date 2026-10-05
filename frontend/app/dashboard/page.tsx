@@ -2206,9 +2206,16 @@ export default function Dashboard() {
                       className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 min-w-[200px]"
                     >
                       <option value="">-- Select Officer --</option>
-                      {activeLocations.map(o => (
-                        <option key={o.id} value={o.id}>{o.name}</option>
-                      ))}
+                      {/* Historical Route Replay is for PAST days, so this must list every
+                          trackable officer, not just activeLocations (officers currently
+                          mid-shift and pinging right now) - that emptied the dropdown
+                          whenever nobody happened to be live at the moment an admin opened
+                          this screen, even though plenty of past-day GPS history existed. */}
+                      {usersList
+                        .filter((u: any) => ["field_officer", "sales_officer", "manager"].includes(u.role))
+                        .map((u: any) => (
+                          <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
+                        ))}
                     </select>
                   </div>
                   <div className="flex flex-col gap-1">
