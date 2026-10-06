@@ -116,6 +116,9 @@ export default function Dashboard() {
   const [hasSetLandingTab, setHasSetLandingTab] = useState(false);
   const [navQuery, setNavQuery] = useState("");
   const [activeLocations, setActiveLocations] = useState<any[]>([]);
+  // Today's movement path per officer (live map trail), oldest point first.
+  const [trails, setTrails] = useState<Record<string, [number, number][]>>({});
+  const trailSeededRef = useRef<Set<string>>(new Set());
   const [plans, setPlans] = useState<any[]>([]);
   const [dealers, setDealers] = useState<any[]>([]);
   const [collectionsRequired, setCollectionsRequired] = useState<any[]>([]);
@@ -986,6 +989,17 @@ export default function Dashboard() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          if (data && data.officer_id && typeof data.latitude === "number" && typeof data.longitude === "number") {
+            const id = String(data.officer_id);
+            const point: [number, number] = [data.latitude, data.longitude];
+            setTrails(prev => {
+              const list = prev[id] ?? [];
+              const last = list[list.length - 1];
+              if (last && last[0] === point[0] && last[1] === point[1]) return prev;
+              const next = list.length >= 800 ? [...list.slice(list.length - 799), point] : [...list, point];
+              return { ...prev, [id]: next };
+            });
+          }
           setActiveLocations(prev => {
             const index = prev.findIndex(loc => loc.officer_id === data.officer_id);
             if (index >= 0) {
@@ -1037,6 +1051,41 @@ export default function Dashboard() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [activeTab, user]);
+
+  // Load each officer's path so far today the first time they show on the
+  // map, so the trail is complete instead of starting from "now".
+  useEffect(() => {
+    if (!(user && activeTab === "map")) return;
+    if (user.role !== "admin" && user.role !== "manager") return;
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    for (const loc of activeLocations) {
+      const id = loc?.officer_id ? String(loc.officer_id) : "";
+      if (!id || loc.latitude == null || loc.longitude == null) continue;
+      if (trailSeededRef.current.has(id)) continue;
+      trailSeededRef.current.add(id);
+      apiFetch(`/location/history/${id}?date=${today}`)
+        .then((rows: any) => {
+          if (!Array.isArray(rows)) return;
+          const hist: [number, number][] = rows
+            .filter((r: any) => typeof r.lat === "number" && typeof r.lng === "number")
+            .map((r: any) => [r.lat, r.lng] as [number, number]);
+          setTrails(prev => {
+            const live = prev[id] ?? [];
+            const merged = [...hist, ...live].filter(
+              (pt, i, arr) => {
+                const prevPt = arr[i - 1];
+                return !prevPt || pt[0] !== prevPt[0] || pt[1] !== prevPt[1];
+              }
+            );
+            return { ...prev, [id]: merged.slice(-800) };
+          });
+        })
+        .catch(() => {
+          // Let the next map visit try again.
+          trailSeededRef.current.delete(id);
+        });
+    }
+  }, [activeLocations, activeTab, user]);
 
   // Debounced/rate-limited manual refresh: ignores clicks while a refresh
   // is already in flight or for a short cooldown after one completes, so
@@ -2486,6 +2535,7 @@ export default function Dashboard() {
                   selectedMarker={selectedMarker}
                   onMarkerClick={(marker) => setSelectedMarker(marker)}
                   filterDistrict={filterDistrict}
+                  trails={trails}
                 />
                 )}
 

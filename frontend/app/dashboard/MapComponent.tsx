@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, Polyline } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -20,6 +20,14 @@ const OFFICER_ACTIVE_ICON = createCustomIcon("#22c55e", "circle");   // green ci
 const OFFICER_INACTIVE_ICON = createCustomIcon("#94a3b8", "circle"); // gray circle
 const DEALER_ICON = createCustomIcon("#3b82f6", "square");          // blue square
 const FARMER_ICON = createCustomIcon("#f59e0b", "circle");          // amber circle
+
+// One stable colour per officer so each path is easy to tell apart.
+const TRAIL_COLORS = ["#2563eb", "#dc2626", "#7c3aed", "#ea580c", "#0891b2", "#be185d", "#65a30d", "#4f46e5"];
+function trailColor(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return TRAIL_COLORS[h % TRAIL_COLORS.length] ?? "#2563eb";
+}
 
 function MapController({ selectedMarker }: { selectedMarker: any }) {
   const map = useMap();
@@ -40,6 +48,8 @@ interface MapComponentProps {
   selectedMarker: any;
   onMarkerClick: (marker: any) => void;
   filterDistrict: string;
+  /** Today's path per officer id: [lat, lng] points, oldest first. */
+  trails?: Record<string, [number, number][]>;
 }
 
 export default function MapComponent({
@@ -49,6 +59,7 @@ export default function MapComponent({
   selectedMarker,
   onMarkerClick,
   filterDistrict,
+  trails = {},
 }: MapComponentProps) {
   // Center on Tamil Nadu Salem region initially
   const defaultCenter: [number, number] = [11.6643, 78.1460];
@@ -76,6 +87,20 @@ export default function MapComponent({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        {/* Movement trails: today's path of each officer, growing live */}
+        {filteredOfficers.map((o) => {
+          const pts = trails[o.id];
+          if (!pts || pts.length < 2) return null;
+          return (
+            <Polyline
+              key={`trail-${o.id}`}
+              positions={pts}
+              pathOptions={{ color: trailColor(String(o.id)), weight: 4, opacity: 0.75 }}
+              interactive={false}
+            />
+          );
+        })}
 
         {/* Officers Markers */}
         {filteredOfficers.map((o) => {

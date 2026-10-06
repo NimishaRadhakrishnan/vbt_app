@@ -15,6 +15,7 @@ const SESSION_STORAGE_KEY = 'ffm_session_v1';
 
 interface PersistedSession {
   token: string;
+  refreshToken?: string;
   userId: string;
   userFullName: string;
   userRole: string;
@@ -41,6 +42,11 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/ap
 class FFMAPIClient {
   private isOnline: boolean = true;
   private token: string | null = null;
+  // The access token only lives 15 minutes. Without the refresh token the
+  // phone silently stopped sending GPS pings (every ping got a 401) a few
+  // minutes after login. The refresh token (7 days) gets a new one.
+  private refreshToken: string | null = null;
+  private refreshing: Promise<boolean> | null = null;
   private userId: string | null = null;
   private userFullName: string | null = null;
   private userRole: string | null = null;
@@ -90,6 +96,7 @@ class FFMAPIClient {
 
   public logout() {
     this.token = null;
+    this.refreshToken = null;
     this.userId = null;
     this.userFullName = null;
     this.userRole = null;
@@ -105,6 +112,7 @@ class FFMAPIClient {
     if (!this.token || !this.userId || !this.userFullName || !this.userRole || !this.deviceId) return;
     const session: PersistedSession = {
       token: this.token,
+      refreshToken: this.refreshToken ?? undefined,
       userId: this.userId,
       userFullName: this.userFullName,
       userRole: this.userRole,
@@ -127,6 +135,7 @@ class FFMAPIClient {
       const session: PersistedSession = JSON.parse(raw);
       if (!session.token || !session.userId) return false;
       this.token = session.token;
+      this.refreshToken = session.refreshToken ?? null;
       this.userId = session.userId;
       this.userFullName = session.userFullName;
       this.userRole = session.userRole;
@@ -156,6 +165,7 @@ class FFMAPIClient {
       device_id: this.deviceId,
     });
     this.token = loginRes.access_token;
+    this.refreshToken = loginRes.refresh_token ?? null;
 
     const me = await this.sendRequest('/auth/me', 'GET');
     this.userId = me.id;
@@ -246,7 +256,57 @@ class FFMAPIClient {
   }
 
   // Does the actual HTTP call. Throws on any network or server error.
-  private async sendRequest(endpoint: string, method: string, data?: any): Promise<any> {
+  // Swaps the refresh token for a fresh access token. One call at a time:
+  // the server rotates refresh tokens, so two parallel refreshes (screen +
+  // background GPS task) would invalidate each other.
+  private refreshAccessToken(): Promise<boolean> {
+    if (this.refreshing) return this.refreshing;
+    const usedToken = this.token;
+    this.refreshing = (async () => {
+      try {
+        // The saved login on disk is the shared truth: the screens and the
+        // background GPS task can run in separate JS contexts, and the
+        // refresh token is single-use. If the other side already refreshed,
+        // take its new token instead of spending the (now dead) old one.
+        const raw = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
+        if (!raw) return false; // signed out
+        const saved: PersistedSession = JSON.parse(raw);
+        if (saved.token && saved.token !== usedToken) {
+          this.token = saved.token;
+          this.refreshToken = saved.refreshToken ?? this.refreshToken;
+          return true;
+        }
+        const refreshToken = saved.refreshToken ?? this.refreshToken;
+        if (!refreshToken) return false;
+        const res = await fetch(`${BACKEND_URL}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (!res.ok) return false;
+        const body = await res.json();
+        if (!body?.access_token) return false;
+        this.token = body.access_token;
+        this.refreshToken = body.refresh_token ?? refreshToken;
+        await this.persistSession();
+        return true;
+      } catch {
+        return false;
+      } finally {
+        this.refreshing = null;
+      }
+    })();
+    return this.refreshing;
+  }
+
+  // Makes sure this client has a session in memory (the background GPS
+  // task can start in a new JS context after Android restarts the app).
+  public async ensureSession(): Promise<string | null> {
+    if (!this.userId) await this.restoreSession();
+    return this.userId;
+  }
+
+  private async sendRequest(endpoint: string, method: string, data?: any, retried = false): Promise<any> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
@@ -258,6 +318,11 @@ class FFMAPIClient {
       body: method === 'GET' ? undefined : JSON.stringify(data ?? {}),
     });
 
+    if (response.status === 401 && !retried && !endpoint.startsWith('/auth/')) {
+      if (await this.refreshAccessToken()) {
+        return this.sendRequest(endpoint, method, data, true);
+      }
+    }
     if (!response.ok) {
       throw await this.toReadableError(response);
     }

@@ -14,7 +14,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     const { locations } = data as { locations: Location.LocationObject[] };
     const location = locations[0];
 
-    const officerId = apiClient.getUserId();
+    // After Android restarts the app headlessly, nothing has loaded the
+    // saved login yet, so load it here instead of dropping the ping.
+    const officerId = await apiClient.ensureSession();
     if (!officerId) {
       console.log('No logged-in officer yet, skipping location sync.');
       return;
@@ -123,7 +125,7 @@ export const LocationService = {
       }
 
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: Location.Accuracy.High, // GPS-grade fixes so movement is smooth
         timeInterval: 5000, // ping about every 5 seconds
         distanceInterval: 0,
         deferredUpdatesInterval: 5000,
