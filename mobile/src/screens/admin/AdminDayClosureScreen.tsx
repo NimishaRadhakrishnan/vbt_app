@@ -36,6 +36,7 @@ type TabKey = typeof TABS[number];
 // order_value per row (day_closure_router.py's list_day_closures), the
 // same data the web form pre-fills from.
 export default function AdminDayClosureScreen() {
+  const isAdmin = apiClient.getCurrentUser()?.role === 'admin';
   const [tab, setTab] = useState<TabKey>('missing');
   const [editingClosure, setEditingClosure] = useState<ClosureRow | null>(null);
   const [editForm, setEditForm] = useState({
@@ -161,6 +162,10 @@ export default function AdminDayClosureScreen() {
                 {item.date}{item.farmer_name ? ` · ${item.farmer_name}` : ''}{item.village ? ` (${item.village})` : ''}
               </Text>
               {!!item.crop_name && <Text style={styles.meta}>{item.crop_name}</Text>}
+              {/* PUT/DELETE /admin/day-closures/{id} are admin-only on the
+                  server (require_role(Role.ADMIN)); a manager can read
+                  closures but those buttons would only ever 403. */}
+              {isAdmin && (
               <View style={styles.cardActions}>
                 <TouchableOpacity style={[styles.actionBtn, { backgroundColor: color.info }]} onPress={() => openEdit(item)}>
                   <Text style={styles.actionBtnText}>Edit</Text>
@@ -177,6 +182,7 @@ export default function AdminDayClosureScreen() {
                   )}
                 </TouchableOpacity>
               </View>
+              )}
             </View>
           )}
         />

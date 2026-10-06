@@ -57,12 +57,14 @@ export default function AdminHomeScreen({ navigation }: any) {
         desc="Review sales officers' daily dealer visit summaries"
         onPress={() => navigation.navigate('AdminSalesClosures')}
       />
-      <Tile
-        icon="📝"
-        title="File Missed Closure"
-        desc="Fill out today's closure on behalf of an officer who missed it"
-        onPress={() => navigation.navigate('AdminFileClosure')}
-      />
+      {isAdmin && (
+        <Tile
+          icon="📝"
+          title="File Missed Closure"
+          desc="Fill out today's closure on behalf of an officer who missed it"
+          onPress={() => navigation.navigate('AdminFileClosure')}
+        />
+      )}
       <Tile
         icon="🧑‍🤝‍🧑"
         title="Users"
