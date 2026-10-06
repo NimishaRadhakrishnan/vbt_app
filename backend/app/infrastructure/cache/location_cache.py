@@ -50,6 +50,39 @@ class LocationCache:
             logger.error(f"Failed to mget location cache: {e}")
         return result
 
+    # --- Off duty (checked out) ---
+    # After check-out the officer's phone must stop being tracked. The
+    # phone is told to stop, but a phone that is offline, or a check-out
+    # done on the web, can't be relied on to do that promptly - so the
+    # server also refuses to record pings from an officer who has checked
+    # out today, and drops their live position so the map shows them gone.
+
+    async def mark_off_duty(self, officer_id: str, ttl: int = 64800) -> None:
+        try:
+            await self._redis.set(f"officer_off_duty:{officer_id}", "1", ex=ttl)
+        except Exception as e:
+            logger.error(f"Failed to set off-duty flag for {officer_id}: {e}")
+
+    async def clear_off_duty(self, officer_id: str) -> None:
+        try:
+            await self._redis.delete(f"officer_off_duty:{officer_id}")
+        except Exception as e:
+            logger.error(f"Failed to clear off-duty flag for {officer_id}: {e}")
+
+    async def is_off_duty(self, officer_id: str) -> bool:
+        try:
+            return bool(await self._redis.exists(f"officer_off_duty:{officer_id}"))
+        except Exception as e:
+            logger.error(f"Failed to check off-duty flag for {officer_id}: {e}")
+            return False
+
+    async def clear_active_location(self, officer_id: str) -> None:
+        try:
+            await self._redis.delete(f"{self._prefix}{officer_id}")
+            await self._redis.delete(f"{self._stale_alert_prefix}{officer_id}")
+        except Exception as e:
+            logger.error(f"Failed to clear live location for {officer_id}: {e}")
+
     # --- Tier 2 stale-alert dedup ---
     # A single ongoing gap shouldn't re-fire the admin alert every sweep
     # tick (e.g. a 2-hour outage swept every 90s would otherwise send ~80

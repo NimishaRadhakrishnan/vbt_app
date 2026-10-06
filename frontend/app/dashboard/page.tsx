@@ -299,6 +299,7 @@ export default function Dashboard() {
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [logoutGateReason, setLogoutGateReason] = useState<"logout" | "checkout">("logout");
 
   // Notifications State
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -738,6 +739,7 @@ export default function Dashboard() {
         router.replace("/login");
       } else {
         setShowUserMenu(false);
+        setLogoutGateReason("logout");
         setShowLogoutGateModal(true);
       }
     } catch (err) {
@@ -1390,6 +1392,19 @@ export default function Dashboard() {
   // (POST /attendance/check-out). Never gated on location consent: someone
   // who is checked in must always be able to check out.
   const handleWebCheckOut = async () => {
+    // Today's closure comes first. Only an explicit "not closed" blocks; if
+    // the status can't be read, the officer is not trapped on duty.
+    try {
+      const status: any = await apiFetch("/day-closure/status");
+      setDayClosureStatus(status);
+      if (status && status.closed_today === false) {
+        setLogoutGateReason("checkout");
+        setShowLogoutGateModal(true);
+        return;
+      }
+    } catch (err) {
+      console.warn("Could not verify day closure before check-out", err);
+    }
     if (!window.confirm("Check out for today? You will not be able to check in again until tomorrow.")) return;
     setIsCheckingOut(true);
     try {
@@ -5119,7 +5134,9 @@ export default function Dashboard() {
               <FileText className="w-5 h-5 text-green-700" /> Today&apos;s Closure Required
             </h3>
             <p className="text-sm text-slate-600">
-              You haven&apos;t submitted today&apos;s closure yet. Please fill it in before signing out.
+              {logoutGateReason === "checkout"
+                ? "You haven't submitted today's closure yet. Please fill it in, then check out."
+                : "You haven't submitted today's closure yet. Please fill it in before signing out."}
             </p>
             <div className="flex justify-end gap-2">
               <button

@@ -158,6 +158,37 @@ export default function AttendanceScreen({ navigation }: any) {
 
   const handleCheckOut = async () => {
     try {
+      // Field and sales officers file today's closure BEFORE ending the
+      // day. Only an explicit "not closed" blocks; if the status can't be
+      // read (no signal) the officer is not trapped on duty.
+      const role = apiClient.getCurrentUser()?.role ?? '';
+      if (role === 'field_officer' || role === 'sales_officer') {
+        let closed: boolean | undefined;
+        try {
+          const closure: any = await apiClient.request('/day-closure/status', 'GET', 'task_action');
+          closed = closure?.closed_today;
+        } catch {
+          closed = undefined;
+        }
+        if (closed === false) {
+          Alert.alert(
+            "Today's Closure Required",
+            "Please submit today's day closure before you check out.",
+            [
+              { text: 'Not now', style: 'cancel' },
+              {
+                text: 'Go to Day Closure',
+                onPress: () =>
+                  role === 'sales_officer'
+                    ? navigation.navigate('SalesDayClosure')
+                    : navigation.navigate('DailyVisitTracker', { dayClosureMode: true }),
+              },
+            ]
+          );
+          return;
+        }
+      }
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Location Required', 'Location permission is needed to check out.');
@@ -176,6 +207,12 @@ export default function AttendanceScreen({ navigation }: any) {
       showSubmitResult(res, 'Checked Out Successfully', 'Shift completed. Live location tracking stopped.');
       navigation.goBack();
     } catch (err: any) {
+      // Already checked out (for example on the web): the shift is over,
+      // so make sure this phone is not still tracking.
+      if (String(err?.message || '').toLowerCase().includes('already checked out')) {
+        setIsCheckedIn(false);
+        await LocationService.stopTracking();
+      }
       Alert.alert('Error', err.message || 'Check-out failed.');
     }
   };

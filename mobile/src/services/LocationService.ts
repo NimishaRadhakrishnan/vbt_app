@@ -67,9 +67,18 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       timestamp: new Date(location.timestamp).toISOString(),
     };
 
-    apiClient.request('/location/ping', 'POST', 'gps_ping', payload).catch(err => {
-      console.warn('Failed to send location update', err);
-    });
+    apiClient
+      .request('/location/ping', 'POST', 'gps_ping', payload)
+      .then((res: any) => {
+        // The officer checked out (possibly on the web). Stop tracking
+        // on this phone too instead of pinging all evening.
+        if (res?.status === 'stopped') {
+          LocationService.stopTracking();
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to send location update', err);
+      });
   }
 });
 

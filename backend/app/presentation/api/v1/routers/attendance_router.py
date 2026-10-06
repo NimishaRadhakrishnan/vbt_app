@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.application.use_cases.attendance_use_case import AttendanceUseCase
 from app.core.container import get_attendance_use_case
+from app.infrastructure.cache.location_cache import LocationCache
+from app.infrastructure.cache.redis_client import get_redis_client
 from app.presentation.api.v1.dependencies import CurrentUser
 from app.presentation.api.v1.routers.consent_router import require_location_consent
 from app.presentation.schemas.attendance_schemas import AttendanceResponse, CheckInRequest, CheckOutRequest
@@ -46,6 +48,8 @@ async def check_in(
         is_fake_gps=payload.is_fake_gps,
         is_gps_disabled=payload.is_gps_disabled,
     )
+    # A new shift: tracking is allowed again.
+    await LocationCache(get_redis_client()).clear_off_duty(str(current_user.user_id))
     return AttendanceResponse(
         id=result.id,
         user_id=result.user_id,
@@ -73,6 +77,11 @@ async def check_out(
         lat=payload.latitude,
         lng=payload.longitude,
     )
+    # Tracking ends with the shift: from here the server ignores this
+    # officer's pings and their live position is removed from the map.
+    cache = LocationCache(get_redis_client())
+    await cache.mark_off_duty(str(current_user.user_id))
+    await cache.clear_active_location(str(current_user.user_id))
     return AttendanceResponse(
         id=result.id,
         user_id=result.user_id,

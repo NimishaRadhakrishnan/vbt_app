@@ -234,6 +234,10 @@ async def ping_location(
     cache = LocationCache(redis)
     broadcaster = RedisPubSubBroadcaster(redis)
 
+    # Checked out for the day: record nothing and tell the phone to stop.
+    if await cache.is_off_duty(str(officer_id)):
+        return {"status": "stopped"}
+
     # 1. Save live state to Redis
     location_data = {
         "officer_id": str(officer_id),
