@@ -56,3 +56,92 @@
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }
+
+/* ------------------------------------------------------------------
+ * Route Replay (components/route-replay)
+ * ------------------------------------------------------------------ */
+/* Washed-out base map so the route is the loudest thing on it. */
+.route-tiles {
+  filter: grayscale(0.85) contrast(0.92) brightness(1.06);
+}
+
+/* Native range input drawn on top of our own track, ticks and gap shading. */
+.route-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  cursor: pointer;
+}
+.route-range::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 32px;
+}
+.route-range::-moz-range-track {
+  background: transparent;
+  height: 32px;
+}
+.route-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 6px;
+  border-radius: 9999px;
+  background: #9f1d1d;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.45);
+  transition: transform 150ms ease;
+}
+.route-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #9f1d1d;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.45);
+}
+.route-range:hover::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+.route-range:focus-visible {
+  outline: none;
+}
+.route-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.route-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Leaflet tooltips used on the route map */
+.route-tooltip.leaflet-tooltip {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+  padding: 8px 10px;
+  color: #0f172a;
+}
+.route-gap-label.leaflet-tooltip {
+  background: #475569;
+  border: 0;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  box-shadow: none;
+}
+.route-gap-label.leaflet-tooltip::before {
+  display: none;
+}
+
+@media print {
+  .route-print-hide {
+    display: none !important;
+  }
+}

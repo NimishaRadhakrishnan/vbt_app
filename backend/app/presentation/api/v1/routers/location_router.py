@@ -415,7 +415,7 @@ async def get_location_history(
 
     res = await session.execute(
         text("""
-            SELECT ST_Y(location::geometry) as lat, ST_X(location::geometry) as lng, recorded_at, speed, battery_level
+            SELECT ST_Y(location::geometry) as lat, ST_X(location::geometry) as lng, recorded_at, speed, battery_level, accuracy
             FROM gps_tracks
             WHERE user_id = :officer_id
               AND recorded_at >= :day_start
@@ -424,7 +424,19 @@ async def get_location_history(
         """).bindparams(officer_id=officer_id, day_start=day_start, day_end=day_end)
     )
     rows = res.all()
-    return [{"lat": r.lat, "lng": r.lng, "recorded_at": r.recorded_at, "speed": r.speed, "battery_level": r.battery_level} for r in rows]
+    # `accuracy` (metres) lets the Route Replay screen ignore very poor fixes;
+    # 9999 is the "phone gave no figure" placeholder written at ping time.
+    return [
+        {
+            "lat": r.lat,
+            "lng": r.lng,
+            "recorded_at": r.recorded_at,
+            "speed": r.speed,
+            "battery_level": r.battery_level,
+            "accuracy": r.accuracy,
+        }
+        for r in rows
+    ]
 
 
 @router.get("/me/today")

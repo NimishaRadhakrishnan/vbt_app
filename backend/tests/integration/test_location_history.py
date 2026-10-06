@@ -114,6 +114,8 @@ async def test_history_returns_pings_in_ascending_order() -> None:
         assert len(rows) == 3
         recorded_minutes = [datetime.fromisoformat(r["recorded_at"].replace("Z", "+00:00")).minute for r in rows]
         assert recorded_minutes == [0, 5, 10], f"expected ascending order, got {recorded_minutes}"
+        # accuracy (metres) is returned so the Route Replay screen can ignore poor fixes.
+        assert all(r["accuracy"] == 25.0 for r in rows)
 
 
 @pytest.mark.asyncio

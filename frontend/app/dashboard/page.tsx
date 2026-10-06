@@ -29,11 +29,11 @@ const MapComponent = dynamic(() => import("./MapComponent"), {
   )
 });
 
-const RouteReplay = dynamic(() => import("@/components/RouteReplay"), {
+const RouteReplayScreen = dynamic(() => import("@/components/route-replay"), {
   ssr: false,
   loading: () => (
-    <div className="h-[500px] w-full bg-slate-100 flex items-center justify-center text-slate-400 font-semibold rounded-xl border border-slate-200">
-      Loading Route Replay Engine...
+    <div className="h-[540px] w-full bg-slate-100 flex items-center justify-center text-slate-400 font-semibold rounded-xl border border-slate-200">
+      Loading route replay...
     </div>
   )
 });
@@ -196,7 +196,7 @@ export default function Dashboard() {
   const OFFICER_PAGE_SIZE = 50;
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [routeHistoryOfficerId, setRouteHistoryOfficerId] = useState("");
-  const [routeHistoryDate, setRouteHistoryDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [routeHistoryDate, setRouteHistoryDate] = useState(() => todayIST());
 
   // BUG FIX: the location-consent disclosure that gates check-in
   // (backend: require_location_consent on POST /attendance/check-in)
@@ -797,6 +797,33 @@ export default function Dashboard() {
   );
 
   const getLiveOfficers = () => liveOfficers;
+
+  // Route Replay: every trackable officer (not just those live right now),
+  // and the dealers/farmers used to name the places an officer stopped at.
+  const routeReplayOfficers = useMemo(
+    () =>
+      usersList
+        .filter((u: any) => ["field_officer", "sales_officer", "manager"].includes(u.role))
+        .map((u: any) => ({
+          id: u.id as string,
+          name: (u.full_name || "Officer") as string,
+          role: u.role as string,
+          employeeId: (u.employee_id ?? null) as string | null,
+          territory: (u.district ?? u.territory ?? null) as string | null,
+        })),
+    [usersList]
+  );
+  const routeReplayPlaces = useMemo(
+    () => [
+      ...dealers
+        .filter((d: any) => d.location_lat != null && d.location_lng != null)
+        .map((d: any) => ({ id: `dealer-${d.id}`, name: d.name || "Dealer", type: "Dealer", lat: Number(d.location_lat), lng: Number(d.location_lng) })),
+      ...farmers
+        .filter((f: any) => f.location_lat != null && f.location_lng != null)
+        .map((f: any) => ({ id: `farmer-${f.id}`, name: f.name || "Farmer", type: "Farmer", lat: Number(f.location_lat), lng: Number(f.location_lng) })),
+    ],
+    [dealers, farmers]
+  );
 
   const totalOfficerPages = Math.max(1, Math.ceil(liveOfficers.length / OFFICER_PAGE_SIZE));
   const paginatedOfficers = useMemo(
@@ -2188,53 +2215,14 @@ export default function Dashboard() {
 
           {/* Subtab Contents */}
           {activeTab === "route-history" && (
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Activity className="text-blue-700" /> Historical Route Replay</h2>
-                  <p className="text-xs text-slate-400 mt-1">Select an officer and date to replay their GPS tracking history</p>
-                </div>
-                <div className="flex gap-4 items-center">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-500 uppercase">Officer</label>
-                    <select
-                      value={routeHistoryOfficerId}
-                      onChange={(e) => setRouteHistoryOfficerId(e.target.value)}
-                      className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 min-w-[200px]"
-                    >
-                      <option value="">-- Select Officer --</option>
-                      {/* Historical Route Replay is for PAST days, so this must list every
-                          trackable officer, not just activeLocations (officers currently
-                          mid-shift and pinging right now) - that emptied the dropdown
-                          whenever nobody happened to be live at the moment an admin opened
-                          this screen, even though plenty of past-day GPS history existed. */}
-                      {usersList
-                        .filter((u: any) => ["field_officer", "sales_officer", "manager"].includes(u.role))
-                        .map((u: any) => (
-                          <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-500 uppercase">Date</label>
-                    <input 
-                      type="date"
-                      value={routeHistoryDate}
-                      onChange={(e) => setRouteHistoryDate(e.target.value)}
-                      className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              {routeHistoryOfficerId ? (
-                <RouteReplay officer_id={routeHistoryOfficerId} date={routeHistoryDate || ""} />
-              ) : (
-                <div className="w-full h-[400px] flex items-center justify-center bg-slate-50 rounded-xl border border-slate-200 border-dashed text-slate-400">
-                  Please select an officer to view their route history.
-                </div>
-              )}
-            </div>
+            <RouteReplayScreen
+              officers={routeReplayOfficers}
+              places={routeReplayPlaces}
+              officerId={routeHistoryOfficerId}
+              onOfficerChange={setRouteHistoryOfficerId}
+              date={routeHistoryDate}
+              onDateChange={setRouteHistoryDate}
+            />
           )}
 
           {/* Overview — dashboard-home landing screen (Section 3/26). Brown/
