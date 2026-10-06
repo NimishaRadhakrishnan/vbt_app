@@ -217,19 +217,19 @@ export default function DashboardScreen({ navigation }: any) {
               label="Visits Today"
               value={summary.visits_today}
               color="#e8f5e9"
-              onPress={() => navigation.navigate('FieldNetworkTab', { screen: 'DailyVisitTracker' })}
+              onPress={() => navigation.navigate('DailyVisitTracker')}
             />
             <SummaryCard
               label="Draft Visits"
               value={summary.draft_count}
               color="#fce4ec"
-              onPress={() => navigation.navigate('FieldNetworkTab', { screen: 'DraftVisits' })}
+              onPress={() => navigation.navigate('DraftVisits')}
             />
             <SummaryCard
               label="Submitted Visits"
               value={summary.submitted_total}
               color="#ede7f6"
-              onPress={() => navigation.navigate('FieldNetworkTab', { screen: 'MyVisits' })}
+              onPress={() => navigation.navigate('MyVisits')}
             />
           </View>
 

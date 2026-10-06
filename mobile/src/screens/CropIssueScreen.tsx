@@ -9,7 +9,7 @@ import { color, font, fontWeight, spacing, radius } from '../theme';
 
 type Farmer = { id: string; name: string; village: string; district: string };
 
-export default function CropIssueScreen({ navigation }: any) {
+export default function CropIssueScreen({ navigation, embedded, onDone }: any) {
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null);
   const [crop, setCrop] = useState('');
   const [symptoms, setSymptoms] = useState('');
@@ -74,7 +74,8 @@ export default function CropIssueScreen({ navigation }: any) {
         'Ticket Dispatched',
         `Details uploaded. Routed to the ${selectedFarmer.district} district agricultural specialist.`
       );
-      navigation.goBack();
+      if (embedded) onDone?.();
+      else navigation.goBack();
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Dispatch failed.');
     }
@@ -140,9 +141,11 @@ export default function CropIssueScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.btnBack} onPress={() => navigation.goBack()}>
-        <Text style={styles.btnBackText}>Cancel & Go Back</Text>
-      </TouchableOpacity>
+      {!embedded && (
+        <TouchableOpacity style={styles.btnBack} onPress={() => navigation.goBack()}>
+          <Text style={styles.btnBackText}>Cancel & Go Back</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }

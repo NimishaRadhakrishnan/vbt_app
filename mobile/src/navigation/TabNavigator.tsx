@@ -8,46 +8,36 @@ import DashboardScreen from '../screens/DashboardScreen';
 import AttendanceScreen from '../screens/AttendanceScreen';
 import WeeklyPlanScreen from '../screens/WeeklyPlanScreen';
 import KpiSummaryScreen from '../screens/KpiSummaryScreen';
-import TasksScreen from '../screens/TasksScreen';
-import FieldNetworkScreen from '../screens/FieldNetworkScreen';
 import DailyVisitTrackerScreen from '../screens/DailyVisitTrackerScreen';
 import MyVisitsScreen from '../screens/MyVisitsScreen';
 import MyVisitDetailScreen from '../screens/MyVisitDetailScreen';
 import DraftVisitsScreen from '../screens/DraftVisitsScreen';
-import MyLeaveScreen from '../screens/MyLeaveScreen';import VisitScreen from '../screens/VisitScreen';
+import VisitScreen from '../screens/VisitScreen';
 import FarmerScreen from '../screens/FarmerScreen';
 import DealerScreen from '../screens/DealerScreen';
 import CropIssueScreen from '../screens/CropIssueScreen';
 import SalesDayClosureScreen from '../screens/SalesDayClosureScreen';
 import MyTrackingScreen from '../screens/MyTrackingScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import MoreScreen from '../screens/ProfileScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import PreferencesScreen from '../screens/PreferencesScreen';
-import AdminHomeScreen from '../screens/admin/AdminHomeScreen';
-import AdminLeaveApprovalsScreen from '../screens/admin/AdminLeaveApprovalsScreen';
-import AdminTasksScreen from '../screens/admin/AdminTasksScreen';
-import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
-import AdminDayClosureScreen from '../screens/admin/AdminDayClosureScreen';
 import AdminSalesClosuresScreen from '../screens/admin/AdminSalesClosuresScreen';
-import AdminMasterDataScreen from '../screens/admin/AdminMasterDataScreen';
-import AdminVisitReportsScreen from '../screens/admin/AdminVisitReportsScreen';
 import AdminVisitDetailScreen from '../screens/admin/AdminVisitDetailScreen';
-import AdminDealersScreen from '../screens/admin/AdminDealersScreen';
-import AdminStockScreen from '../screens/admin/AdminStockScreen';
-import AdminLiveMapScreen from '../screens/admin/AdminLiveMapScreen';
-import AdminLocationHistoryScreen from '../screens/admin/AdminLocationHistoryScreen';
 import AdminFileClosureScreen from '../screens/admin/AdminFileClosureScreen';
 import HelpScreen from '../screens/HelpScreen';
+import SectionScreen from '../screens/SectionScreen';
+import { Ionicons } from '@expo/vector-icons';
+import { findSection } from './navConfig';
 import QuickActionSheet from '../components/QuickActionSheet';
 import { apiClient } from '../services/api';
 import { dbService } from '../services/db';
 import { color, fontWeight } from '../theme';
 
 const Tab = createBottomTabNavigator();
-const DashboardStack = createStackNavigator();
-const TasksStack = createStackNavigator();
-const FieldNetworkStack = createStackNavigator();
-const ProfileStack = createStackNavigator();
+const HomeStack = createStackNavigator();
+const WorkStack = createStackNavigator();
+const FieldStack = createStackNavigator();
+const MoreStack = createStackNavigator();
 
 // Design pass item 4: show who's logged in somewhere consistent across
 // every screen, not just on the Profile tab - a small role badge in the
@@ -132,133 +122,101 @@ const headerOptions = {
   headerRight: () => <HeaderUserBadge />,
 };
 
-// Dashboard keeps the 2 tiles that aren't part of Field Network
-// (Attendance, WeeklyPlan) - the other 4 (Visit/Farmer/Dealer/CropIssue)
-// moved into the Field Network tab below.
-function DashboardStackScreen() {
-  return (
-    <DashboardStack.Navigator screenOptions={headerOptions}>
-      <DashboardStack.Screen name="DashboardHome" component={DashboardScreen} options={{ title: 'VBT One' }} />
-      <DashboardStack.Screen name="Attendance" component={AttendanceScreen} options={{ title: 'Shift Check-In' }} />
-      <DashboardStack.Screen name="WeeklyPlan" component={WeeklyPlanScreen} options={{ title: 'Weekly Plans' }} />
-      <DashboardStack.Screen name="KpiSummary" component={KpiSummaryScreen} options={{ title: 'My KPIs' }} />
-    </DashboardStack.Navigator>
-  );
-}
-
-function TasksStackScreen() {
-  return (
-    <TasksStack.Navigator screenOptions={headerOptions}>
-      <TasksStack.Screen name="TasksHome" component={TasksScreen} options={{ title: 'Tasks' }} />
-    </TasksStack.Navigator>
-  );
-}
-
-// Role gate for the Field Network stack (0c / section 2-3 role
-// boundaries): Field Officers get the Daily Visit Tracker workflow +
-// farmer registration + crop issue reporting, but never Dealer/Stock/
-// Marketing. Sales Officers get Dealer + Marketing, but never the Daily
-// Visit Tracker, Crop Health/Diagnosis, or Farmer Enquiry. Admin/Manager
-// see everything, matching their oversight role elsewhere in the app.
-// "Visit" (the older quick GPS check-in/out, distinct from the Daily
-// Visit Tracker) stays available to both officer roles - nothing in the
-// spec restricts it, and section 0b explicitly says that kind of GPS
-// capture doesn't change.
-function useFieldNetworkAccess() {
+// Screens that open on top of a section (forms, details, flows). Every tab's
+// stack registers the same set, so a section can open any of them by name
+// without hopping between tabs. Role gates are the same as before: the
+// visit tracker family is for field officers and oversight, the closure
+// admin screens for oversight only. The API enforces all of this anyway.
+function usePushedScreens() {
   const role = apiClient.getCurrentUser()?.role ?? '';
-  const isFieldOfficer = role === 'field_officer';
-  const isSalesOfficer = role === 'sales_officer';
   const isOversight = role === 'admin' || role === 'manager';
-  return {
-    showFieldOfficerScreens: isFieldOfficer || isOversight,
-    showSalesOfficerScreens: isSalesOfficer || isOversight,
-  };
+  const isFieldOrOversight = role === 'field_officer' || isOversight;
+  return { role, isOversight, isFieldOrOversight };
 }
 
-function FieldNetworkStackScreen() {
-  const { showFieldOfficerScreens, showSalesOfficerScreens } = useFieldNetworkAccess();
-
+function renderPushedScreens(Stack: ReturnType<typeof createStackNavigator>, access: ReturnType<typeof usePushedScreens>) {
+  const { isOversight, isFieldOrOversight, role } = access;
+  const isSalesOrOversight = role === 'sales_officer' || isOversight;
   return (
-    <FieldNetworkStack.Navigator screenOptions={headerOptions}>
-      <FieldNetworkStack.Screen
-        name="FieldNetworkHome"
-        component={FieldNetworkScreen}
-        options={{ title: 'Field Network' }}
-      />
-      <FieldNetworkStack.Screen name="Visit" component={VisitScreen} options={{ title: 'Field Visit Log' }} />
-      {showFieldOfficerScreens && (
-        <FieldNetworkStack.Screen name="Farmer" component={FarmerScreen} options={{ title: 'Register Farmer' }} />
-      )}
-      {showSalesOfficerScreens && (
-        <FieldNetworkStack.Screen name="Dealer" component={DealerScreen} options={{ title: 'Dealer Audit' }} />
-      )}
-      {showFieldOfficerScreens && (
-        <FieldNetworkStack.Screen name="CropIssue" component={CropIssueScreen} options={{ title: 'Report Crop Issue' }} />
-      )}
-      {showSalesOfficerScreens && (
+    <>
+      <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ title: 'Shift Check-In' }} />
+      <Stack.Screen name="WeeklyPlan" component={WeeklyPlanScreen} options={{ title: 'Weekly Plan' }} />
+      <Stack.Screen name="KpiSummary" component={KpiSummaryScreen} options={{ title: 'My KPIs' }} />
+      <Stack.Screen name="Visit" component={VisitScreen} options={{ title: 'Quick Check-In' }} />
+      {isFieldOrOversight && <Stack.Screen name="Farmer" component={FarmerScreen} options={{ title: 'Register Farmer' }} />}
+      {isSalesOrOversight && <Stack.Screen name="Dealer" component={DealerScreen} options={{ title: 'Dealer Audit' }} />}
+      {isFieldOrOversight && <Stack.Screen name="CropIssue" component={CropIssueScreen} options={{ title: 'Report Crop Issue' }} />}
+      {isSalesOrOversight && <Stack.Screen name="SalesDayClosure" component={SalesDayClosureScreen} options={{ title: 'Day Closure' }} />}
+      {isFieldOrOversight && (
         <>
-          {/* Sales Officers previously had no reachable day-closure
-              screen at all - the logout gate pointed them at
-              DailyVisitTracker, which is field-officer-only and builds
-              a payload they cannot validly submit. */}
-          <FieldNetworkStack.Screen
-            name="SalesDayClosure"
-            component={SalesDayClosureScreen}
-            options={{ title: 'Day Closure' }}
-          />
+          {/* DailyVisitTracker doubles as the field officer's day closure
+              (dayClosureMode) and, with adminOfficerId, as an admin
+              filing a missed closure. */}
+          <Stack.Screen name="DailyVisitTracker" component={DailyVisitTrackerScreen} options={{ title: 'Daily Visit Tracker' }} />
+          <Stack.Screen name="MyVisits" component={MyVisitsScreen} options={{ title: 'My Visits' }} />
+          <Stack.Screen name="MyVisitDetail" component={MyVisitDetailScreen} options={{ title: 'Visit Detail' }} />
+          <Stack.Screen name="DraftVisits" component={DraftVisitsScreen} options={{ title: 'Draft Visits' }} />
         </>
       )}
-      {showFieldOfficerScreens && (
+      {isOversight && (
         <>
-          <FieldNetworkStack.Screen
-            name="DailyVisitTracker"
-            component={DailyVisitTrackerScreen}
-            options={{ title: 'Daily Visit Tracker' }}
-          />
-          <FieldNetworkStack.Screen name="MyVisits" component={MyVisitsScreen} options={{ title: 'My Visits' }} />
-          <FieldNetworkStack.Screen name="MyVisitDetail" component={MyVisitDetailScreen} options={{ title: 'Visit Detail' }} />
-          <FieldNetworkStack.Screen name="DraftVisits" component={DraftVisitsScreen} options={{ title: 'Draft Visits' }} />
+          <Stack.Screen name="AdminVisitDetail" component={AdminVisitDetailScreen} options={{ title: 'Visit Detail' }} />
+          <Stack.Screen name="AdminSalesClosures" component={AdminSalesClosuresScreen} options={{ title: 'Sales Day Closures' }} />
+          {role === 'admin' && (
+            <Stack.Screen name="AdminFileClosure" component={AdminFileClosureScreen} options={{ title: 'File Missed Closure' }} />
+          )}
         </>
       )}
-    </FieldNetworkStack.Navigator>
+      <Stack.Screen name="Preferences" component={PreferencesScreen} options={{ title: 'My Preferences' }} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: 'Privacy Policy' }} />
+      <Stack.Screen name="Help" component={HelpScreen} options={{ title: 'Help & Getting Started' }} />
+    </>
   );
 }
 
-// Profile keeps its own stack too, so "My Leave" (section 7) can push as a
-// sub-screen off Profile rather than needing a 6th tab.
-function ProfileStackScreen() {
+// The title is the section's name; the tabs inside it are in the strip.
+const sectionTitle = ({ route }: any) => ({ title: findSection(route.params?.sectionId)?.label ?? 'VBT One' });
+
+function HomeStackScreen() {
+  const access = usePushedScreens();
   return (
-    <ProfileStack.Navigator screenOptions={headerOptions}>
-      <ProfileStack.Screen name="ProfileHome" component={ProfileScreen} options={{ headerShown: false }} />
-      <ProfileStack.Screen name="MyLeave" component={MyLeaveScreen} options={{ title: 'My Leave' }} />
-      <ProfileStack.Screen name="Preferences" component={PreferencesScreen} options={{ title: 'My Preferences' }} />
-      <ProfileStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: 'Privacy Policy' }} />
-      {/* Admin/manager-only screens (see ProfileScreen.tsx's isOversight
-          gate on the "Admin Tools" row) - registering them here rather
-          than adding a 6th tab keeps the 5-tab bottom nav from the
-          original spec intact. */}
-      <ProfileStack.Screen name="AdminHome" component={AdminHomeScreen} options={{ title: 'Admin Tools' }} />
-      <ProfileStack.Screen name="AdminLeaveApprovals" component={AdminLeaveApprovalsScreen} options={{ title: 'Leave Approvals' }} />
-      <ProfileStack.Screen name="AdminTasks" component={AdminTasksScreen} options={{ title: 'Task Management' }} />
-      <ProfileStack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
-      <ProfileStack.Screen name="AdminDayClosure" component={AdminDayClosureScreen} options={{ title: 'Day Closure Overview' }} />
-      <ProfileStack.Screen name="AdminSalesClosures" component={AdminSalesClosuresScreen} options={{ title: 'Sales Day Closures' }} />
-      <ProfileStack.Screen name="AdminMasterData" component={AdminMasterDataScreen} options={{ title: 'Master Data' }} />
-      <ProfileStack.Screen name="AdminVisitReports" component={AdminVisitReportsScreen} options={{ title: 'Daily Visit Reports' }} />
-      <ProfileStack.Screen name="AdminVisitDetail" component={AdminVisitDetailScreen} options={{ title: 'Visit Detail' }} />
-      <ProfileStack.Screen name="AdminDealers" component={AdminDealersScreen} options={{ title: 'Dealers' }} />
-      <ProfileStack.Screen name="AdminStock" component={AdminStockScreen} options={{ title: 'Stock Management' }} />
-      <ProfileStack.Screen name="AdminLiveMap" component={AdminLiveMapScreen} options={{ title: "Team's Live Location" }} />
-      <ProfileStack.Screen name="AdminLocationHistory" component={AdminLocationHistoryScreen} options={{ title: 'Movement History' }} />
-      <ProfileStack.Screen name="AdminFileClosure" component={AdminFileClosureScreen} options={{ title: 'File Missed Closure' }} />
-      {/* Same screen component registered under a different route name in
-          THIS stack (DailyVisitTracker already lives in FieldNetworkStack,
-          not reachable by name from here) - AdminFileClosureScreen
-          navigates to this name after the admin picks an officer, passing
-          adminOfficerId so the submit redirects to POST /admin/day-closures. */}
-      <ProfileStack.Screen name="DailyVisitTracker" component={DailyVisitTrackerScreen} options={{ title: 'Daily Visit Tracker' }} />
-      <ProfileStack.Screen name="Help" component={HelpScreen} options={{ title: 'Help & Getting Started' }} />
-    </ProfileStack.Navigator>
+    <HomeStack.Navigator screenOptions={headerOptions}>
+      <HomeStack.Screen name="Section" component={SectionScreen} initialParams={{ sectionId: 'home' }} options={{ title: 'VBT One' }} />
+      {renderPushedScreens(HomeStack, access)}
+    </HomeStack.Navigator>
+  );
+}
+
+function WorkStackScreen() {
+  const access = usePushedScreens();
+  return (
+    <WorkStack.Navigator screenOptions={headerOptions}>
+      <WorkStack.Screen name="Section" component={SectionScreen} initialParams={{ sectionId: 'work' }} options={sectionTitle} />
+      {renderPushedScreens(WorkStack, access)}
+    </WorkStack.Navigator>
+  );
+}
+
+function FieldStackScreen() {
+  const access = usePushedScreens();
+  return (
+    <FieldStack.Navigator screenOptions={headerOptions}>
+      <FieldStack.Screen name="Section" component={SectionScreen} initialParams={{ sectionId: 'field' }} options={sectionTitle} />
+      {renderPushedScreens(FieldStack, access)}
+    </FieldStack.Navigator>
+  );
+}
+
+// More: account + the sections that are not on the bottom bar. Team, Stock,
+// Library and Setup open as ordinary Section screens from here.
+function MoreStackScreen() {
+  const access = usePushedScreens();
+  return (
+    <MoreStack.Navigator screenOptions={headerOptions}>
+      <MoreStack.Screen name="MoreHome" component={MoreScreen} options={{ headerShown: false }} />
+      <MoreStack.Screen name="Section" component={SectionScreen} options={sectionTitle} />
+      {renderPushedScreens(MoreStack, access)}
+    </MoreStack.Navigator>
   );
 }
 
@@ -269,18 +227,18 @@ function QuickActionPlaceholder() {
   return <View />;
 }
 
-const TAB_ICONS: Record<string, string> = {
-  DashboardTab: '🏠',
-  TasksTab: '✅',
-  FieldNetworkTab: '🌐',
-  ProfileTab: '👤',
+const TAB_ICONS: Record<string, [string, string]> = {
+  HomeTab: ['home', 'home-outline'],
+  WorkTab: ['checkbox', 'checkbox-outline'],
+  FieldTab: ['leaf', 'leaf-outline'],
+  MoreTab: ['menu', 'menu-outline'],
 };
 
 const TAB_LABELS: Record<string, string> = {
-  DashboardTab: 'Dashboard',
-  TasksTab: 'Tasks',
-  FieldNetworkTab: 'Field Network',
-  ProfileTab: 'Profile',
+  HomeTab: 'Home',
+  WorkTab: 'Work',
+  FieldTab: 'Field',
+  MoreTab: 'More',
 };
 
 export default function TabNavigator() {
@@ -292,20 +250,30 @@ export default function TabNavigator() {
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarActiveTintColor: color.primary,
-          tabBarInactiveTintColor: '#9e9e9e',
-          tabBarIcon: () =>
-            route.name === 'QuickAction' ? null : <Text style={{ fontSize: 20 }}>{TAB_ICONS[route.name]}</Text>,
+          tabBarInactiveTintColor: '#757575',
+          tabBarLabelStyle: { fontSize: 12, fontWeight: fontWeight.semibold },
+          tabBarIcon: ({ focused, color: tint }) => {
+            if (route.name === 'QuickAction') return null;
+            const [on, off] = TAB_ICONS[route.name] ?? ['ellipse', 'ellipse-outline'];
+            return <Ionicons name={(focused ? on : off) as any} size={24} color={tint} />;
+          },
           tabBarLabel: route.name === 'QuickAction' ? () => null : TAB_LABELS[route.name],
         })}
       >
-        <Tab.Screen name="DashboardTab" component={DashboardStackScreen} />
-        <Tab.Screen name="TasksTab" component={TasksStackScreen} />
+        <Tab.Screen name="HomeTab" component={HomeStackScreen} />
+        <Tab.Screen name="WorkTab" component={WorkStackScreen} />
         <Tab.Screen
           name="QuickAction"
           component={QuickActionPlaceholder}
           options={{
             tabBarButton: (props) => (
-              <TouchableOpacity {...props} style={styles.raisedButtonWrap} onPress={() => setSheetVisible(true)}>
+              <TouchableOpacity
+                {...props}
+                style={styles.raisedButtonWrap}
+                onPress={() => setSheetVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Quick actions"
+              >
                 <View style={styles.raisedButton}>
                   <Text style={styles.raisedButtonText}>+</Text>
                 </View>
@@ -319,8 +287,8 @@ export default function TabNavigator() {
             tabPress: (e) => e.preventDefault(),
           }}
         />
-        <Tab.Screen name="FieldNetworkTab" component={FieldNetworkStackScreen} />
-        <Tab.Screen name="ProfileTab" component={ProfileStackScreen} />
+        <Tab.Screen name="FieldTab" component={FieldStackScreen} />
+        <Tab.Screen name="MoreTab" component={MoreStackScreen} />
       </Tab.Navigator>
 
       <QuickActionSheetWithNav visible={sheetVisible} onClose={() => setSheetVisible(false)} />
@@ -329,17 +297,16 @@ export default function TabNavigator() {
 }
 
 // TabNavigator's own screen components don't get a `navigation` prop for
-// the tab navigator itself, so the sheet's cross-tab navigation (e.g. into
-// FieldNetworkTab's nested stack) is resolved here via useNavigation()
-// instead.
+// the tab navigator itself, so the sheet's cross-tab navigation is resolved
+// here via useNavigation() instead.
 function QuickActionSheetWithNav({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const navigation = useNavigation<any>();
 
   const onNavigate = (screen: string) => {
     if (screen === 'Visit' || screen === 'CropIssue') {
-      navigation.navigate('FieldNetworkTab', { screen });
+      navigation.navigate('FieldTab', { screen });
     } else if (screen === 'TasksTab') {
-      navigation.navigate('TasksTab');
+      navigation.navigate('WorkTab', { screen: 'Section', params: { sectionId: 'work', tabId: 'tasks' } });
     }
   };
 

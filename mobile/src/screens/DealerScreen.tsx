@@ -9,7 +9,7 @@ import { color, font, fontWeight, spacing, radius } from '../theme';
 type Dealer = { id: string; name: string; district: string; village?: string; contact_person?: string; phone: string };
 type Product = { id: string; name: string; sku_code: string };
 
-export default function DealerScreen({ navigation }: any) {
+export default function DealerScreen({ navigation, embedded, onDone }: any) {
   const [selectedDealerId, setSelectedDealerId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [stockQty, setStockQty] = useState('');
@@ -150,9 +150,11 @@ export default function DealerScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.btnBack} onPress={() => navigation.goBack()}>
-        <Text style={styles.btnBackText}>Go Back</Text>
-      </TouchableOpacity>
+      {!embedded && (
+        <TouchableOpacity style={styles.btnBack} onPress={() => navigation.goBack()}>
+          <Text style={styles.btnBackText}>Go Back</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }

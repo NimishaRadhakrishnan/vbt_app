@@ -5,7 +5,7 @@ import { apiClient } from '../services/api';
 import { showSubmitResult } from '../utils/offlineAlert';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
-export default function FarmerScreen({ navigation }: any) {
+export default function FarmerScreen({ navigation, embedded, onDone }: any) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [village, setVillage] = useState('');
@@ -49,7 +49,8 @@ export default function FarmerScreen({ navigation }: any) {
       });
 
       showSubmitResult(res, 'Farmer Registered', `${name} successfully added to database.`);
-      navigation.goBack();
+      if (embedded) onDone?.();
+      else navigation.goBack();
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Registration failed.');
     } finally {
@@ -84,9 +85,11 @@ export default function FarmerScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.btnBack} onPress={() => navigation.goBack()}>
-        <Text style={styles.btnBackText}>Cancel & Go Back</Text>
-      </TouchableOpacity>
+      {!embedded && (
+        <TouchableOpacity style={styles.btnBack} onPress={() => navigation.goBack()}>
+          <Text style={styles.btnBackText}>Cancel & Go Back</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }

@@ -32,18 +32,27 @@ const TAB_LABEL: Record<TabKey, string> = { issue: 'Issue Stock', recon: 'Stock 
 // same manual allocation form web itself provides alongside it is added
 // here, which is the part that matters for "can I do my job from my
 // phone".
-export default function AdminStockScreen() {
-  const [tab, setTab] = useState<TabKey>('issue');
+export default function AdminStockScreen({ initialTab, hideTabs }: { initialTab?: TabKey; hideTabs?: boolean } = {}) {
+  const [tab, setTab] = useState<TabKey>(initialTab ?? 'issue');
+
+  // When the Stock section hosts this screen, its own tabs (Issue / With
+  // Officers / History) are the section's tabs, so the inner strip is hidden
+  // and the section tells us which one to show.
+  React.useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.tabs}>
-        {TABS.map((t) => (
-          <TouchableOpacity key={t} style={[styles.tab, tab === t && styles.tabActive]} onPress={() => setTab(t)}>
-            <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{TAB_LABEL[t]}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {!hideTabs && (
+        <View style={styles.tabs}>
+          {TABS.map((t) => (
+            <TouchableOpacity key={t} style={[styles.tab, tab === t && styles.tabActive]} onPress={() => setTab(t)}>
+              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{TAB_LABEL[t]}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
       {tab === 'issue' && <IssueStockTab />}
       {tab === 'recon' && <ReconTab />}
       {tab === 'ledger' && <LedgerTab />}

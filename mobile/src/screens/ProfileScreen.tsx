@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Switch, Alert } f
 import { apiClient } from '../services/api';
 import { LocationService } from '../services/LocationService';
 import { color, font, fontWeight, spacing, radius } from '../theme';
+import { MORE_SECTION_IDS, sectionsForRole } from '../navigation/navConfig';
 
 // Roles the day-closure gate applies to - mirrors the web frontend's
 // `requiresDayClosure` check exactly (app/dashboard/page.tsx). Admin and
@@ -35,6 +36,8 @@ export default function ProfileScreen({ navigation }: any) {
   const [isOnline, setIsOnline] = useState(apiClient.getOnlineStatus());
   const currentUser = apiClient.getCurrentUser();
   const isOversight = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  // Team, Stock, Library and Setup: the sections that are not on the bottom bar.
+  const moreSections = sectionsForRole(currentUser?.role).filter((s) => MORE_SECTION_IDS.includes(s.id));
 
   const toggleNetwork = (value: boolean) => {
     setIsOnline(value);
@@ -86,15 +89,10 @@ export default function ProfileScreen({ navigation }: any) {
                       // payload. Both live in FieldNetworkTab's stack,
                       // each registered behind its own role gate.
                       if (role === 'sales_officer') {
-                        navigation.getParent()?.navigate('FieldNetworkTab', {
-                          screen: 'SalesDayClosure',
-                        });
+                        navigation.navigate('SalesDayClosure');
                         return;
                       }
-                      navigation.getParent()?.navigate('FieldNetworkTab', {
-                        screen: 'DailyVisitTracker',
-                        params: { dayClosureMode: true },
-                      });
+                      navigation.navigate('DailyVisitTracker', { dayClosureMode: true });
                     },
                   },
                 ]
@@ -143,7 +141,13 @@ export default function ProfileScreen({ navigation }: any) {
       </View>
 
       <View style={styles.menu}>
-        <MenuRow label="My Leave" onPress={() => navigation.navigate('MyLeave')} />
+        {moreSections.map((section) => (
+          <MenuRow
+            key={section.id}
+            label={section.label}
+            onPress={() => navigation.navigate('Section', { sectionId: section.id })}
+          />
+        ))}
         <MenuRow label="Help & Getting Started" onPress={() => navigation.navigate('Help')} />
         <MenuRow label="My Preferences" onPress={() => navigation.navigate('Preferences')} />
         {/* BUG FIX: the backend tells a blocked check-in "you can find it
@@ -161,9 +165,6 @@ export default function ProfileScreen({ navigation }: any) {
             is registered on this stack, but nothing here ever linked to
             it. */}
         <MenuRow label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy')} />
-        {isOversight && (
-          <MenuRow label="Admin Tools" onPress={() => navigation.navigate('AdminHome')} />
-        )}
         <MenuRow label="Sign Out" onPress={handleLogout} destructive last />
       </View>
     </ScrollView>

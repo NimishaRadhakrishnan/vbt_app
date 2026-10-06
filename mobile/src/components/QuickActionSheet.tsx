@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '../services/api';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
@@ -30,7 +31,7 @@ export default function QuickActionSheet({ visible, onClose, onNavigate }: Props
         <Text style={styles.title}>Quick Actions</Text>
 
         <TouchableOpacity style={styles.row} onPress={() => go('Visit')}>
-          <Text style={styles.rowEmoji}>🚗</Text>
+          <Ionicons name="car-outline" size={24} color={color.primary} style={{ width: 40 }} />
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>New Visit</Text>
             <Text style={styles.rowDesc}>Start a farmer or dealer visit</Text>
@@ -39,7 +40,7 @@ export default function QuickActionSheet({ visible, onClose, onNavigate }: Props
 
         {canCreateTasks && (
           <TouchableOpacity style={styles.row} onPress={() => go('TasksTab')}>
-            <Text style={styles.rowEmoji}>📝</Text>
+            <Ionicons name="create-outline" size={24} color={color.primary} style={{ width: 40 }} />
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>New Task</Text>
               <Text style={styles.rowDesc}>Assign a task to an officer</Text>
@@ -49,7 +50,7 @@ export default function QuickActionSheet({ visible, onClose, onNavigate }: Props
 
         {isFieldOfficer && (
           <TouchableOpacity style={styles.row} onPress={() => go('CropIssue')}>
-            <Text style={styles.rowEmoji}>🐛</Text>
+            <Ionicons name="bug-outline" size={24} color={color.primary} style={{ width: 40 }} />
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>New Crop Issue</Text>
               <Text style={styles.rowDesc}>Report a disease with a photo</Text>
