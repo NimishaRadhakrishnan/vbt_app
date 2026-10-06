@@ -115,9 +115,9 @@ export const LocationService = {
 
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
         accuracy: Location.Accuracy.Balanced,
-        timeInterval: 15000, // min 15 seconds
+        timeInterval: 5000, // ping about every 5 seconds
         distanceInterval: 0,
-        deferredUpdatesInterval: 15000,
+        deferredUpdatesInterval: 5000,
         showsBackgroundLocationIndicator: true,
         foregroundService: {
           notificationTitle: 'GPS Tracking Active',

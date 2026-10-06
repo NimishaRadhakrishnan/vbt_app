@@ -56,10 +56,18 @@ export default function AdminLiveMapScreen() {
   // useDataFetch doesn't support a polling interval, only refetch-on-
   // focus (the default) - re-opening or returning to this screen gets a
   // fresh read, same as every other admin list screen in this app.
-  const { data, loading, error, retry } = useDataFetch<ActiveLocation[]>(
+  const { data, loading, error, retry, refresh } = useDataFetch<ActiveLocation[]>(
     () => apiClient.request('/location/active', 'GET', 'admin_action'),
     []
   );
+
+  // Quiet refresh every 5 seconds while this screen is open.
+  const refreshRef = React.useRef(refresh);
+  refreshRef.current = refresh;
+  React.useEffect(() => {
+    const id = setInterval(() => refreshRef.current(), 5000);
+    return () => clearInterval(id);
+  }, []);
 
   const navigateTo = (lat: number, lng: number) => {
     Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
