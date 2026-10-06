@@ -16,6 +16,9 @@ import { tokenStorage } from "@/lib/api/token-storage";
 import { useAuth } from "@/lib/auth-context";
 import { computeLiveOfficers, countActive as countActiveOfficers, LiveOfficer } from "@/lib/officerStatus";
 import dynamic from "next/dynamic";
+import SectionTabs from "@/components/SectionTabs";
+import { findActive, hrefFor, navForRole, searchNav } from "@/lib/navigation";
+import type { NavTab } from "@/lib/navigation";
 
 const MapComponent = dynamic(() => import("./MapComponent"), {
   ssr: false,
@@ -56,6 +59,16 @@ import ManagementDashboard from "@/components/management/ManagementDashboard";
 // fallback issue fixed elsewhere in this file; flagged here rather than
 // silently left in a "no bugs" build. Wiring up a real /orders API is a
 // follow-up task, not a one-line fix.
+const SECTION_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  home: TrendingUp,
+  work: ClipboardList,
+  field: Award,
+  team: Users,
+  stock: ShoppingCart,
+  library: BookOpen,
+  setup: Settings,
+};
+
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrator",
   field_officer: "Field Officer",
@@ -101,6 +114,7 @@ export default function Dashboard() {
 
   const [activeTab, setActiveTab] = useState("map");
   const [hasSetLandingTab, setHasSetLandingTab] = useState(false);
+  const [navQuery, setNavQuery] = useState("");
   const [activeLocations, setActiveLocations] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [dealers, setDealers] = useState<any[]>([]);
@@ -1399,13 +1413,64 @@ export default function Dashboard() {
     });
   }, [productivityData, usersList]);
 
+  // ---- Navigation (see lib/navigation.ts) --------------------------------
+  const navSections = useMemo(() => navForRole(user?.role), [user?.role]);
+  const activeNav = findActive(navSections, { dashboardTab: activeTab });
+
+  const selectNavTab = (tab: NavTab) => {
+    if (tab.target.kind === "route") {
+      const href = hrefFor(tab.target);
+      if (href) router.push(href);
+      return;
+    }
+    setActiveTab(tab.target.id);
+    if (tab.target.id === "day-closures") {
+      fetchAdminDayClosures();
+      fetchSalesClosures();
+    }
+    if (tab.target.openFormBuilder) setShowFormBuilder(true);
+  };
+
+  // What the sidebar badge on each section adds up. These are the same
+  // counts the old per-item badges showed - just rolled up.
+  const sectionBadge = (sectionId: string): { count: number; alert?: boolean; live?: boolean } => {
+    const isOversight = user?.role === "admin" || user?.role === "manager";
+    if (sectionId === "work") {
+      return {
+        count: myOpenTasksCount + (user?.role === "admin" ? pendingPlansCount : 0) + (isOversight ? pendingLeaveCount : 0),
+      };
+    }
+    if (sectionId === "field") {
+      return {
+        count: (user?.role === "admin" ? pendingIssuesCount : 0) + (user?.role !== "sales_officer" ? openEnquiriesCount : 0),
+        alert: user?.role === "admin" && pendingIssuesCount > 0,
+      };
+    }
+    if (sectionId === "team") return { count: 0, live: isOversight && activeCount > 0 };
+    if (sectionId === "stock") return { count: user?.role === "admin" ? lowStockDealersCount : 0, alert: true };
+    return { count: 0 };
+  };
+
   // Dashboard opens immediately with the Overview screen for every role
   // (Section 26) - previously Admin landed on the Live Tracking Map and
   // everyone else on Weekly Plans, neither of which is an "at a glance"
   // summary of what the role needs to know/do.
   useEffect(() => {
     if (user && !hasSetLandingTab) {
-      setActiveTab("overview");
+      // Other pages link here as /dashboard?tab=plans (and &builder=1 for
+      // the day-closure form builder). Only tabs this role can actually
+      // see are honoured.
+      const params = new URLSearchParams(window.location.search);
+      const wanted = params.get("tab");
+      const allowed = navForRole(user.role)
+        .flatMap((sec) => sec.tabs)
+        .some((t) => t.target.kind === "tab" && t.target.id === wanted);
+      setActiveTab(allowed && wanted ? wanted : "overview");
+      if (allowed && wanted === "day-closures") {
+        fetchAdminDayClosures();
+        fetchSalesClosures();
+        if (params.get("builder") === "1" && user.role === "admin") setShowFormBuilder(true);
+      }
       setHasSetLandingTab(true);
     }
   }, [user, hasSetLandingTab]);
@@ -1831,285 +1896,60 @@ export default function Dashboard() {
             ${showMobileSidebar ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
         >
           <div className="px-4 py-6">
-            {/* Overview — the dashboard-home landing screen (Section 26).
-                One entry point, at the top, above every group. */}
-            <nav className="space-y-1 mb-2">
-              <button
-                onClick={() => setActiveTab("overview")}
-                className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "overview" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-              >
-                <TrendingUp className="w-5 h-5" />
-                Overview
-              </button>
-            </nav>
+            {/* Seven sections, built from lib/navigation.ts for the signed-in
+                role. Tabs inside a section show in the strip above the page.
+                Search matches current AND old names ("Admin Stock",
+                "Movement History" ...) so nobody has to relearn the app. */}
+            <div className="relative mb-4" onClick={(e) => e.stopPropagation()}>
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                value={navQuery}
+                onChange={(e) => setNavQuery(e.target.value)}
+                placeholder="Find a screen"
+                aria-label="Find a screen"
+                className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-600"
+              />
+            </div>
 
-            {/* My Work — self-service items. Renamed from "Biotech Operations",
-                which was a vague label duplicating nothing in particular; every
-                item below keeps its exact previous per-role gate, only the
-                grouping changed. */}
-            <span className="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">My Work</span>
-            <nav className="mt-4 space-y-1">
-              {(user?.role === "field_officer" || user?.role === "sales_officer") && (
-                <button
-                  onClick={() => setActiveTab("work-doc")}
-                  className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "work-doc" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                >
-                  <FileText className="w-5 h-5" />
-                  Day Closure
-                </button>
-              )}
-              <button
-                onClick={() => setActiveTab("tasks")}
-                className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "tasks" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-              >
-                <CheckCircle className="w-5 h-5" />
-                {user?.role === "admin" || user?.role === "manager" ? "Assign Tasks" : "My Tasks"}
-                {myOpenTasksCount > 0 && (
-                  <span className="ml-auto px-2 py-0.5 text-xs bg-amber-600 rounded-full text-white">{myOpenTasksCount}</span>
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveTab("productivity")}
-                className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "productivity" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-              >
-                <TrendingUp className="w-5 h-5" />
-                Productivity
-              </button>
-
-              {(user?.role === "admin" || user?.role === "manager") && (
-                <button
-                  onClick={() => router.push("/dashboard/stock")}
-                  className="flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition hover:bg-slate-800 hover:text-white"
-                >
-                  <ClipboardList className="w-5 h-5" />
-                  Admin Stock
-                </button>
-              )}
-
-              <button
-                onClick={() => setActiveTab("momentum")}
-                className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "momentum" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-              >
-                <Award className="w-5 h-5" />
-                Momentum & Milestones
-              </button>
-
-              <button 
-                onClick={() => setActiveTab("plans")}
-                className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "plans" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-              >
-                <ClipboardList className="w-5 h-5" />
-                Weekly Plans
-                {user?.role === "admin" && pendingPlansCount > 0 && (
-                  <span className="ml-auto px-2 py-0.5 text-xs bg-amber-600 rounded-full text-white">{pendingPlansCount}</span>
-                )}
-              </button>
-
-              {user?.role !== "sales_officer" && (
-                <button 
-                  onClick={() => setActiveTab("issues")}
-                  className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "issues" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                >
-                  <MessageSquare className="w-5 h-5" />
-                  Crop Disease Issues
-                  {user?.role === "admin" && pendingIssuesCount > 0 && (
-                    <span className="ml-auto px-2 py-0.5 text-xs bg-red-600 rounded-full text-white">{pendingIssuesCount}</span>
-                  )}
-                </button>
-              )}
-
-              {/* Knowledge Base (Phase 2) - available to every role.
-                  Unlike Crop Disease Issues (which is one officer asking
-                  one expert), this is the shared, verified repository
-                  any officer can contribute to and, from Phase 3, search. */}
-              <button
-                onClick={() => router.push("/dashboard/knowledge")}
-                className="flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition hover:bg-slate-800 hover:text-white"
-              >
-                <BookOpen className="w-5 h-5" />
-                Knowledge Base
-              </button>
-
-              {user?.role === "admin" && (
-                <button
-                  onClick={() => router.push("/dashboard/knowledge-admin")}
-                  className="flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition hover:bg-slate-800 hover:text-white"
-                >
-                  <BookOpen className="w-5 h-5" />
-                  Knowledge Admin
-                </button>
-              )}
-
-              {user?.role !== "sales_officer" && (
-                <button
-                  onClick={() => setActiveTab("enquiry")}
-                  className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "enquiry" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                >
-                  <HelpCircle className="w-5 h-5" />
-                  Farmer Enquiry
-                  {openEnquiriesCount > 0 && (
-                    <span className="ml-auto px-2 py-0.5 text-xs bg-amber-600 rounded-full text-white">{openEnquiriesCount}</span>
-                  )}
-                </button>
-              )}
-
-              {(user?.role === "field_officer" || user?.role === "sales_officer") && (
-                <button
-                  onClick={() => setActiveTab("leave")}
-                  className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "leave" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                >
-                  <CalendarOff className="w-5 h-5" />
-                  My Leave
-                </button>
-              )}
-
-              {(user?.role === "admin" || user?.role === "manager") && (
-                <button
-                  onClick={() => setActiveTab("leave")}
-                  className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "leave" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                >
-                  <CalendarOff className="w-5 h-5" />
-                  Leave Approvals
-                  {pendingLeaveCount > 0 && (
-                    <span className="ml-auto px-2 py-0.5 text-xs bg-amber-600 rounded-full text-white">{pendingLeaveCount}</span>
-                  )}
-                </button>
-              )}
-
-              <button
-                onClick={() => setActiveTab("hrpolicy")}
-                className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "hrpolicy" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-              >
-                <BookOpen className="w-5 h-5" />
-                HR Policies
-              </button>
-            </nav>
-
-            {/* Operations — the field/dealer network plus its two oversight
-                views. Field Network itself is visible to every role; what
-                renders inside it is already role-scoped (Section 5 fix). */}
-            <span className="block mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Operations</span>
-            <nav className="mt-4 space-y-1">
-              <button
-                onClick={() => router.push("/dashboard/field-network")}
-                className="flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition hover:bg-slate-800 hover:text-white"
-              >
-                <Award className="w-5 h-5" />
-                Field Network
-                {user?.role === "admin" && lowStockDealersCount > 0 && (
-                  <span className="ml-auto px-2 py-0.5 text-xs bg-red-600 rounded-full text-white">Stock Alert</span>
-                )}
-              </button>
-
-              {(user?.role === "admin" || user?.role === "manager") && (
-                <button
-                  onClick={() => router.push("/dashboard/daily-visits")}
-                  className="flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition hover:bg-slate-800 hover:text-white"
-                >
-                  <ClipboardList className="w-5 h-5" />
-                  Daily Visit Reports
-                </button>
-              )}
-            </nav>
-
-            {/* Management — admin-only catalog/user administration. */}
-            {user?.role === "admin" && (
-              <>
-                <span className="block mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Management</span>
-                <nav className="mt-4 space-y-1">
+            {navQuery.trim() ? (
+              <nav className="space-y-1">
+                {searchNav(navSections, navQuery).map(({ section, tab }) => (
                   <button
-                    onClick={() => router.push("/dashboard/master-data")}
-                    className="flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition hover:bg-slate-800 hover:text-white"
+                    key={`${section.id}-${tab.id}`}
+                    onClick={() => { selectNavTab(tab); setNavQuery(""); }}
+                    className="flex items-center justify-between w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition hover:bg-slate-800 hover:text-white"
                   >
-                    <ClipboardList className="w-5 h-5" />
-                    Master Data
+                    <span>{tab.label}</span>
+                    <span className="text-xs text-slate-500">{section.label}</span>
                   </button>
-
-                  <button
-                    onClick={() => router.push("/dashboard/products")}
-                    className="flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition hover:bg-slate-800 hover:text-white"
-                  >
-                    <ShoppingCart className="w-5 h-5" />
-                    Products
-                  </button>
-
-                  <button 
-                    onClick={() => setActiveTab("users")}
-                    className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "users" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                  >
-                    <Users className="w-5 h-5" />
-                    User Management
-                  </button>
-                </nav>
-              </>
-            )}
-
-            {/* Tracking — previously "Monitoring Dashboards", same admin-only
-                gate and same three items, just relabeled to match the doc's
-                grouping and renamed "Movement History" for clarity (was
-                "Historical Route Replay" — same tab, same feature). */}
-            {user?.role === "admin" && (
-              <>
-                <span className="block mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Tracking</span>
-                <nav className="mt-4 space-y-1">
-                  <button 
-                    onClick={() => setActiveTab("map")}
-                    className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "map" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                  >
-                    <MapPin className="w-5 h-5" />
-                    Live Tracking Map
-                    {activeCount > 0 && <span className="ml-auto w-2.5 h-2.5 bg-green-400 rounded-full animate-ping" />}
-                  </button>
-
-                  <button 
-                    onClick={() => setActiveTab("route-history")}
-                    className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "route-history" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                  >
-                    <Activity className="w-5 h-5" />
-                    Movement History
-                  </button>
-
-                  <button 
-                    onClick={() => setActiveTab("attendance")}
-                    className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "attendance" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                  >
-                    <Users className="w-5 h-5" />
-                    Attendance Log
-                  </button>
-                </nav>
-              </>
-            )}
-
-            {/* Reports — previously "Administration Center", trimmed to just
-                the two report-generation items (User Management moved up
-                into Management, next to Products/Master Data where it
-                belongs functionally). */}
-            {user?.role === "admin" && (
-              <>
-                <span className="block mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Reports</span>
-                <nav className="mt-4 space-y-1">
-                  <button 
-                    onClick={() => {
-                      setActiveTab("day-closures");
-                      fetchAdminDayClosures();
-                      fetchSalesClosures();
-                    }}
-                    className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "day-closures" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                  >
-                    <ClipboardList className="w-5 h-5" />
-                    Day Closure Reports
-                  </button>
-
-                  <button 
-                    onClick={() => setActiveTab("reports")}
-                    className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${activeTab === "reports" ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
-                  >
-                    <FileText className="w-5 h-5" />
-                    Reports Generator
-                  </button>
-                </nav>
-              </>
+                ))}
+                {searchNav(navSections, navQuery).length === 0 && (
+                  <p className="px-4 py-3 text-sm text-slate-500">Nothing matches &ldquo;{navQuery}&rdquo;.</p>
+                )}
+              </nav>
+            ) : (
+              <nav className="space-y-1">
+                {navSections.map((section) => {
+                  const Icon = SECTION_ICONS[section.id] ?? ClipboardList;
+                  const isCurrent = activeNav?.section.id === section.id;
+                  const badge = sectionBadge(section.id);
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => { const first = section.tabs[0]; if (first) selectNavTab(first); }}
+                      className={`flex items-center w-full gap-3 px-4 py-3 text-sm font-medium rounded-lg transition ${isCurrent ? "bg-green-700 text-white" : "hover:bg-slate-800 hover:text-white"}`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      {section.label}
+                      {badge.live ? (
+                        <span className="ml-auto w-2.5 h-2.5 bg-green-400 rounded-full animate-ping" />
+                      ) : badge.count > 0 ? (
+                        <span className={`ml-auto px-2 py-0.5 text-xs rounded-full text-white ${badge.alert ? "bg-red-600" : "bg-amber-600"}`}>{badge.count}</span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </nav>
             )}
           </div>
 
@@ -2132,6 +1972,7 @@ export default function Dashboard() {
 
         {/* Main Content Area */}
         <main className="flex-1 p-4 sm:p-6 bg-slate-50 overflow-y-auto overflow-x-hidden min-h-0 w-full min-w-0">
+          <SectionTabs dashboardTab={activeTab} onSelectDashboardTab={selectNavTab} />
           {/* 9AM check-in / 6PM monitoring window reminders */}
           {(user?.role === "field_officer" || user?.role === "sales_officer") && !myTodayAttendance && nowTick > new Date(new Date().setHours(9, 0, 0, 0)).getTime() && (
             <div className="mb-6 flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-xl">
@@ -2155,7 +1996,7 @@ export default function Dashboard() {
               Pending Plans/Crop Issues, so that same 4-card bar previously
               also rendered here on the Map tab was a direct duplicate and
               has been removed). */}
-          {user?.role === "admin" && activeTab === "attendance" && (
+          {(user?.role === "admin" || user?.role === "manager") && activeTab === "attendance" && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="p-4 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                 <div>
@@ -3205,7 +3046,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeTab === "momentum" && (
+          {(activeTab === "momentum" || activeTab === "productivity") && (
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
                 <div>

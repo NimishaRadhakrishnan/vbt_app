@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Package, AlertTriangle, RefreshCw } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth-context";
+import SectionTabs from "@/components/SectionTabs";
 
 // "My stock" previously pushed to /dashboard/field-network - the same
 // destination as the Dealers tile, the Collections tile AND the
@@ -61,6 +62,7 @@ export default function MyStockPage() {
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
+        <SectionTabs showSections />
         <button
           onClick={() => router.push("/dashboard")}
           className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800"

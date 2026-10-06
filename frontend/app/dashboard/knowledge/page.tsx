@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Clock, CheckCircle, XCircle, Archive, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth-context";
+import SectionTabs from "@/components/SectionTabs";
 
 // Phase 2 of the Disease Knowledge Search system: case submission and
 // the officer's own submission list. The SEARCH interface arrives in
@@ -198,6 +199,7 @@ export default function KnowledgeBasePage() {
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
+        <SectionTabs showSections />
         <button
           onClick={() => router.push("/dashboard")}
           className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800"

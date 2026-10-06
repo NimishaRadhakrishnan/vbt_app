@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth-context";
+import SectionTabs, { usePageTab } from "@/components/SectionTabs";
 
 type SubTab = "farmers" | "dealers";
 
@@ -20,6 +21,10 @@ export default function FieldNetworkPage() {
   }, [authLoading, user, router]);
 
   const [subTab, setSubTab] = useState<SubTab>("farmers");
+  const pageTab = usePageTab();
+  useEffect(() => {
+    if (pageTab === "farmers" || pageTab === "dealers") setSubTab(pageTab);
+  }, [pageTab]);
 
   // Role boundary (Section 5): Field Officers register farmers but never
   // touch dealer/stock/order data; Sales Officers do the opposite and
@@ -318,6 +323,7 @@ export default function FieldNetworkPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
+        <SectionTabs showSections />
         <button
           onClick={() => router.push("/dashboard")}
           className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 transition mb-4"

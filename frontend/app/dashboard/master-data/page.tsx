@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Pencil, X, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth-context";
+import SectionTabs from "@/components/SectionTabs";
 
 type DataTypeDef = { key: string; label: string; hasParent: boolean; parentType?: string };
 
@@ -158,6 +159,10 @@ export default function MasterDataPage() {
         </button>
         <h1 className="text-lg font-bold">Master Data</h1>
       </header>
+
+      <div className="max-w-7xl mx-auto px-6 pt-4">
+        <SectionTabs showSections />
+      </div>
 
       <div className="flex max-w-6xl mx-auto">
         <nav className="w-56 p-4 border-r border-slate-200 bg-white min-h-[calc(100vh-64px)]">

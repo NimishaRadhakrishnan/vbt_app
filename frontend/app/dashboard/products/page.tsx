@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth-context";
+import SectionTabs from "@/components/SectionTabs";
 import BulkImportPanel from "@/components/products/BulkImportPanel";
 import PriceTierPanel, { DealerOption } from "@/components/products/PriceTierPanel";
 
@@ -209,6 +210,10 @@ export default function ProductsPage() {
         </button>
         <h1 className="text-lg font-bold">Products</h1>
       </header>
+
+      <div className="max-w-7xl mx-auto px-6 pt-4">
+        <SectionTabs showSections />
+      </div>
 
       <div className="max-w-6xl mx-auto p-6">
         {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3 mb-4">{error}</div>}

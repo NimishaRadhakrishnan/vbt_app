@@ -6,6 +6,7 @@ import { ArrowLeft, Search, Filter, X, Download } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { downloadAuthenticatedFile, datedFilename } from "@/lib/api/download";
 import { useAuth } from "@/lib/auth-context";
+import SectionTabs from "@/components/SectionTabs";
 import { VisitDetailPanel } from "@/components/VisitDetailPanel";
 
 type VisitListItem = {
@@ -241,6 +242,10 @@ export default function DailyVisitReportsPage() {
         </div>
         <span className="text-sm text-slate-300">{total} visit{total === 1 ? "" : "s"}</span>
       </header>
+
+      <div className="max-w-7xl mx-auto px-6 pt-4">
+        <SectionTabs showSections />
+      </div>
 
       <div className="p-6 max-w-7xl mx-auto">
         <div className="flex gap-3 mb-4">

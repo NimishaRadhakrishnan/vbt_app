@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle, XCircle, TrendingUp, AlertTriangle } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth-context";
+import SectionTabs from "@/components/SectionTabs";
 
 // Admin side of the knowledge system: the review queue (spec s8), the
 // cold-start promotion queue (Phase 5), the knowledge-gap list (s24),
@@ -118,6 +119,7 @@ export default function AdminKnowledgePage() {
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-5xl mx-auto space-y-6">
+        <SectionTabs showSections />
         <button
           onClick={() => router.push("/dashboard")}
           className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800"

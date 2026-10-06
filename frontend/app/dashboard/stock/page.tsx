@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Upload, Download, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth-context";
+import SectionTabs, { usePageTab } from "@/components/SectionTabs";
 
 type Product = { id: string; name: string; sku_code: string; unit: string; is_active: boolean };
 type User = { id: string; full_name: string; employee_id: string; role: string; email: string };
@@ -16,6 +17,10 @@ export default function AdminStockPage() {
   const { user, isLoading: authLoading } = useAuth();
   
   const [tab, setTab] = useState<"issue"|"recon"|"ledger">("issue");
+  const pageTab = usePageTab();
+  useEffect(() => {
+    if (pageTab === "issue" || pageTab === "recon" || pageTab === "ledger") setTab(pageTab);
+  }, [pageTab]);
   
   const [products, setProducts] = useState<Product[]>([]);
   const [officers, setOfficers] = useState<User[]>([]);
@@ -178,6 +183,7 @@ export default function AdminStockPage() {
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
+        <SectionTabs showSections />
         <button onClick={() => router.push("/dashboard")} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800">
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </button>
