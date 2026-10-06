@@ -1285,7 +1285,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleWebCheckIn = async () => {
+  const handleWebCheckIn = async (skipConsentGate = false) => {
     // Gate client-side on the consent status we already fetched, so the
     // officer sees an actual disclosure screen instead of a silent 403.
     // The server still enforces this independently either way (see
@@ -1293,13 +1293,34 @@ export default function Dashboard() {
     // not a security boundary. An officer who somehow slips past this
     // (e.g. stale/unfetched locationConsent) still gets the 403 catch
     // below, which now surfaces the real reason instead of eating it.
-    if (
-      (user?.role === "field_officer" || user?.role === "sales_officer") &&
-      (!locationConsent || locationConsent.accepted_version == null ||
-        locationConsent.accepted_version < locationConsent.required_version)
-    ) {
-      setShowConsentModal(true);
-      return;
+    //
+    // BUG FIX (two ways this used to do nothing at all):
+    //  1. If the consent status had not loaded (or its request had failed),
+    //     locationConsent was null, the modal only renders when it is
+    //     non-null, and the tap silently did nothing. It is now fetched on
+    //     demand, and a real message is shown if that fails too.
+    //  2. After "I Agree", this function was called again from a closure
+    //     that still held the OLD consent state, so it re-opened the modal
+    //     instead of checking in. skipConsentGate is passed after a
+    //     successful accept; the server still enforces consent either way.
+    if ((user?.role === "field_officer" || user?.role === "sales_officer") && !skipConsentGate) {
+      let consent = locationConsent;
+      if (!consent) {
+        try {
+          consent = await apiFetch("/consent/location");
+          setLocationConsent(consent);
+        } catch (err: any) {
+          alert(err?.message || "Couldn't load the location notice. Check your connection and try again.");
+          return;
+        }
+      }
+      if (
+        consent.accepted_version == null ||
+        consent.accepted_version < consent.required_version
+      ) {
+        setShowConsentModal(true);
+        return;
+      }
     }
 
     setIsCheckingIn(true);
@@ -1309,19 +1330,26 @@ export default function Dashboard() {
           if (!navigator.geolocation) {
             reject(new Error("Geolocation is not supported by your browser"));
           } else {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              timeout: 20000,
+              maximumAge: 60000,
+            });
           }
         });
       };
 
       let lat = 0;
       let lng = 0;
+      let gotPosition = false;
       try {
         const pos = await getPosition();
         lat = pos.coords.latitude;
         lng = pos.coords.longitude;
+        gotPosition = true;
       } catch (err) {
-        console.warn("Could not get location, using fallback", err);
+        // Check-in still goes through, but it is recorded honestly as "no
+        // GPS" rather than as a real fix at 0,0.
+        console.warn("Could not get location", err);
       }
 
       await apiFetch("/attendance/check-in", {
@@ -1331,7 +1359,7 @@ export default function Dashboard() {
           longitude: lng,
           device_id: "web-dashboard",
           is_fake_gps: false,
-          is_gps_disabled: false,
+          is_gps_disabled: !gotPosition,
           phone: "web"
         })
       });
@@ -1373,7 +1401,7 @@ export default function Dashboard() {
       setShowConsentModal(false);
       // Proceed straight into the check-in the officer was originally
       // trying to do, rather than making them click twice.
-      handleWebCheckIn();
+      handleWebCheckIn(true);
     } catch (err: any) {
       setConsentError(err.message || "Couldn't record your acceptance. Please try again.");
     } finally {
@@ -1981,7 +2009,7 @@ export default function Dashboard() {
                 <span>You haven&apos;t checked in yet today. Please check in — officers are monitored from check-in until 6:00 PM.</span>
               </div>
               <button
-                onClick={handleWebCheckIn}
+                onClick={() => handleWebCheckIn()}
                 disabled={isCheckingIn}
                 className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-4 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 flex-shrink-0"
               >
