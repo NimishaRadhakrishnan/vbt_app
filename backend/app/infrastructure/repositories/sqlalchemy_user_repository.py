@@ -31,6 +31,7 @@ class SQLAlchemyUserRepository(UserRepository):
             role=Role(model.role),
             is_active=model.is_active,
             employee_id=model.employee_id,
+            phone=model.phone,
             device_id=model.device_id,
             biometric_token=model.biometric_token,
             manager_id=model.manager_id,
@@ -72,6 +73,7 @@ class SQLAlchemyUserRepository(UserRepository):
             role=user.role.value,
             is_active=user.is_active,
             employee_id=user.employee_id,
+            phone=user.phone,
             device_id=user.device_id,
             biometric_token=user.biometric_token,
             manager_id=user.manager_id,
@@ -97,6 +99,7 @@ class SQLAlchemyUserRepository(UserRepository):
         model.role = user.role.value
         model.is_active = user.is_active
         model.employee_id = user.employee_id
+        model.phone = user.phone
         model.device_id = user.device_id
         model.biometric_token = user.biometric_token
         model.manager_id = user.manager_id

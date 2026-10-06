@@ -23,6 +23,7 @@ class UserModel(TimestampedUUIDMixin, Base):
     role: Mapped[str] = mapped_column(String(50), nullable=False, default="field_officer")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     employee_id: Mapped[Optional[str]] = mapped_column(String(50), unique=True, index=True, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     device_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     biometric_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     manager_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

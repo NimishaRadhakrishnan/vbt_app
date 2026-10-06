@@ -20,6 +20,7 @@ class User:
     full_name: str
     role: Role = field(default_factory=Role.default)
     employee_id: Optional[str] = None
+    phone: Optional[str] = None
     device_id: Optional[str] = None
     biometric_token: Optional[str] = None
     id: uuid.UUID = field(default_factory=uuid.uuid4)

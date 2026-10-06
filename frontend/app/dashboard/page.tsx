@@ -346,7 +346,7 @@ export default function Dashboard() {
   const [teamMomentumOverview, setTeamMomentumOverview] = useState<any | null>(null);
 
   // Form Fields
-  const [formEmail, setFormEmail] = useState("");
+  const [formPhone, setFormPhone] = useState("");
   const [reportDate, setReportDate] = useState("");
   const [formPassword, setFormPassword] = useState("");
   const [formFullName, setFormFullName] = useState("");
@@ -4668,7 +4668,7 @@ export default function Dashboard() {
                 <button
                   onClick={() => {
                     setIsCreatingUser(true);
-                    setFormEmail("");
+                    setFormPhone("");
                     setFormPassword("");
                     setFormFullName("");
                     setFormRole("field_officer");
@@ -4713,11 +4713,13 @@ export default function Dashboard() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Email</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Phone Number (Optional)</label>
                       <input
-                        type="email"
-                        value={formEmail}
-                        onChange={(e) => setFormEmail(e.target.value)}
+                        type="tel"
+                        inputMode="tel"
+                        placeholder="e.g. 98765 43210"
+                        value={formPhone}
+                        onChange={(e) => setFormPhone(e.target.value)}
                         className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-green-700"
                       />
                     </div>
@@ -4733,7 +4735,7 @@ export default function Dashboard() {
                       </div>
                     )}
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Employee ID (Optional)</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Employee ID <span className="text-red-500">*</span></label>
                       <input
                         type="text"
                         value={formEmployeeId}
@@ -4778,16 +4780,20 @@ export default function Dashboard() {
                       onClick={async () => {
                         setFormError("");
                         setFormSuccess("");
+                        if (!formEmployeeId.trim()) {
+                          setFormError("Employee ID is required - it is what this person signs in with.");
+                          return;
+                        }
                         try {
                           if (isCreatingUser) {
                             const res: any = await apiFetch("/users", {
                               method: "POST",
                               body: JSON.stringify({
-                                email: formEmail,
+                                phone: formPhone.trim() || undefined,
                                 password: formPassword,
                                 full_name: formFullName,
                                 role: formRole,
-                                employee_id: formEmployeeId || undefined,
+                                employee_id: formEmployeeId.trim(),
                               }),
                             });
                             setFormSuccess(`User ${res.full_name} created successfully!`);
@@ -4796,10 +4802,10 @@ export default function Dashboard() {
                             const res: any = await apiFetch(`/users/${editingUser.id}`, {
                               method: "PUT",
                               body: JSON.stringify({
-                                email: formEmail,
+                                phone: formPhone.trim() || undefined,
                                 full_name: formFullName,
                                 role: formRole,
-                                employee_id: formEmployeeId || undefined,
+                                employee_id: formEmployeeId.trim(),
                               }),
                             });
                             setFormSuccess(`User ${res.full_name} updated successfully!`);
@@ -4945,9 +4951,9 @@ export default function Dashboard() {
                     <h3 className="font-bold text-slate-800 text-lg">Confirm Action</h3>
                     <p className="text-sm text-slate-600">
                       {deleteImpact.can_hard_delete ? (
-                        `Delete ${deletingUser.full_name} (${deletingUser.email}) permanently? This cannot be undone.`
+                        `Delete ${deletingUser.full_name} (${deletingUser.employee_id || "no employee ID"}) permanently? This cannot be undone.`
                       ) : (
-                        `${deletingUser.full_name} (${deletingUser.email}) has ${deleteImpact.counts.visits || 0} visits and ${deleteImpact.counts.day_closures || 0} day closures. They will be archived: hidden from lists, all records kept. You can restore them later.`
+                        `${deletingUser.full_name} (${deletingUser.employee_id || "no employee ID"}) has ${deleteImpact.counts.visits || 0} visits and ${deleteImpact.counts.day_closures || 0} day closures. They will be archived: hidden from lists, all records kept. You can restore them later.`
                       )}
                     </p>
                     <div className="flex gap-3 justify-end pt-2">
@@ -4997,8 +5003,8 @@ export default function Dashboard() {
                       <thead>
                         <tr className="bg-slate-50 text-slate-500 text-xs font-semibold border-b border-slate-100">
                           <th className="p-4">Name</th>
-                          <th className="p-4">Email</th>
                           <th className="p-4">Employee ID</th>
+                          <th className="p-4">Phone</th>
                           <th className="p-4">Role</th>
                           <th className="p-4">Status</th>
                           <th className="p-4 text-right">Actions</th>
@@ -5008,8 +5014,8 @@ export default function Dashboard() {
                         {usersList.map((u) => (
                           <tr key={u.id} className="hover:bg-slate-50/50">
                             <td className="p-4 font-semibold text-slate-800">{u.full_name}</td>
-                            <td className="p-4 text-slate-500">{u.email}</td>
                             <td className="p-4 font-mono text-slate-600">{u.employee_id || "-"}</td>
+                            <td className="p-4 text-slate-500">{u.phone || "-"}</td>
                             <td className="p-4">
                               <span className="px-2.5 py-0.5 text-xs font-medium bg-slate-100 rounded-full text-slate-800 capitalize">
                                 {u.role.replace("_", " ")}
@@ -5042,7 +5048,7 @@ export default function Dashboard() {
                                     onClick={() => {
                                       setEditingUser(u);
                                       setIsCreatingUser(false);
-                                      setFormEmail(u.email);
+                                      setFormPhone(u.phone || "");
                                       setFormFullName(u.full_name);
                                       setFormRole(u.role);
                                       setFormEmployeeId(u.employee_id || "");

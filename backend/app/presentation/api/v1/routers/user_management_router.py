@@ -32,6 +32,7 @@ router = APIRouter(prefix="/users", tags=["user-management"])
 _AdminAccess = Annotated[object, Depends(require_role(Role.ADMIN))]
 
 
+import re
 from zoneinfo import ZoneInfo
 from datetime import datetime, timezone
 
@@ -53,6 +54,7 @@ def _to_response(user: User) -> UserResponse:
         role=user.role.value,
         is_active=user.is_active,
         employee_id=user.employee_id,
+        phone=user.phone,
         device_id=user.device_id,
         manager_id=user.manager_id,
         last_login_at=user.last_login_at,
@@ -99,6 +101,20 @@ async def get_user(
     return _to_response(user)
 
 
+PLACEHOLDER_EMAIL_DOMAIN = "noemail.vbt.local"
+
+
+async def _placeholder_email(employee_id: str, user_repo: UserRepository) -> Email:
+    """users.email is NOT NULL and unique, but accounts are now created from an
+    Employee ID, not an email. Give such accounts a stable internal address
+    derived from the Employee ID. It is never shown or mailed."""
+    slug = re.sub(r"[^a-z0-9._-]+", "-", employee_id.lower()).strip("-") or "user"
+    candidate = Email(f"{slug}@{PLACEHOLDER_EMAIL_DOMAIN}")
+    if await user_repo.exists_by_email(candidate):
+        candidate = Email(f"{slug}-{uuid.uuid4().hex[:6]}@{PLACEHOLDER_EMAIL_DOMAIN}")
+    return candidate
+
+
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     payload: CreateUserRequest,
@@ -107,12 +123,15 @@ async def create_user(
     user_repo: Annotated[UserRepository, Depends(get_user_repository)],
     hasher: Annotated[PasswordHasher, Depends(get_password_hasher)],
 ) -> UserResponse:
-    email_vo = Email(payload.email)
-    if await user_repo.exists_by_email(email_vo):
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    if payload.employee_id and await user_repo.exists_by_employee_id(payload.employee_id):
+    if await user_repo.exists_by_employee_id(payload.employee_id):
         raise HTTPException(status_code=400, detail="Employee ID already registered")
+
+    if payload.email:
+        email_vo = Email(str(payload.email))
+        if await user_repo.exists_by_email(email_vo):
+            raise HTTPException(status_code=400, detail="Email already registered")
+    else:
+        email_vo = await _placeholder_email(payload.employee_id, user_repo)
 
     hashed_pw = hasher.hash(payload.password)
     user = User(
@@ -121,6 +140,7 @@ async def create_user(
         full_name=payload.full_name,
         role=Role(payload.role),
         employee_id=payload.employee_id,
+        phone=payload.phone,
         manager_id=payload.manager_id,
         device_id=payload.device_id,
     )
@@ -140,17 +160,20 @@ async def edit_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    email_vo = Email(payload.email)
-    if str(user.email) != str(email_vo) and await user_repo.exists_by_email(email_vo):
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    if payload.employee_id and user.employee_id != payload.employee_id and await user_repo.exists_by_employee_id(payload.employee_id):
+    # No email in the payload = leave the account's email exactly as it is.
+    if payload.email:
+        email_vo = Email(str(payload.email))
+        if str(user.email) != str(email_vo) and await user_repo.exists_by_email(email_vo):
+            raise HTTPException(status_code=400, detail="Email already registered")
+        user.email = email_vo
+
+    if user.employee_id != payload.employee_id and await user_repo.exists_by_employee_id(payload.employee_id):
         raise HTTPException(status_code=400, detail="Employee ID already registered")
 
-    user.email = email_vo
     user.full_name = payload.full_name
     user.role = Role(payload.role)
     user.employee_id = payload.employee_id
+    user.phone = payload.phone
     user.manager_id = payload.manager_id
     user.device_id = payload.device_id
     user.updated_by = _current_user.user_id

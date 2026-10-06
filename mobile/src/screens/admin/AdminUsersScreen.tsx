@@ -14,13 +14,14 @@ type UserRow = {
   role: string;
   is_active: boolean;
   employee_id?: string | null;
+  phone?: string | null;
   email: string;
 };
 
 const ROLES = ['field_officer', 'sales_officer', 'manager', 'admin'] as const;
 
-type ProfileForm = { email: string; password: string; full_name: string; role: string; employee_id: string };
-const emptyProfileForm: ProfileForm = { email: '', password: '', full_name: '', role: 'field_officer', employee_id: '' };
+type ProfileForm = { phone: string; password: string; full_name: string; role: string; employee_id: string };
+const emptyProfileForm: ProfileForm = { phone: '', password: '', full_name: '', role: 'field_officer', employee_id: '' };
 
 // Closes the single biggest web/mobile gap from the parity audit: mobile
 // could only list users and flip active/inactive. Everything else - create
@@ -56,12 +57,12 @@ export default function AdminUsersScreen() {
   const openEditProfile = (user: UserRow) => {
     setIsCreatingUser(false);
     setEditingUserId(user.id);
-    setProfileForm({ email: user.email, password: '', full_name: user.full_name, role: user.role, employee_id: user.employee_id ?? '' });
+    setProfileForm({ phone: user.phone ?? '', password: '', full_name: user.full_name, role: user.role, employee_id: user.employee_id ?? '' });
     setProfileModalOpen(true);
   };
   const saveProfile = async () => {
-    if (!profileForm.full_name.trim() || !profileForm.email.trim()) {
-      Alert.alert('Missing Info', 'Name and email are required.');
+    if (!profileForm.full_name.trim() || !profileForm.employee_id.trim()) {
+      Alert.alert('Missing Info', 'Name and Employee ID are required. The Employee ID is what this person signs in with.');
       return;
     }
     if (isCreatingUser && !profileForm.password.trim()) {
@@ -72,19 +73,19 @@ export default function AdminUsersScreen() {
     try {
       if (isCreatingUser) {
         await apiClient.request('/users', 'POST', 'admin_action', {
-          email: profileForm.email.trim(),
+          phone: profileForm.phone.trim() || undefined,
           password: profileForm.password,
           full_name: profileForm.full_name.trim(),
           role: profileForm.role,
-          employee_id: profileForm.employee_id.trim() || null,
+          employee_id: profileForm.employee_id.trim(),
         });
         Alert.alert('User Created', `${profileForm.full_name} can now sign in.`);
       } else if (editingUserId) {
         await apiClient.request(`/users/${editingUserId}`, 'PUT', 'admin_action', {
-          email: profileForm.email.trim(),
+          phone: profileForm.phone.trim() || undefined,
           full_name: profileForm.full_name.trim(),
           role: profileForm.role,
-          employee_id: profileForm.employee_id.trim() || null,
+          employee_id: profileForm.employee_id.trim(),
         });
         Alert.alert('Saved', 'Profile updated.');
       }
@@ -240,7 +241,7 @@ export default function AdminUsersScreen() {
                 <Text style={styles.meta}>
                   {item.role.replace('_', ' ')}{item.employee_id ? ` · ${item.employee_id}` : ''}
                 </Text>
-                <Text style={styles.meta}>{item.email}</Text>
+                {!!item.phone && <Text style={styles.meta}>{item.phone}</Text>}
                 <Text style={[styles.statusBadge, { color: item.is_active ? color.success : color.error }]}>
                   {item.is_active ? 'Active' : 'Inactive'}
                 </Text>
@@ -280,16 +281,16 @@ export default function AdminUsersScreen() {
               <Text style={styles.modalTitle}>{isCreatingUser ? 'Add User' : 'Edit User'}</Text>
               <FieldLabel text="Full Name" />
               <TextInput style={styles.input} value={profileForm.full_name} onChangeText={(v) => setProfileForm((f) => ({ ...f, full_name: v }))} />
-              <FieldLabel text="Email" />
-              <TextInput style={styles.input} value={profileForm.email} onChangeText={(v) => setProfileForm((f) => ({ ...f, email: v }))} autoCapitalize="none" keyboardType="email-address" />
+              <FieldLabel text="Employee ID *" />
+              <TextInput style={styles.input} value={profileForm.employee_id} onChangeText={(v) => setProfileForm((f) => ({ ...f, employee_id: v }))} autoCapitalize="characters" />
+              <FieldLabel text="Phone Number (Optional)" />
+              <TextInput style={styles.input} value={profileForm.phone} onChangeText={(v) => setProfileForm((f) => ({ ...f, phone: v }))} keyboardType="phone-pad" />
               {isCreatingUser && (
                 <>
                   <FieldLabel text="Password" />
                   <TextInput style={styles.input} value={profileForm.password} onChangeText={(v) => setProfileForm((f) => ({ ...f, password: v }))} secureTextEntry />
                 </>
               )}
-              <FieldLabel text="Employee ID" />
-              <TextInput style={styles.input} value={profileForm.employee_id} onChangeText={(v) => setProfileForm((f) => ({ ...f, employee_id: v }))} />
               <FieldLabel text="Role" />
               <View style={styles.roleRow}>
                 {ROLES.map((r) => (
