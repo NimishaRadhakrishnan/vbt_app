@@ -32,7 +32,20 @@ function trailColor(id: string): string {
 function MapController({ selectedMarker }: { selectedMarker: any }) {
   const map = useMap();
   useEffect(() => {
-    if (selectedMarker && selectedMarker.lat && selectedMarker.lng) {
+    const hasPosition = !!(selectedMarker && selectedMarker.lat && selectedMarker.lng);
+
+    // Close any popup that belongs to a different marker. Otherwise picking
+    // an officer from the list leaves the previous officer's popup open, and
+    // for an officer with no location the map keeps showing someone else.
+    map.eachLayer((layer) => {
+      if (layer instanceof L.Marker && layer.isPopupOpen()) {
+        const at = layer.getLatLng();
+        const isSelected = hasPosition && at.lat === selectedMarker.lat && at.lng === selectedMarker.lng;
+        if (!isSelected) layer.closePopup();
+      }
+    });
+
+    if (hasPosition) {
       map.setView([selectedMarker.lat, selectedMarker.lng], 13, {
         animate: true,
       });

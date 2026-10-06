@@ -2592,7 +2592,7 @@ export default function Dashboard() {
                       </button>
                     ) : (
                       <p className="w-full text-center py-2 bg-slate-100 text-slate-400 font-semibold text-xs rounded-lg">
-                        No location data yet — can&apos;t navigate
+                        {selectedMarker.name ?? "This officer"} has no location on the map today, so there is nothing to show or navigate to
                       </p>
                     )}
                   </div>
