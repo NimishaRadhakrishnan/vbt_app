@@ -9,7 +9,7 @@ import { color, font, fontWeight, spacing, radius } from '../theme';
 type Dealer = { id: string; name: string; district: string; village?: string; contact_person?: string; phone: string };
 type Product = { id: string; name: string; sku_code: string };
 
-export default function DealerScreen({ navigation, embedded, onDone }: any) {
+export default function DealerScreen({ navigation, embedded }: any) {
   const [selectedDealerId, setSelectedDealerId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [stockQty, setStockQty] = useState('');

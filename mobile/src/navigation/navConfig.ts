@@ -61,8 +61,8 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'farmers', label: 'Farmers', aliases: ['Register Farmer'], roles: ['admin', 'manager', 'field_officer'], ready: true },
       { id: 'dealers', label: 'Dealers', aliases: ['Dealer Audit'], roles: ['admin', 'manager', 'sales_officer'], ready: true },
       { id: 'issues', label: 'Issues', aliases: ['Crop Disease Issues', 'Report Crop Issue'], roles: ['admin', 'manager', 'field_officer'], ready: true },
-      { id: 'enquiries', label: 'Enquiries', aliases: ['Farmer Enquiry'], roles: ['admin', 'manager', 'field_officer'], ready: false },
-      { id: 'my-stock', label: 'My Stock', aliases: ['Stock in hand'], roles: OFFICERS, ready: false },
+      { id: 'enquiries', label: 'Enquiries', aliases: ['Farmer Enquiry'], roles: ['admin', 'manager', 'field_officer'], ready: true },
+      { id: 'my-stock', label: 'My Stock', aliases: ['Stock in hand'], roles: OFFICERS, ready: true },
     ],
   },
   {
@@ -74,7 +74,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'history', label: 'History', aliases: ['Movement History'], roles: OVERSIGHT, ready: true },
       { id: 'alerts', label: 'Alerts', aliases: ['Location alerts', 'Territory alerts'], roles: OVERSIGHT, ready: true },
       { id: 'territories', label: 'Territories', aliases: ['Geofence', 'Territory areas'], roles: ['admin'], ready: true },
-      { id: 'attendance', label: 'Attendance', aliases: ['Attendance Log'], roles: OVERSIGHT, ready: false },
+      { id: 'attendance', label: 'Attendance', aliases: ['Attendance Log'], roles: OVERSIGHT, ready: true },
       { id: 'people', label: 'People', aliases: ['Users', 'User Management'], roles: ['admin'], ready: true },
     ],
   },
@@ -86,7 +86,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'issue', label: 'Issue', aliases: ['Stock Management', 'Issue Stock'], roles: OVERSIGHT, ready: true },
       { id: 'with-officers', label: 'With Officers', aliases: ['Stock with Officers'], roles: OVERSIGHT, ready: true },
       { id: 'stock-history', label: 'History', aliases: ['Ledger', 'Stock movement'], roles: OVERSIGHT, ready: true },
-      { id: 'products', label: 'Products', aliases: ['Products and pricing'], roles: ['admin'], ready: false },
+      { id: 'products', label: 'Products', aliases: ['Products and pricing'], roles: ['admin'], ready: true },
     ],
   },
   {
@@ -94,9 +94,9 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Library',
     icon: 'book-outline',
     tabs: [
-      { id: 'knowledge', label: 'Knowledge', aliases: ['Knowledge Base'], roles: ALL, ready: false },
-      { id: 'policies', label: 'Policies', aliases: ['HR Policies'], roles: ALL, ready: false },
-      { id: 'reports', label: 'Reports', aliases: ['Reports Generator'], roles: OVERSIGHT, ready: false },
+      { id: 'knowledge', label: 'Knowledge', aliases: ['Knowledge Base'], roles: ALL, ready: true },
+      { id: 'policies', label: 'Policies', aliases: ['HR Policies'], roles: ALL, ready: true },
+      { id: 'reports', label: 'Reports', aliases: ['Reports Generator'], roles: OVERSIGHT, ready: true },
     ],
   },
   {
@@ -105,8 +105,8 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: 'settings-outline',
     tabs: [
       { id: 'master-data', label: 'Master Data', aliases: ['Option Lists'], roles: ['admin'], ready: true },
-      { id: 'form-builder', label: 'Form Builder', aliases: ['Day Closure Form Builder'], roles: ['admin'], ready: false },
-      { id: 'knowledge-review', label: 'Knowledge Review', aliases: ['Knowledge Admin'], roles: ['admin'], ready: false },
+      { id: 'form-builder', label: 'Form Builder', aliases: ['Day Closure Form Builder'], roles: ['admin'], ready: true },
+      { id: 'knowledge-review', label: 'Knowledge Review', aliases: ['Knowledge Admin'], roles: ['admin'], ready: true },
     ],
   },
 ];

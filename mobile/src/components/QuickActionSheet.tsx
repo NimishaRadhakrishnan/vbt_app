@@ -16,7 +16,6 @@ export default function QuickActionSheet({ visible, onClose, onNavigate }: Props
   const role = apiClient.getCurrentUser()?.role ?? '';
   const canCreateTasks = role === 'admin' || role === 'manager';
   const isFieldOfficer = role === 'field_officer' || role === 'admin' || role === 'manager';
-  const isSalesOfficer = role === 'sales_officer' || role === 'admin' || role === 'manager';
 
   const go = (screen: string) => {
     onClose();
@@ -99,10 +98,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md + 2,
     borderBottomWidth: 1,
     borderBottomColor: color.borderLight,
-  },
-  rowEmoji: {
-    fontSize: font.heading + 2,
-    marginRight: spacing.md + 2,
   },
   rowTitle: {
     fontSize: font.body + 1,

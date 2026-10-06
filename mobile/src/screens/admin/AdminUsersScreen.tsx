@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity, FlatList, Alert, ActivityIndicator,
-  Modal, ScrollView, TextInput, Switch,
+  Modal, ScrollView, TextInput,
 } from 'react-native';
 import { apiClient } from '../../services/api';
 import { useDataFetch } from '../../hooks/useDataFetch';

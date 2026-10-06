@@ -35,7 +35,6 @@ const DAY_CLOSURE_ROLES = ['field_officer', 'sales_officer'];
 export default function ProfileScreen({ navigation }: any) {
   const [isOnline, setIsOnline] = useState(apiClient.getOnlineStatus());
   const currentUser = apiClient.getCurrentUser();
-  const isOversight = currentUser?.role === 'admin' || currentUser?.role === 'manager';
   // Team, Stock, Library and Setup: the sections that are not on the bottom bar.
   const moreSections = sectionsForRole(currentUser?.role).filter((s) => MORE_SECTION_IDS.includes(s.id));
 

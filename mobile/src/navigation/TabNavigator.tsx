@@ -4,7 +4,6 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useNavigation } from '@react-navigation/native';
 
-import DashboardScreen from '../screens/DashboardScreen';
 import AttendanceScreen from '../screens/AttendanceScreen';
 import WeeklyPlanScreen from '../screens/WeeklyPlanScreen';
 import KpiSummaryScreen from '../screens/KpiSummaryScreen';
@@ -17,7 +16,6 @@ import FarmerScreen from '../screens/FarmerScreen';
 import DealerScreen from '../screens/DealerScreen';
 import CropIssueScreen from '../screens/CropIssueScreen';
 import SalesDayClosureScreen from '../screens/SalesDayClosureScreen';
-import MyTrackingScreen from '../screens/MyTrackingScreen';
 import MoreScreen from '../screens/ProfileScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import PreferencesScreen from '../screens/PreferencesScreen';

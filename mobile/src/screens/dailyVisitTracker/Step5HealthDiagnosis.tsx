@@ -1,19 +1,20 @@
 import React from 'react';
 import { Text, View, TouchableOpacity, StyleSheet } from 'react-native';
-import { color, font, fontWeight, spacing } from '../../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { color, spacing } from '../../theme';
 import { sharedStyles as styles } from './sharedStyles';
 import { FieldRow, TextInputLike } from './FormFields';
 import LinearScaleInput from '../../components/LinearScaleInput';
 import type { MasterItem } from './types';
 
-const CROP_STATUSES: { value: string; label: string; emoji: string }[] = [
-  { value: 'healthy', label: 'Healthy', emoji: '✅' },
-  { value: 'mild_stress', label: 'Mild Stress', emoji: '⚠️' },
-  { value: 'pest_disease_affected', label: 'Pest/Disease Affected', emoji: '🐛' },
-  { value: 'drought', label: 'Drought', emoji: '☀️' },
-  { value: 'waterlogged', label: 'Waterlogged', emoji: '💧' },
-  { value: 'nutrient_deficiency', label: 'Nutrient Deficiency', emoji: '🍃' },
-  { value: 'other', label: 'Other', emoji: '❔' },
+const CROP_STATUSES: { value: string; label: string; icon: string }[] = [
+  { value: 'healthy', label: 'Healthy', icon: 'checkmark-circle-outline' },
+  { value: 'mild_stress', label: 'Mild Stress', icon: 'warning-outline' },
+  { value: 'pest_disease_affected', label: 'Pest/Disease Affected', icon: 'bug-outline' },
+  { value: 'drought', label: 'Drought', icon: 'sunny-outline' },
+  { value: 'waterlogged', label: 'Waterlogged', icon: 'water-outline' },
+  { value: 'nutrient_deficiency', label: 'Nutrient Deficiency', icon: 'leaf-outline' },
+  { value: 'other', label: 'Other', icon: 'help-circle-outline' },
 ];
 
 type ChemicalSel = Record<string, { quantity: string; frequency: string }>;
@@ -78,7 +79,7 @@ export default function Step5HealthDiagnosis({
               style={[styles.radioCard, cropStatus === s.value && styles.radioCardActive]}
               onPress={() => setCropStatus(s.value)}
             >
-              <Text style={localStyles.statusEmoji}>{s.emoji}</Text>
+              <Ionicons name={s.icon as any} size={22} color={color.primary} style={localStyles.statusIcon} />
               <Text style={[styles.radioCardText, cropStatus === s.value && styles.radioCardTextActive]}>{s.label}</Text>
             </TouchableOpacity>
           ))}
@@ -184,8 +185,7 @@ export default function Step5HealthDiagnosis({
 }
 
 const localStyles = StyleSheet.create({
-  statusEmoji: {
-    fontSize: font.subtitle,
+  statusIcon: {
     marginRight: spacing.md,
   },
 });

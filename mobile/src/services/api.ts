@@ -336,9 +336,16 @@ class FFMAPIClient {
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     type: SyncPayload['type'],
-    data?: any
+    data?: any,
+    options: { queue?: boolean } = {}
   ): Promise<any> {
+    // queue:false is for calls that must never be replayed later (searches,
+    // lookups sent as POST): they just fail and the user can retry.
+    const canQueue = options.queue !== false;
     if (!this.isOnline) {
+      if (method !== 'GET' && !canQueue) {
+        throw new Error('Connection offline. Please try again when you are back online.');
+      }
       if (method !== 'GET') {
         await dbService.queueItem(type, data, endpoint, method);
         return { offline: true, message: 'Saved to sync queue.' };
@@ -362,7 +369,7 @@ class FFMAPIClient {
       // immediately instead.
       const status = err?.status;
       const isClientRejection = typeof status === 'number' && status >= 400 && status < 500;
-      if (method !== 'GET' && !isClientRejection) {
+      if (method !== 'GET' && canQueue && !isClientRejection) {
         await dbService.queueItem(type, data, endpoint, method);
       }
       throw err;

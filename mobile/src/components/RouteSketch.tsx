@@ -17,27 +17,33 @@ export default function RouteSketch({ points, stops, height = 220 }: { points: P
   const drawing = useMemo(() => {
     if (width === 0 || points.length === 0) return null;
     const pad = 16;
-    const all = [...points, ...stops];
-    const lats = all.map((p) => p.lat);
-    const lngs = all.map((p) => p.lng);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    let minLng = Infinity;
+    let maxLng = -Infinity;
+    for (const p of points.concat(stops)) {
+      if (p.lat < minLat) minLat = p.lat;
+      if (p.lat > maxLat) maxLat = p.lat;
+      if (p.lng < minLng) minLng = p.lng;
+      if (p.lng > maxLng) maxLng = p.lng;
+    }
     const midLat = (minLat + maxLat) / 2;
-    const kx = Math.cos((midLat * Math.PI) / 180); // longitude shrinks away from the equator
-    const spanX = Math.max((maxLng - minLng) * kx, 1e-5);
-    const spanY = Math.max(maxLat - minLat, 1e-5);
+    const midLng = (minLng + maxLng) / 2;
+    const kx = Math.max(Math.cos((midLat * Math.PI) / 180), 0.01); // longitude shrinks away from the equator
+    // Never zoom in past about 110 m across, so a parked phone's GPS jitter,
+    // a single point, or identical points do not blow up into a scribble.
+    const MIN_SPAN = 0.001;
+    const spanX = Math.max((maxLng - minLng) * kx, MIN_SPAN);
+    const spanY = Math.max(maxLat - minLat, MIN_SPAN);
     const scale = Math.min((width - 2 * pad) / spanX, (height - 2 * pad) / spanY);
-    const offX = (width - spanX * scale) / 2;
-    const offY = (height - spanY * scale) / 2;
+    // Centre the bounding box in the frame (north up, so y runs downwards).
     const toXY = (p: P) => ({
-      x: offX + (p.lng - minLng) * kx * scale,
-      y: offY + (maxLat - p.lat) * scale,
+      x: width / 2 + (p.lng - midLng) * kx * scale,
+      y: height / 2 - (p.lat - midLat) * scale,
     });
 
     const path = thin(points, 160).map(toXY);
-    const segments = [];
+    const segments: { key: number; left: number; top: number; len: number; angle: number }[] = [];
     for (let i = 1; i < path.length; i++) {
       const a = path[i - 1]!;
       const b = path[i]!;
@@ -60,7 +66,8 @@ export default function RouteSketch({ points, stops, height = 220 }: { points: P
   }, [points, stops, width, height]);
 
   return (
-    <View style={[styles.box, { height }]} onLayout={onLayout} accessibilityLabel="Route drawing">
+    <View style={[styles.box, { height }]} onLayout={onLayout} accessibilityRole="image"
+      accessibilityLabel="Drawing of the day's route. Green dot is the start, red dot is the last position, amber dots are stops.">
       {drawing && (
         <>
           {drawing.segments.map((s) => (

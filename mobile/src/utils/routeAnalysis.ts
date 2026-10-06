@@ -44,9 +44,15 @@ export function haversineM(aLat: number, aLng: number, bLat: number, bLng: numbe
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+// The server sends microseconds ("...:30.123456+00:00"); trim to milliseconds
+// so every JS engine parses it.
+export function parseTime(iso: string): number {
+  return Date.parse(String(iso).replace(/(\.\d{3})\d+/, '$1'));
+}
+
 export function analyzeDay(raw: RawPoint[]): DaySummary {
-  const sorted = raw
-    .map((p) => ({ lat: p.lat, lng: p.lng, t: Date.parse(p.recorded_at), acc: p.accuracy ?? null }))
+  const sorted = (Array.isArray(raw) ? raw : [])
+    .map((p) => ({ lat: Number(p.lat), lng: Number(p.lng), t: parseTime(p.recorded_at), acc: p.accuracy == null ? null : Number(p.accuracy) }))
     .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.lat) && Number.isFinite(p.lng))
     .sort((a, b) => a.t - b.t);
 
@@ -108,7 +114,9 @@ export function analyzeDay(raw: RawPoint[]): DaySummary {
         minutes: Math.round((last.t - anchor.t) / 60_000),
       });
     }
-    i = j + 1;
+    // After a real stop carry on past it; otherwise try the next point as the
+    // anchor, so a short pause cannot hide a stop that begins inside it.
+    i = j > i && last.t - anchor.t >= STOP_MIN_MS ? j + 1 : i + 1;
   }
 
   const first = kept[0]?.t ?? null;
@@ -138,6 +146,7 @@ export function fmtDuration(minutes: number): string {
 }
 
 export function fmtClock(t: number): string {
+  if (!Number.isFinite(t)) return '-';
   return new Date(t).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
 }
 

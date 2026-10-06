@@ -26,6 +26,17 @@ import AdminLiveMapScreen from './admin/AdminLiveMapScreen';
 import AdminLocationHistoryScreen from './admin/AdminLocationHistoryScreen';
 import AdminAlertsScreen from './admin/AdminAlertsScreen';
 import AdminTerritoriesScreen from './admin/AdminTerritoriesScreen';
+import EnquiriesScreen from './EnquiriesScreen';
+import MyStockScreen from './MyStockScreen';
+import KnowledgeScreen from './KnowledgeScreen';
+import PoliciesScreen from './PoliciesScreen';
+import AdminCropIssuesScreen from './admin/AdminCropIssuesScreen';
+import AdminPlanApprovalsScreen from './admin/AdminPlanApprovalsScreen';
+import AdminAttendanceScreen from './admin/AdminAttendanceScreen';
+import AdminProductsScreen from './admin/AdminProductsScreen';
+import AdminReportsScreen from './admin/AdminReportsScreen';
+import AdminFormBuilderScreen from './admin/AdminFormBuilderScreen';
+import AdminKnowledgeReviewScreen from './admin/AdminKnowledgeReviewScreen';
 import AdminUsersScreen from './admin/AdminUsersScreen';
 import AdminStockScreen from './admin/AdminStockScreen';
 import AdminMasterDataScreen from './admin/AdminMasterDataScreen';
@@ -108,8 +119,10 @@ function TabBody({ tabId, role, navigation, onDone }: { tabId: string; role: str
       return <C navigation={navigation} />;
     }
     case 'plans': {
-      const C = as(WeeklyPlanScreen);
-      return <C navigation={navigation} embedded onDone={onDone} />;
+      // Only admins see everyone's plans (the server returns a manager just their own),
+      // so managers get the same plan screen officers use.
+      const C = as(isAdmin ? AdminPlanApprovalsScreen : WeeklyPlanScreen);
+      return isAdmin ? <C navigation={navigation} /> : <C navigation={navigation} embedded onDone={onDone} />;
     }
     case 'closure': {
       if (!isOversight) {
@@ -174,8 +187,16 @@ function TabBody({ tabId, role, navigation, onDone }: { tabId: string; role: str
       return isOversight ? <C navigation={navigation} /> : <C navigation={navigation} embedded onDone={onDone} />;
     }
     case 'issues': {
-      const C = as(CropIssueScreen);
+      const C = as(isOversight ? AdminCropIssuesScreen : CropIssueScreen);
+      return isOversight ? <C navigation={navigation} /> : <C navigation={navigation} embedded onDone={onDone} />;
+    }
+    case 'enquiries': {
+      const C = as(EnquiriesScreen);
       return <C navigation={navigation} embedded onDone={onDone} />;
+    }
+    case 'my-stock': {
+      const C = as(MyStockScreen);
+      return <C navigation={navigation} />;
     }
 
     // Team
@@ -195,6 +216,10 @@ function TabBody({ tabId, role, navigation, onDone }: { tabId: string; role: str
       const C = as(AdminTerritoriesScreen);
       return <C navigation={navigation} />;
     }
+    case 'attendance': {
+      const C = as(AdminAttendanceScreen);
+      return <C navigation={navigation} />;
+    }
     case 'people': {
       const C = as(AdminUsersScreen);
       return <C navigation={navigation} />;
@@ -209,7 +234,34 @@ function TabBody({ tabId, role, navigation, onDone }: { tabId: string; role: str
       return <C initialTab={initialTab} hideTabs />;
     }
 
+    case 'products': {
+      const C = as(AdminProductsScreen);
+      return <C navigation={navigation} />;
+    }
+
+    // Library
+    case 'knowledge': {
+      const C = as(KnowledgeScreen);
+      return <C navigation={navigation} />;
+    }
+    case 'policies': {
+      const C = as(PoliciesScreen);
+      return <C navigation={navigation} />;
+    }
+    case 'reports': {
+      const C = as(AdminReportsScreen);
+      return <C navigation={navigation} />;
+    }
+
     // Setup
+    case 'form-builder': {
+      const C = as(AdminFormBuilderScreen);
+      return <C navigation={navigation} />;
+    }
+    case 'knowledge-review': {
+      const C = as(AdminKnowledgeReviewScreen);
+      return <C navigation={navigation} />;
+    }
     case 'master-data': {
       const C = as(AdminMasterDataScreen);
       return <C navigation={navigation} />;

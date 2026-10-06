@@ -63,10 +63,10 @@ export default function Step8PhotosRemarks({
       </View>
       <View style={styles.inlineRow}>
         <TouchableOpacity style={[localStyles.photoActionBtn, { marginRight: spacing.sm }]} onPress={onTakePhoto}>
-          <Text style={localStyles.photoActionText}>📸 Take Photo</Text>
+          <Text style={localStyles.photoActionText}>Take photo</Text>
         </TouchableOpacity>
         <TouchableOpacity style={localStyles.photoActionBtn} onPress={onPickFromGallery}>
-          <Text style={localStyles.photoActionText}>🖼 Choose from Gallery</Text>
+          <Text style={localStyles.photoActionText}>Choose from gallery</Text>
         </TouchableOpacity>
       </View>
 

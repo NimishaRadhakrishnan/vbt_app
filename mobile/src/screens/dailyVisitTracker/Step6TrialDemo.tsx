@@ -127,7 +127,7 @@ export default function Step6TrialDemo({
                         onPress={() => {
                           apiClient.request('/stock/request', 'POST', 'plan_submit', { product_id: item.product_id, quantity: 1 })
                             .then(() => Alert.alert('Success', 'Stock request sent to admin.'))
-                            .catch(err => Alert.alert('Error', 'Failed to request stock.'));
+                            .catch(() => Alert.alert('Error', 'Failed to request stock.'));
                         }}
                       >
                         <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>Request stock</Text>

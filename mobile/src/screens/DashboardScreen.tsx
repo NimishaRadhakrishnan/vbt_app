@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '../services/api';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { ErrorState, StaleDataBanner } from '../components/FetchStates';
@@ -174,7 +175,7 @@ export default function DashboardScreen({ navigation }: any) {
           style={[styles.tile, { backgroundColor: '#e8f5e9' }]}
           onPress={() => navigation.navigate('Attendance')}
         >
-          <Text style={styles.tileEmoji}>⏰</Text>
+          <Ionicons name="time-outline" size={30} color={color.primary} style={styles.tileIcon} />
           <Text style={styles.tileTitle}>Shift / Attendance</Text>
           <Text style={styles.tileDesc}>Check-In & Check-Out</Text>
         </TouchableOpacity>
@@ -183,7 +184,7 @@ export default function DashboardScreen({ navigation }: any) {
           style={[styles.tile, { backgroundColor: '#e8eaf6' }]}
           onPress={() => navigation.navigate('WeeklyPlan')}
         >
-          <Text style={styles.tileEmoji}>📅</Text>
+          <Ionicons name="calendar-outline" size={30} color={color.primary} style={styles.tileIcon} />
           <Text style={styles.tileTitle}>Weekly Plan</Text>
           <Text style={styles.tileDesc}>Submit schedules & view status</Text>
         </TouchableOpacity>
@@ -191,7 +192,7 @@ export default function DashboardScreen({ navigation }: any) {
           style={[styles.tile, { backgroundColor: '#f1f8e9' }]}
           onPress={() => navigation.navigate('KpiSummary')}
         >
-          <Text style={styles.tileEmoji}>📊</Text>
+          <Ionicons name="stats-chart-outline" size={30} color={color.primary} style={styles.tileIcon} />
           <Text style={styles.tileTitle}>My KPIs</Text>
           <Text style={styles.tileDesc}>Farmers, demos, cents & more</Text>
         </TouchableOpacity>
@@ -461,8 +462,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  tileEmoji: {
-    fontSize: font.heading,
+  tileIcon: {
     marginBottom: spacing.md,
   },
   tileTitle: {

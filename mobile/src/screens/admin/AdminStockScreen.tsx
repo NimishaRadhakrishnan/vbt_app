@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { apiClient } from '../../services/api';
+import { asList } from '../../utils/lists';
 import { useDataFetch } from '../../hooks/useDataFetch';
 import { LoadingState, ErrorState, EmptyState } from '../../components/FetchStates';
 import { color, font, fontWeight, spacing, radius } from '../../theme';
@@ -66,7 +67,7 @@ function IssueStockTab() {
   const [submitting, setSubmitting] = useState(false);
 
   const { data: officers } = useDataFetch<SimpleUser[]>(
-    () => apiClient.request('/users?limit=200', 'GET', 'admin_action'),
+    async () => asList<SimpleUser>(await apiClient.request('/users?limit=200', 'GET', 'admin_action')),
     [],
     { refetchOnFocus: false }
   );

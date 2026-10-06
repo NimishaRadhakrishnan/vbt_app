@@ -25,7 +25,7 @@ function nextMondayISO(): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function WeeklyPlanScreen({ navigation, embedded, onDone }: any) {
+export default function WeeklyPlanScreen({ navigation, embedded }: any) {
   // A queued plan_submit has no server id/status yet - not real list data
   // to fake a row for, so it's surfaced as a count banner instead. See
   // audit fix #1: an officer should never see their own submission

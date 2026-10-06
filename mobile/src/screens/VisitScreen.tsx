@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, ScrollView, TextInput, Image, Switch } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { apiClient } from '../services/api';
@@ -223,7 +224,7 @@ export default function VisitScreen({ navigation }: any) {
             {photoUri ? (
               <Image source={{ uri: photoUri }} style={styles.photoPreview} />
             ) : (
-              <Text style={styles.actionEmoji}>📸</Text>
+              <Ionicons name="camera-outline" size={32} color={color.primary} style={styles.actionIcon} />
             )}
             <Text style={styles.actionLabel}>
               {uploadingPhoto ? 'Uploading...' : uploadedPhotoUrl ? 'Farm Photo Attached ✓ (tap to retake)' : 'Take Farm Photo'}
@@ -547,8 +548,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     marginBottom: spacing.sm,
   },
-  actionEmoji: {
-    fontSize: font.heading,
+  actionIcon: {
     marginBottom: spacing.sm,
   },
   actionLabel: {

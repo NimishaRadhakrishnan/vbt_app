@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '../../services/api';
-import { useDataFetch } from '../../hooks/useDataFetch';
+import { asList } from '../../utils/lists';
+import { useDataFetch, CONNECTION_ERROR_MESSAGE } from '../../hooks/useDataFetch';
 import { LoadingState, ErrorState, EmptyState } from '../../components/FetchStates';
 import RouteSketch from '../../components/RouteSketch';
 import { analyzeDay, fmtClock, fmtDuration, RawPoint } from '../../utils/routeAnalysis';
@@ -12,7 +13,7 @@ type SimpleUser = { id: string; full_name: string; role: string };
 type Diagnostics = {
   ping_count: number;
   delivery_rate_pct: number | null;
-  accuracy_summary?: { avg: number | null };
+  accuracy?: { avg: number | null };
   low_accuracy_pct: number | null;
   suspect_jumps?: unknown[];
   error?: string;
@@ -50,16 +51,24 @@ export default function AdminLocationHistoryScreen() {
   const oldest = addDays(today, -KEEP_DAYS);
 
   const { data: officers } = useDataFetch<SimpleUser[]>(
-    () => apiClient.request('/users?limit=200', 'GET', 'admin_action'),
+    async () => asList<SimpleUser>(await apiClient.request('/users?limit=200', 'GET', 'admin_action')),
     [],
     { refetchOnFocus: false },
   );
   const trackable = (officers ?? []).filter((u) => u.role === 'field_officer' || u.role === 'sales_officer');
 
-  const { data: raw, loading, error, retry } = useDataFetch<RawPoint[]>(
-    () => (officerId ? apiClient.request(`/location/history/${officerId}?date=${date}`, 'GET', 'admin_action') : Promise.resolve([])),
+  // The result is tagged with the officer and day it was fetched for, so a
+  // slow answer for a previous pick, or data left over after a failed
+  // refetch, is never drawn as the current officer's route.
+  const key = `${officerId ?? ''}|${date}`;
+  const { data: result, loading, error, isStale, retry } = useDataFetch<{ key: string; points: RawPoint[] }>(
+    async () => ({
+      key,
+      points: officerId ? asList<RawPoint>(await apiClient.request(`/location/history/${officerId}?date=${date}`, 'GET', 'admin_action')) : [],
+    }),
     [officerId, date],
   );
+  const raw = result && result.key === key ? result.points : null;
 
   const summary = useMemo(() => analyzeDay(raw ?? []), [raw]);
 
@@ -81,19 +90,31 @@ export default function AdminLocationHistoryScreen() {
     return items.sort((a, b) => a.at - b.at);
   }, [summary]);
 
-  const pick = (id: string) => { setOfficerId(id); setDiagnostics(null); };
-  const move = (delta: number) => { setDate((d) => addDays(d, delta)); setDiagnostics(null); };
+  // Bumped whenever the officer or day changes, so a quality check still in
+  // flight for the old selection cannot land on the new one.
+  const diagToken = useRef(0);
+  const resetDiagnostics = () => {
+    diagToken.current += 1;
+    setDiagnostics(null);
+    setDiagnosticsLoading(false);
+  };
+  const pick = (id: string) => { setOfficerId(id); resetDiagnostics(); };
+  const move = (delta: number) => { setDate((d) => addDays(d, delta)); resetDiagnostics(); };
 
   const checkDataQuality = async () => {
-    if (!officerId) return;
+    if (!officerId || diagnosticsLoading) return;
+    const token = ++diagToken.current;
     setDiagnosticsLoading(true);
     setDiagnostics(null);
     try {
-      setDiagnostics(await apiClient.request(`/location/diagnostics/${officerId}?date=${date}`, 'GET', 'admin_action'));
+      const res = await apiClient.request(`/location/diagnostics/${officerId}?date=${date}`, 'GET', 'admin_action');
+      if (token === diagToken.current) setDiagnostics(res);
     } catch (err: any) {
-      setDiagnostics({ ping_count: 0, delivery_rate_pct: null, low_accuracy_pct: null, error: err?.message ?? 'Could not run the check' });
+      if (token === diagToken.current) {
+        setDiagnostics({ ping_count: 0, delivery_rate_pct: null, low_accuracy_pct: null, error: err?.message ?? 'Could not run the check' });
+      }
     } finally {
-      setDiagnosticsLoading(false);
+      if (token === diagToken.current) setDiagnosticsLoading(false);
     }
   };
 
@@ -117,7 +138,7 @@ export default function AdminLocationHistoryScreen() {
         <TouchableOpacity style={styles.dateBtn} disabled={date <= oldest} onPress={() => move(-1)} accessibilityRole="button" accessibilityLabel="Previous day">
           <Ionicons name="chevron-back" size={20} color={date <= oldest ? color.textDisabled : color.primary} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => { setDate(today); setDiagnostics(null); }} accessibilityRole="button" accessibilityLabel="Go to today">
+        <TouchableOpacity onPress={() => { setDate(today); resetDiagnostics(); }} accessibilityRole="button" accessibilityLabel="Go to today">
           <Text style={styles.dateText}>{prettyDay(date)}{date === today ? ' (today)' : ''}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.dateBtn} disabled={date >= today} onPress={() => move(1)} accessibilityRole="button" accessibilityLabel="Next day">
@@ -127,10 +148,10 @@ export default function AdminLocationHistoryScreen() {
 
       {!officerId ? (
         <EmptyState message="Pick an officer above to see their route." />
-      ) : loading ? (
+      ) : loading || (raw === null && !isStale && !error) ? (
         <LoadingState />
-      ) : error ? (
-        <ErrorState message={error} onRetry={retry} />
+      ) : error || raw === null ? (
+        <ErrorState message={error ?? CONNECTION_ERROR_MESSAGE} onRetry={retry} />
       ) : summary.points.length === 0 ? (
         <EmptyState
           message="No location recorded for this officer on this day."
@@ -169,7 +190,7 @@ export default function AdminLocationHistoryScreen() {
                 <Text style={styles.rowText}>{t.text}</Text>
                 {t.kind === 'stop' && t.lat != null && t.lng != null && (
                   <TouchableOpacity
-                    onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${t.lat},${t.lng}`)}
+                    onPress={() => { Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${t.lat},${t.lng}`).catch(() => {}); }}
                     accessibilityRole="button"
                     accessibilityLabel="Open this stop in Google Maps"
                   >
@@ -187,7 +208,7 @@ export default function AdminLocationHistoryScreen() {
             <View style={styles.diag}>
               <Text style={styles.rowText}>
                 {diagnostics.ping_count} locations · delivery {diagnostics.delivery_rate_pct != null ? `${diagnostics.delivery_rate_pct}%` : '-'} · avg accuracy{' '}
-                {diagnostics.accuracy_summary?.avg != null ? `${diagnostics.accuracy_summary.avg} m` : '-'}
+                {diagnostics.accuracy?.avg != null ? `${diagnostics.accuracy.avg} m` : '-'}
               </Text>
               <Text style={diagnostics.suspect_jumps && diagnostics.suspect_jumps.length > 0 ? styles.bad : styles.good}>
                 {diagnostics.suspect_jumps && diagnostics.suspect_jumps.length > 0

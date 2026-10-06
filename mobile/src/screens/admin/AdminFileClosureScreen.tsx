@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
 import { apiClient } from '../../services/api';
+import { asList } from '../../utils/lists';
 import { useDataFetch } from '../../hooks/useDataFetch';
 import { LoadingState, ErrorState, EmptyState } from '../../components/FetchStates';
 import { color, font, fontWeight, spacing, radius } from '../../theme';
@@ -22,7 +23,7 @@ export default function AdminFileClosureScreen({ navigation }: any) {
   const [officerId, setOfficerId] = useState<string | null>(null);
 
   const { data, loading, error, retry } = useDataFetch<SimpleUser[]>(
-    () => apiClient.request('/users?limit=200', 'GET', 'admin_action'),
+    async () => asList<SimpleUser>(await apiClient.request('/users?limit=200', 'GET', 'admin_action')),
     []
   );
   const officers = (data ?? []).filter((u) => u.role === 'field_officer' || u.role === 'sales_officer');

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
 // Paired with useDataFetch - one visual error/retry state used everywhere
@@ -10,7 +11,7 @@ import { color, font, fontWeight, spacing, radius } from '../theme';
 export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <TouchableOpacity style={styles.container} onPress={onRetry} activeOpacity={0.7}>
-      <Text style={styles.icon}>⚠️</Text>
+      <Ionicons name="alert-circle-outline" size={48} color={color.warning} style={styles.icon} />
       <Text style={styles.message}>{message}</Text>
       <View style={styles.retryBtn}>
         <Text style={styles.retryText}>Tap to Retry</Text>
@@ -35,7 +36,7 @@ export function LoadingState() {
 export function EmptyState({ message, actionHint }: { message: string; actionHint?: string }) {
   return (
     <View style={styles.container}>
-      <Text style={styles.emptyIcon}>📭</Text>
+      <Ionicons name="file-tray-outline" size={48} color={color.textDisabled} style={styles.emptyIcon} />
       <Text style={styles.message}>{message}</Text>
       {actionHint && <Text style={styles.emptyHint}>{actionHint}</Text>}
     </View>
@@ -63,13 +64,10 @@ const styles = StyleSheet.create({
     padding: spacing.xxl + spacing.sm,
   },
   icon: {
-    fontSize: font.heading + 8,
     marginBottom: spacing.md,
   },
   emptyIcon: {
-    fontSize: font.heading + 8,
     marginBottom: spacing.md,
-    opacity: 0.5,
   },
   message: {
     fontSize: font.body,

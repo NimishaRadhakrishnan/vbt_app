@@ -1,9 +1,11 @@
 import React from 'react';
 import { FlatList, Linking, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '../../services/api';
 import { useDataFetch } from '../../hooks/useDataFetch';
-import { LoadingState, ErrorState, EmptyState } from '../../components/FetchStates';
+import { LoadingState, ErrorState, EmptyState, StaleDataBanner } from '../../components/FetchStates';
+import { fmtClock, parseTime } from '../../utils/routeAnalysis';
 import { color, font, fontWeight, spacing, radius } from '../../theme';
 
 type Alert = {
@@ -29,24 +31,26 @@ const ICON: Record<string, string> = {
   tracking_not_started: 'alert-circle-outline',
 };
 
-const clock = (iso: string) =>
-  new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+const clock = (iso: string) => fmtClock(parseTime(iso));
 
 // Today's location alerts: officers who left their territory, whose tracking
 // has a gap, or whose tracking never started after check-in. Refreshes every
 // 30 seconds while open.
 export default function AdminAlertsScreen() {
-  const { data, loading, refreshing, error, retry, refresh } = useDataFetch<Alert[]>(
+  const { data, loading, refreshing, error, isStale, retry, refresh } = useDataFetch<Alert[]>(
     () => apiClient.request('/location/alerts', 'GET', 'admin_action'),
     [],
   );
 
+  // Poll only while this screen is in front.
   const refreshRef = React.useRef(refresh);
   refreshRef.current = refresh;
-  React.useEffect(() => {
-    const id = setInterval(() => refreshRef.current(), 30000);
-    return () => clearInterval(id);
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      const id = setInterval(() => refreshRef.current(), 30000);
+      return () => clearInterval(id);
+    }, []),
+  );
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} onRetry={retry} />;
@@ -58,6 +62,7 @@ export default function AdminAlertsScreen() {
         keyExtractor={(a) => a.id}
         contentContainerStyle={{ padding: spacing.lg, flexGrow: 1 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+        ListHeaderComponent={isStale ? <StaleDataBanner onRetry={retry} /> : null}
         ListEmptyComponent={<EmptyState message="No alerts today." actionHint="Everyone is inside their territory and tracking normally." />}
         renderItem={({ item }) => {
           const open = item.type === 'territory_exit' && !item.ended_at;
@@ -71,13 +76,13 @@ export default function AdminAlertsScreen() {
               <Text style={styles.message}>{item.message}</Text>
               {item.type === 'territory_exit' && (
                 <Text style={open ? styles.open : styles.closed}>
-                  {open ? 'Still outside' : `Back inside at ${clock(item.ended_at as string)}`}
+                  {open ? 'Still outside' : item.ended_at ? `Back inside at ${clock(item.ended_at)}` : 'Back inside'}
                 </Text>
               )}
               {item.latitude != null && item.longitude != null && (
                 <TouchableOpacity
                   style={styles.link}
-                  onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${item.latitude},${item.longitude}`)}
+                  onPress={() => { Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${item.latitude},${item.longitude}`).catch(() => {}); }}
                   accessibilityRole="button"
                   accessibilityLabel="Open location in Google Maps"
                 >

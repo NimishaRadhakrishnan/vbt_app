@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as Location from 'expo-location';
 import { apiClient } from '../../services/api';
 import { useDataFetch } from '../../hooks/useDataFetch';
-import { LoadingState, ErrorState, EmptyState } from '../../components/FetchStates';
+import { LoadingState, ErrorState, EmptyState, StaleDataBanner } from '../../components/FetchStates';
 import { color, font, fontWeight, spacing, radius } from '../../theme';
 
 type Territory = {
@@ -20,7 +20,7 @@ type Territory = {
 // to a territory raises an alert when they are outside every assigned circle
 // during working hours. A territory with no circle is simply not checked.
 export default function AdminTerritoriesScreen() {
-  const { data, loading, error, retry, refresh } = useDataFetch<Territory[]>(
+  const { data, loading, error, isStale, retry, refresh } = useDataFetch<Territory[]>(
     () => apiClient.request('/location/territories', 'GET', 'admin_action'),
     [],
   );
@@ -30,11 +30,13 @@ export default function AdminTerritoriesScreen() {
   if (error) return <ErrorState message={error} onRetry={retry} />;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <FlatList
-        data={data ?? []}
+        data={Array.isArray(data) ? data : []}
         keyExtractor={(t) => t.id}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: spacing.lg, flexGrow: 1 }}
+        ListHeaderComponent={isStale ? <StaleDataBanner onRetry={retry} /> : null}
         ListEmptyComponent={<EmptyState message="No territories yet." actionHint="Territories are created with the officer's assignment." />}
         renderItem={({ item }) => (
           <TerritoryCard
@@ -45,7 +47,7 @@ export default function AdminTerritoriesScreen() {
           />
         )}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -71,10 +73,11 @@ function TerritoryCard({ t, open, onToggle, onSaved }: { t: Territory; open: boo
   };
 
   const save = async () => {
-    const la = Number(lat);
-    const lo = Number(lng);
-    const r = Number(km) * 1000;
-    if (!lat.trim() || !lng.trim() || !km.trim() || !Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(r)) {
+    const num = (v: string) => (v.trim() ? Number(v.trim().replace(',', '.')) : NaN);
+    const la = num(lat);
+    const lo = num(lng);
+    const r = Math.round(num(km) * 1000);
+    if (!Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(r)) {
       Alert.alert('Check the numbers', 'Enter a latitude, a longitude and a radius in km.');
       return;
     }
@@ -107,8 +110,12 @@ function TerritoryCard({ t, open, onToggle, onSaved }: { t: Territory; open: boo
         onPress: async () => {
           setBusy(true);
           try {
-            await apiClient.request(`/location/territories/${t.id}/geofence`, 'DELETE', 'admin_action');
-            setLat(''); setLng(''); setKm('');
+            const res = await apiClient.request(`/location/territories/${t.id}/geofence`, 'DELETE', 'admin_action');
+            if (res?.offline) {
+              Alert.alert('Offline', 'Saved on this phone. The area is removed when you are back online.');
+            } else {
+              setLat(''); setLng(''); setKm('');
+            }
             onSaved();
           } catch (err: any) {
             Alert.alert('Not removed', err?.message ?? 'Please try again.');
