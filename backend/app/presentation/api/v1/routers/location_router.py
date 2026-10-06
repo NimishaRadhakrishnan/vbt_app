@@ -287,6 +287,7 @@ async def get_active_locations(
         text("""
             SELECT u.id AS officer_id, u.full_name AS officer_name, u.role AS officer_role,
                    att.check_in_time AS login_time,
+                   att.check_out_time AS logout_time,
                    ST_Y(att.check_in_location::geometry) AS login_latitude,
                    ST_X(att.check_in_location::geometry) AS login_longitude
             FROM users u
@@ -297,6 +298,18 @@ async def get_active_locations(
     rows = res.all()
 
     officer_ids = [str(r.officer_id) for r in rows]
+
+    # The live cache forgets an officer ~35 minutes after their last ping.
+    # The stored track remembers, so "last seen" survives that.
+    last_track_res = await session.execute(
+        text("""
+            SELECT user_id, MAX(recorded_at) AS last_at
+            FROM gps_tracks
+            WHERE recorded_at >= :day_start AND recorded_at < :day_end
+            GROUP BY user_id
+        """).bindparams(day_start=day_start, day_end=day_end)
+    )
+    last_track_at = {str(t.user_id): t.last_at for t in last_track_res.all()}
 
     # 2. Fetch active locations from Redis
     redis = get_redis_client()
@@ -347,6 +360,11 @@ async def get_active_locations(
                 battery_level=cached_data.get("battery_level"),
                 status=status_val,
                 updated_at=updated_at,
+                last_seen_at=max(
+                    (d for d in (updated_at, last_track_at.get(uid_str)) if d is not None),
+                    default=None,
+                ),
+                check_out_time=r.logout_time,
                 login_time=r.login_time,
                 login_latitude=r.login_latitude,
                 login_longitude=r.login_longitude,

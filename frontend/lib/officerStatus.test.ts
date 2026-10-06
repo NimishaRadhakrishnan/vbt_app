@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeLiveOfficers, countActive, formatLastSeen, RawUser, RawActiveLocation } from "./officerStatus";
+import { computeLiveOfficers, countActive, formatLastAction, formatLastSeen, RawUser, RawActiveLocation } from "./officerStatus";
 
 const NOW = new Date("2026-07-29T12:00:00Z").getTime();
 
@@ -75,6 +75,42 @@ describe("formatLastSeen", () => {
     // Guards against the historical bug where the backend defaulted
     // updated_at to "now" for officers who had never actually pinged.
     expect(formatLastSeen(null, NOW)).not.toMatch(/just now/);
+  });
+});
+
+describe("formatLastAction (Last logged action column)", () => {
+  const base = { officer_id: "x", latitude: null, longitude: null, accuracy: null, speed: null, battery_level: null } as const;
+  const minsAgo = (m: number) => new Date(NOW - m * 60000).toISOString();
+
+  it("still reporting: relative time", () => {
+    expect(formatLastAction({ ...base, status: "active", updated_at: minsAgo(2) }, NOW)).toBe("Last seen 2 min ago");
+  });
+
+  it("location went off: says when, in IST 12-hour time", () => {
+    // NOW = 12:00 UTC = 5:30 PM IST; 8 minutes earlier = 5:22 PM
+    expect(formatLastAction({ ...base, status: "stale", updated_at: minsAgo(8) }, NOW)).toBe(
+      "Location off since 5:22 PM (8 min ago)"
+    );
+  });
+
+  it("remembers the last ping after the live cache has expired", () => {
+    expect(
+      formatLastAction({ ...base, status: "location_unavailable", updated_at: null, last_seen_at: minsAgo(90) }, NOW)
+    ).toBe("Location off since 4:00 PM (2 hr ago)");
+  });
+
+  it("checked out wins over everything else", () => {
+    expect(
+      formatLastAction({ ...base, status: "stale", updated_at: minsAgo(8), check_out_time: minsAgo(20) }, NOW)
+    ).toBe("Checked out at 5:10 PM");
+  });
+
+  it("checked in but no GPS yet, and never reported", () => {
+    expect(formatLastAction({ ...base, status: "location_unavailable", updated_at: null, login_time: minsAgo(30) }, NOW)).toBe(
+      "Checked in, no GPS received yet"
+    );
+    expect(formatLastAction({ ...base, status: "location_unavailable", updated_at: null }, NOW)).toBe("Never reported");
+    expect(formatLastAction(undefined, NOW)).toBe("Never reported");
   });
 });
 

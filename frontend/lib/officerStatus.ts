@@ -20,6 +20,10 @@ export interface RawActiveLocation {
   battery_level: number | null;
   status: "active" | "stale" | "location_unavailable" | "low_accuracy" | string;
   updated_at: string | null; // null => this officer has never sent a real GPS ping
+  /** Last position of the day, from the live cache or (after it expires) the stored track. */
+  last_seen_at?: string | null;
+  /** Set once the officer has checked out. */
+  check_out_time?: string | null;
   login_time?: string | null;
   login_latitude?: number | null;
   login_longitude?: number | null;
@@ -71,6 +75,34 @@ export function formatLastSeen(updatedAt: string | null | undefined, now: number
   return `Last seen ${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
+const timeFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Kolkata",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
+
+/**
+ * The "Last logged action" column. Says what actually happened last:
+ * checked out, location went off (and when), or still reporting.
+ */
+export function formatLastAction(
+  loc: RawActiveLocation | undefined,
+  now: number = Date.now()
+): string {
+  if (!loc) return "Never reported";
+  if (loc.check_out_time) {
+    const t = Date.parse(loc.check_out_time);
+    if (Number.isFinite(t)) return `Checked out at ${timeFmt.format(new Date(t))}`;
+  }
+  const seen = loc.last_seen_at ?? loc.updated_at;
+  if (!seen) return loc.login_time ? "Checked in, no GPS received yet" : "Never reported";
+  if (loc.status === "active" || loc.status === "low_accuracy") return formatLastSeen(seen, now);
+  const t = Date.parse(seen);
+  if (!Number.isFinite(t) || t > now) return "Never reported";
+  return `Location off since ${timeFmt.format(new Date(t))} (${formatLastSeen(seen, now).replace("Last seen ", "")})`;
+}
+
 export function computeLiveOfficers(
   users: RawUser[],
   activeLocations: RawActiveLocation[],
@@ -81,7 +113,7 @@ export function computeLiveOfficers(
   return fieldUsers.map((u) => {
     const loc = activeLocations.find((l) => l.officer_id === u.id);
     const hasLocation = !!loc && loc.latitude !== null && loc.longitude !== null;
-    const everReported = !!loc && !!loc.updated_at;
+    const everReported = !!loc && !!(loc.last_seen_at || loc.updated_at || loc.check_out_time);
 
     return {
       id: u.id,
@@ -94,7 +126,7 @@ export function computeLiveOfficers(
       accuracy: loc && loc.accuracy !== null && loc.accuracy !== undefined ? loc.accuracy : null,
       speed: loc && loc.speed !== null && loc.speed !== undefined ? loc.speed : null,
       battery: loc && loc.battery_level !== null && loc.battery_level !== undefined ? loc.battery_level : null,
-      lastVisit: formatLastSeen(loc?.updated_at, now),
+      lastVisit: formatLastAction(loc, now),
       hasTelemetry: hasLocation,
       everReported,
       loginTime: loc?.login_time ?? null,

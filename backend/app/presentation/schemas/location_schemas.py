@@ -31,3 +31,9 @@ class LocationActiveResponse(BaseModel):
     login_time: Optional[datetime] = None
     login_latitude: Optional[float] = None
     login_longitude: Optional[float] = None
+    # When the phone last got a position through today (cache, or the stored
+    # track once the cache has expired). `updated_at` stays cache-only because
+    # the active / stale status is derived from it.
+    last_seen_at: Optional[datetime] = None
+    # Set once the officer has checked out for the day.
+    check_out_time: Optional[datetime] = None
