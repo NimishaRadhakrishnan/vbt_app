@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     # boundary doesn't lose the entry moments before the sweep checks it.
     location_cache_ttl_seconds: int = Field(default=1800 + 300)
 
+    # GPS history older than this is deleted by the daily retention job
+    # (app/application/services/gps_retention.py). Must match what the
+    # location disclosure tells officers.
+    gps_retention_days: int = Field(default=90)
+
     # --- Company locale ---
     # The calendar day a closure belongs to is the day in the COMPANY's
     # timezone, not the server's. Without this, a closure filed at 11pm

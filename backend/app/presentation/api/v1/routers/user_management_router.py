@@ -271,4 +271,6 @@ async def assign_user_details(
             .bindparams(user_id=user_id, t_id=t_id)
         )
     await session.commit()
+    from app.application.services.geofence_service import invalidate_fence_cache
+    invalidate_fence_cache()
     return _to_response(user)

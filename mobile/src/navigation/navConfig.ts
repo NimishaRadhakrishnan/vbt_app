@@ -72,6 +72,8 @@ export const NAV_SECTIONS: NavSection[] = [
     tabs: [
       { id: 'live', label: 'Live', aliases: ["Team's Live Location", 'Live Tracking Map'], roles: OVERSIGHT, ready: true },
       { id: 'history', label: 'History', aliases: ['Movement History'], roles: OVERSIGHT, ready: true },
+      { id: 'alerts', label: 'Alerts', aliases: ['Location alerts', 'Territory alerts'], roles: OVERSIGHT, ready: true },
+      { id: 'territories', label: 'Territories', aliases: ['Geofence', 'Territory areas'], roles: ['admin'], ready: true },
       { id: 'attendance', label: 'Attendance', aliases: ['Attendance Log'], roles: OVERSIGHT, ready: false },
       { id: 'people', label: 'People', aliases: ['Users', 'User Management'], roles: ['admin'], ready: true },
     ],

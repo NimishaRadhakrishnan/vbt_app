@@ -148,6 +148,18 @@ export const LocationService = {
     }
   },
 
+  /** Is the background task registered, and does the phone allow location
+   *  "all the time"? Used by the tracking watchdog; never throws. */
+  getHealth: async (): Promise<{ running: boolean; background: boolean }> => {
+    try {
+      const running = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      const perm = await Location.getBackgroundPermissionsAsync();
+      return { running, background: perm.status === 'granted' };
+    } catch {
+      return { running: false, background: false };
+    }
+  },
+
   stopTracking: async () => {
     try {
       const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);

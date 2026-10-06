@@ -3,13 +3,15 @@ from __future__ import annotations
 import math
 import uuid
 from datetime import UTC, datetime, time, timedelta
-from typing import Annotated
+from typing import Annotated, Optional
 
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.dto.auth_dto import CurrentUserOutput
+from app.application.services import geofence_service
 from app.application.services.alerts_service import AlertsService
 from app.domain.value_objects.role import Role
 from app.infrastructure.cache.location_cache import LocationCache
@@ -24,7 +26,9 @@ from app.presentation.schemas.location_schemas import LocationActiveResponse, Lo
 
 router = APIRouter(prefix="/location", tags=["location"])
 
-async def async_insert_gps_track(officer_id: uuid.UUID, payload: LocationPingRequest):
+async def async_insert_gps_track(
+    officer_id: uuid.UUID, payload: LocationPingRequest, territory_violation: bool = False
+):
     """
     distance_from_prev is computed for real here (previously always 0.0).
     Two design decisions worth being explicit about:
@@ -119,7 +123,7 @@ async def async_insert_gps_track(officer_id: uuid.UUID, payload: LocationPingReq
                             ),
                             0.0
                         ),
-                        false, :battery_level, :created_at
+                        :territory_violation, :battery_level, :created_at
                 """).bindparams(
                     user_id=officer_id,
                     company_tz=get_settings().company_timezone,
@@ -130,6 +134,7 @@ async def async_insert_gps_track(officer_id: uuid.UUID, payload: LocationPingReq
                     speed=payload.speed_kmh or 0.0,
                     is_idle=(payload.speed_kmh or 0.0) < 0.5,
                     battery_level=payload.battery_pct,
+                    territory_violation=territory_violation,
                     created_at=datetime.now(UTC),
                 )
             )
@@ -171,7 +176,12 @@ async def sweep_stale_locations() -> None:
     async with AsyncSessionLocal() as session:
         res = await session.execute(
             text("""
-                SELECT u.id AS officer_id, u.full_name AS officer_name
+                SELECT u.id AS officer_id, u.full_name AS officer_name,
+                       att.check_in_time AS check_in_time,
+                       EXISTS (
+                           SELECT 1 FROM gps_tracks g
+                           WHERE g.user_id = u.id AND g.recorded_at >= :day_start
+                       ) AS has_track
                 FROM users u
                 JOIN attendance att ON att.user_id = u.id AND att.check_in_time >= :day_start AND att.check_in_time < :day_end
                 WHERE u.role IN ('field_officer', 'sales_officer')
@@ -191,6 +201,33 @@ async def sweep_stale_locations() -> None:
     for r in rows:
         uid_str = str(r.officer_id)
         cached_data = cached_locations.get(uid_str)
+        if not cached_data and not r.has_track:
+            # Checked in but not one ping all day: tracking never started
+            # (permission refused, phone killed the app, no signal). Alert once
+            # after a grace period; the next ping clears the flag.
+            grace = 600  # seconds
+            check_in = r.check_in_time
+            if check_in.tzinfo is None:
+                check_in = check_in.replace(tzinfo=UTC)
+            if (now - check_in).total_seconds() > grace and not await cache.has_stale_alert_been_sent(uid_str):
+                msg = f"{r.officer_name} checked in but no location has been received yet."
+                await broadcaster.broadcast("alerts", {
+                    "type": "tracking_not_started",
+                    "officer_id": uid_str,
+                    "message": msg,
+                })
+                await cache.mark_stale_alert_sent(uid_str)
+                async with AsyncSessionLocal() as alert_session:
+                    await alert_session.execute(
+                        text(
+                            """
+                            INSERT INTO location_alerts (id, user_id, alert_type, message)
+                            VALUES (gen_random_uuid(), :uid, 'tracking_not_started', :msg)
+                            """
+                        ).bindparams(uid=r.officer_id, msg=msg)
+                    )
+                    await alert_session.commit()
+            continue
         if not cached_data or cached_data.get("status") != "active":
             continue
 
@@ -215,6 +252,20 @@ async def sweep_stale_locations() -> None:
                        f"{settings.location_stale_tier2_seconds // 60} minutes.",
         })
         await cache.mark_stale_alert_sent(uid_str)
+        async with AsyncSessionLocal() as alert_session:
+            await alert_session.execute(
+                text(
+                    """
+                    INSERT INTO location_alerts (id, user_id, alert_type, message)
+                    VALUES (gen_random_uuid(), :uid, 'tracking_gap', :msg)
+                    """
+                ).bindparams(
+                    uid=r.officer_id,
+                    msg=f"{r.officer_name}'s location hasn't updated in over "
+                        f"{settings.location_stale_tier2_seconds // 60} minutes.",
+                )
+            )
+            await alert_session.commit()
 
 @router.post(
     "/ping",
@@ -264,11 +315,16 @@ async def ping_location(
     await alerts_service.evaluate_location(officer_id, {
         "battery_pct": payload.battery_pct,
         "is_mocked": payload.is_mocked if hasattr(payload, 'is_mocked') else False,
-        "territory_violation": False # Mock territory evaluation for now
     })
 
+    # 3b. Territory geofence. Raises its own stored alert once an excursion
+    # is confirmed; returns whether this fix is outside every assigned fence.
+    outside = await geofence_service.evaluate(
+        officer_id, payload.lat, payload.lng, payload.accuracy
+    )
+
     # 4. Background DB insert for historical track
-    background_tasks.add_task(async_insert_gps_track, officer_id, payload)
+    background_tasks.add_task(async_insert_gps_track, officer_id, payload, bool(outside))
 
     return {"status": "success"}
 
@@ -701,3 +757,126 @@ async def get_location_diagnostics(
         "tier2_threshold_seconds": settings.location_stale_tier2_seconds,
         "suspect_jumps": suspect_jumps,
     }
+
+
+# --- Territories (geofences) and stored alerts -------------------------------
+
+class GeofenceBody(BaseModel):
+    center_lat: float = Field(ge=-90, le=90)
+    center_lng: float = Field(ge=-180, le=180)
+    radius_m: float = Field(ge=100, le=200000)
+
+
+@router.get("/territories")
+async def list_territories(
+    _current_user: Annotated[CurrentUserOutput, Depends(require_role(Role.ADMIN, Role.MANAGER))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> list[dict]:
+    """Every territory with its geofence (null when none is set) and how
+    many officers are assigned to it."""
+    rows = (
+        await session.execute(
+            text(
+                """
+                SELECT t.id, t.name, t.district, t.center_lat, t.center_lng, t.radius_m,
+                       (SELECT COUNT(*) FROM user_territories ut WHERE ut.territory_id = t.id) AS officers
+                FROM territories t
+                ORDER BY t.district, t.name
+                """
+            )
+        )
+    ).all()
+    return [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "district": r.district,
+            "center_lat": r.center_lat,
+            "center_lng": r.center_lng,
+            "radius_m": r.radius_m,
+            "officers": int(r.officers),
+        }
+        for r in rows
+    ]
+
+
+@router.put("/territories/{territory_id}/geofence")
+async def set_territory_geofence(
+    territory_id: uuid.UUID,
+    body: GeofenceBody,
+    _current_user: Annotated[CurrentUserOutput, Depends(require_role(Role.ADMIN))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    res = await session.execute(
+        text(
+            "UPDATE territories SET center_lat = :lat, center_lng = :lng, radius_m = :r, "
+            "updated_at = now() WHERE id = :id"
+        ).bindparams(lat=body.center_lat, lng=body.center_lng, r=body.radius_m, id=territory_id)
+    )
+    if res.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Territory not found")
+    await session.commit()
+    geofence_service.invalidate_fence_cache()
+    return {"status": "ok"}
+
+
+@router.delete("/territories/{territory_id}/geofence")
+async def clear_territory_geofence(
+    territory_id: uuid.UUID,
+    _current_user: Annotated[CurrentUserOutput, Depends(require_role(Role.ADMIN))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    res = await session.execute(
+        text(
+            "UPDATE territories SET center_lat = NULL, center_lng = NULL, radius_m = NULL, "
+            "updated_at = now() WHERE id = :id"
+        ).bindparams(id=territory_id)
+    )
+    if res.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Territory not found")
+    await session.commit()
+    geofence_service.invalidate_fence_cache()
+    return {"status": "ok"}
+
+
+@router.get("/alerts")
+async def list_location_alerts(
+    _current_user: Annotated[CurrentUserOutput, Depends(require_role(Role.ADMIN, Role.MANAGER))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    date: Optional[str] = None,
+) -> list[dict]:
+    """Territory exits and tracking gaps for one company day (default today),
+    newest first. `ended_at` is set once an officer is back inside."""
+    try:
+        day = datetime.strptime(date, "%Y-%m-%d").date() if date else company_today()
+    except ValueError:
+        raise HTTPException(status_code=422, detail="date must be YYYY-MM-DD")
+    day_start = datetime.combine(day, time.min, tzinfo=company_tz())
+    rows = (
+        await session.execute(
+            text(
+                """
+                SELECT a.id, a.user_id, u.full_name, a.alert_type, a.message,
+                       a.latitude, a.longitude, a.created_at, a.ended_at
+                FROM location_alerts a JOIN users u ON u.id = a.user_id
+                WHERE a.created_at >= :s AND a.created_at < :e
+                ORDER BY a.created_at DESC
+                LIMIT 500
+                """
+            ).bindparams(s=day_start, e=day_start + timedelta(days=1))
+        )
+    ).all()
+    return [
+        {
+            "id": str(r.id),
+            "officer_id": str(r.user_id),
+            "officer_name": r.full_name,
+            "type": r.alert_type,
+            "message": r.message,
+            "latitude": r.latitude,
+            "longitude": r.longitude,
+            "created_at": r.created_at.isoformat(),
+            "ended_at": r.ended_at.isoformat() if r.ended_at else None,
+        }
+        for r in rows
+    ]

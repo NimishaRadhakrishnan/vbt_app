@@ -1,63 +1,97 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, FlatList, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '../../services/api';
 import { useDataFetch } from '../../hooks/useDataFetch';
 import { LoadingState, ErrorState, EmptyState } from '../../components/FetchStates';
+import RouteSketch from '../../components/RouteSketch';
+import { analyzeDay, fmtClock, fmtDuration, RawPoint } from '../../utils/routeAnalysis';
 import { color, font, fontWeight, spacing, radius } from '../../theme';
 
 type SimpleUser = { id: string; full_name: string; role: string };
-type HistoryPoint = { lat: number; lng: number; recorded_at: string; speed: number | null; battery_level: number | null };
 type Diagnostics = {
   ping_count: number;
   delivery_rate_pct: number | null;
   accuracy_summary?: { avg: number | null };
   low_accuracy_pct: number | null;
-  suspect_jumps?: any[];
+  suspect_jumps?: unknown[];
   error?: string;
 };
 
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function istToday(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 }
 
-// Mobile equivalent of the web dashboard's Movement History / Historical
-// Route Replay screen. Same two endpoints: GET /location/history/
-// {officer_id}?date=... for the day's raw GPS points, and GET /location/
-// diagnostics/{officer_id}?date=... for the "Check Data Quality" panel
-// added to the web screen earlier (delivery rate, accuracy, suspect
-// jumps). No visual route line on a map here - see AdminLiveMapScreen.tsx
-// for why (no Google Maps API key provisioned for Android yet) - this
-// shows the same underlying ping list and diagnostics as a timeline
-// instead, which is the information an admin actually needs to answer
-// "did this officer's tracking work today", not just a pretty line.
+function addDays(day: string, delta: number): string {
+  const [y, m, d] = day.split('-').map(Number);
+  const t = new Date(Date.UTC(y!, m! - 1, d! + delta));
+  return t.toISOString().slice(0, 10);
+}
+
+function prettyDay(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d!)).toLocaleDateString('en-IN', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+  });
+}
+
+// Route history for one officer and one day, same rules as the web Route
+// Replay: distance, time moving, stops, gaps with no signal, and a drawing of
+// the path. History is kept for 90 days, so the date picker stops there.
+const KEEP_DAYS = 90;
+
 export default function AdminLocationHistoryScreen() {
   const [officerId, setOfficerId] = useState<string | null>(null);
-  const [date, setDate] = useState(todayStr());
+  const [date, setDate] = useState(istToday());
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+
+  const today = istToday();
+  const oldest = addDays(today, -KEEP_DAYS);
 
   const { data: officers } = useDataFetch<SimpleUser[]>(
     () => apiClient.request('/users?limit=200', 'GET', 'admin_action'),
     [],
-    { refetchOnFocus: false }
+    { refetchOnFocus: false },
   );
-  const trackableOfficers = (officers ?? []).filter((u) => u.role === 'field_officer' || u.role === 'sales_officer');
+  const trackable = (officers ?? []).filter((u) => u.role === 'field_officer' || u.role === 'sales_officer');
 
-  const { data: points, loading, error, retry } = useDataFetch<HistoryPoint[]>(
+  const { data: raw, loading, error, retry } = useDataFetch<RawPoint[]>(
     () => (officerId ? apiClient.request(`/location/history/${officerId}?date=${date}`, 'GET', 'admin_action') : Promise.resolve([])),
-    [officerId, date]
+    [officerId, date],
   );
+
+  const summary = useMemo(() => analyzeDay(raw ?? []), [raw]);
+
+  // Timeline: stops and gaps in time order.
+  const timeline = useMemo(() => {
+    const items: { key: string; at: number; kind: 'stop' | 'gap'; text: string; lat?: number; lng?: number }[] = [];
+    summary.stops.forEach((s, i) =>
+      items.push({
+        key: `s${i}`, at: s.start, kind: 'stop', lat: s.lat, lng: s.lng,
+        text: `Stopped ${fmtClock(s.start)} to ${fmtClock(s.end)} (${fmtDuration(s.minutes)})`,
+      }),
+    );
+    summary.gaps.forEach((g, i) =>
+      items.push({
+        key: `g${i}`, at: g.start, kind: 'gap',
+        text: `No signal ${fmtClock(g.start)} to ${fmtClock(g.end)} (${fmtDuration(g.minutes)})`,
+      }),
+    );
+    return items.sort((a, b) => a.at - b.at);
+  }, [summary]);
+
+  const pick = (id: string) => { setOfficerId(id); setDiagnostics(null); };
+  const move = (delta: number) => { setDate((d) => addDays(d, delta)); setDiagnostics(null); };
 
   const checkDataQuality = async () => {
     if (!officerId) return;
     setDiagnosticsLoading(true);
     setDiagnostics(null);
     try {
-      const d: Diagnostics = await apiClient.request(`/location/diagnostics/${officerId}?date=${date}`, 'GET', 'admin_action');
-      setDiagnostics(d);
+      setDiagnostics(await apiClient.request(`/location/diagnostics/${officerId}?date=${date}`, 'GET', 'admin_action'));
     } catch (err: any) {
-      setDiagnostics({ ping_count: 0, delivery_rate_pct: null, low_accuracy_pct: null, error: err?.message ?? 'Failed to run data-quality check' });
+      setDiagnostics({ ping_count: 0, delivery_rate_pct: null, low_accuracy_pct: null, error: err?.message ?? 'Could not run the check' });
     } finally {
       setDiagnosticsLoading(false);
     }
@@ -66,78 +100,124 @@ export default function AdminLocationHistoryScreen() {
   return (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.officerTabs} contentContainerStyle={{ paddingHorizontal: spacing.md }}>
-        {trackableOfficers.map((o) => (
+        {trackable.map((o) => (
           <TouchableOpacity
             key={o.id}
             style={[styles.officerChip, officerId === o.id && styles.officerChipActive]}
-            onPress={() => { setOfficerId(o.id); setDiagnostics(null); }}
+            onPress={() => pick(o.id)}
+            accessibilityRole="button"
+            accessibilityLabel={o.full_name}
           >
             <Text style={[styles.officerChipText, officerId === o.id && styles.officerChipTextActive]}>{o.full_name}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      {!officerId ? (
-        <EmptyState message="Pick an officer above to see their route history." />
-      ) : (
-        <>
-          <TouchableOpacity style={styles.qualityBtn} disabled={diagnosticsLoading} onPress={checkDataQuality}>
-            {diagnosticsLoading ? (
-              <ActivityIndicator color={color.white} size="small" />
-            ) : (
-              <Text style={styles.qualityBtnText}>Check Data Quality</Text>
-            )}
-          </TouchableOpacity>
+      <View style={styles.dateRow}>
+        <TouchableOpacity style={styles.dateBtn} disabled={date <= oldest} onPress={() => move(-1)} accessibilityRole="button" accessibilityLabel="Previous day">
+          <Ionicons name="chevron-back" size={20} color={date <= oldest ? color.textDisabled : color.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => { setDate(today); setDiagnostics(null); }} accessibilityRole="button" accessibilityLabel="Go to today">
+          <Text style={styles.dateText}>{prettyDay(date)}{date === today ? ' (today)' : ''}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dateBtn} disabled={date >= today} onPress={() => move(1)} accessibilityRole="button" accessibilityLabel="Next day">
+          <Ionicons name="chevron-forward" size={20} color={date >= today ? color.textDisabled : color.primary} />
+        </TouchableOpacity>
+      </View>
 
-          {diagnostics && !diagnostics.error && (
-            <View style={styles.diagnosticsCard}>
-              <Text style={styles.diagnosticsTitle}>GPS Data Quality — {date}</Text>
-              <View style={styles.diagnosticsRow}>
-                <DiagStat label="Pings Recorded" value={String(diagnostics.ping_count)} />
-                <DiagStat label="Delivery Rate" value={diagnostics.delivery_rate_pct != null ? `${diagnostics.delivery_rate_pct}%` : '—'} />
-                <DiagStat label="Accuracy (avg)" value={diagnostics.accuracy_summary?.avg != null ? `${diagnostics.accuracy_summary.avg}m` : '—'} />
-                <DiagStat label="Low-Accuracy Pings" value={diagnostics.low_accuracy_pct != null ? `${diagnostics.low_accuracy_pct}%` : '—'} />
+      {!officerId ? (
+        <EmptyState message="Pick an officer above to see their route." />
+      ) : loading ? (
+        <LoadingState />
+      ) : error ? (
+        <ErrorState message={error} onRetry={retry} />
+      ) : summary.points.length === 0 ? (
+        <EmptyState
+          message="No location recorded for this officer on this day."
+          actionHint={`History is kept for ${KEEP_DAYS} days.`}
+        />
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }}>
+          <View style={styles.cards}>
+            <Stat label="Distance" value={`${summary.distanceKm} km`} />
+            <Stat label="Moving" value={fmtDuration(summary.movingMinutes)} />
+            <Stat label="Stops" value={String(summary.stops.length)} />
+            <Stat label="No signal" value={String(summary.gaps.length)} />
+          </View>
+          <Text style={styles.range}>
+            First location {summary.firstAt != null ? fmtClock(summary.firstAt) : '-'} · Last {summary.lastAt != null ? fmtClock(summary.lastAt) : '-'}
+          </Text>
+
+          <RouteSketch points={summary.points} stops={summary.stops} />
+          <View style={styles.legend}>
+            <Legend colour={color.success} label="Start" />
+            <Legend colour={color.warning} label="Stop" />
+            <Legend colour={color.error} label="Last seen" />
+          </View>
+
+          <Text style={styles.sectionTitle}>Timeline</Text>
+          {timeline.length === 0 ? (
+            <Text style={styles.muted}>No stops or gaps: the officer kept moving with a steady signal.</Text>
+          ) : (
+            timeline.map((t) => (
+              <View key={t.key} style={styles.row}>
+                <Ionicons
+                  name={t.kind === 'stop' ? 'pause-circle-outline' : 'cellular-outline'}
+                  size={20}
+                  color={t.kind === 'stop' ? color.warning : color.error}
+                />
+                <Text style={styles.rowText}>{t.text}</Text>
+                {t.kind === 'stop' && t.lat != null && t.lng != null && (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${t.lat},${t.lng}`)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open this stop in Google Maps"
+                  >
+                    <Ionicons name="open-outline" size={20} color={color.primary} />
+                  </TouchableOpacity>
+                )}
               </View>
-              {diagnostics.suspect_jumps && diagnostics.suspect_jumps.length > 0 ? (
-                <Text style={styles.warningText}>{diagnostics.suspect_jumps.length} suspicious jump(s) found for this day.</Text>
-              ) : (
-                <Text style={styles.okText}>No suspicious jumps found for this day.</Text>
-              )}
+            ))
+          )}
+
+          <TouchableOpacity style={styles.qualityBtn} disabled={diagnosticsLoading} onPress={checkDataQuality} accessibilityRole="button">
+            {diagnosticsLoading ? <ActivityIndicator color={color.white} size="small" /> : <Text style={styles.qualityBtnText}>Check data quality</Text>}
+          </TouchableOpacity>
+          {diagnostics && !diagnostics.error && (
+            <View style={styles.diag}>
+              <Text style={styles.rowText}>
+                {diagnostics.ping_count} locations · delivery {diagnostics.delivery_rate_pct != null ? `${diagnostics.delivery_rate_pct}%` : '-'} · avg accuracy{' '}
+                {diagnostics.accuracy_summary?.avg != null ? `${diagnostics.accuracy_summary.avg} m` : '-'}
+              </Text>
+              <Text style={diagnostics.suspect_jumps && diagnostics.suspect_jumps.length > 0 ? styles.bad : styles.good}>
+                {diagnostics.suspect_jumps && diagnostics.suspect_jumps.length > 0
+                  ? `${diagnostics.suspect_jumps.length} suspicious jump(s) found.`
+                  : 'No suspicious jumps found.'}
+              </Text>
+              {summary.badFixes > 0 && <Text style={styles.muted}>{summary.badFixes} poor fixes were left out of the route above.</Text>}
             </View>
           )}
-          {diagnostics?.error && <Text style={styles.warningText}>{diagnostics.error}</Text>}
-
-          {loading ? (
-            <LoadingState />
-          ) : error ? (
-            <ErrorState message={error} onRetry={retry} />
-          ) : !points || points.length === 0 ? (
-            <EmptyState message="No GPS points recorded for this officer on this day." />
-          ) : (
-            <FlatList
-              data={points}
-              keyExtractor={(p, i) => `${p.recorded_at}-${i}`}
-              contentContainerStyle={{ padding: spacing.lg }}
-              renderItem={({ item }) => (
-                <View style={styles.pointRow}>
-                  <Text style={styles.pointTime}>{new Date(item.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-                  <Text style={styles.pointCoords}>{item.lat.toFixed(4)}, {item.lng.toFixed(4)}</Text>
-                  {item.speed != null && <Text style={styles.pointMeta}>{Math.round(item.speed)} km/h</Text>}
-                </View>
-              )}
-            />
-          )}
-        </>
+          {diagnostics?.error && <Text style={styles.bad}>{diagnostics.error}</Text>}
+        </ScrollView>
       )}
     </View>
   );
 }
 
-function DiagStat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <View style={styles.diagStat}>
-      <Text style={styles.diagStatValue}>{value}</Text>
-      <Text style={styles.diagStatLabel}>{label}</Text>
+    <View style={styles.stat}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function Legend({ colour, label }: { colour: string; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendDot, { backgroundColor: colour }]} />
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
@@ -146,47 +226,33 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: color.screenBg },
   officerTabs: { maxHeight: 52, marginTop: spacing.md, marginBottom: spacing.sm },
   officerChip: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
-    backgroundColor: color.cardBg,
-    borderWidth: 1,
-    borderColor: color.border,
-    marginRight: spacing.sm,
-    justifyContent: 'center',
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.pill,
+    backgroundColor: color.cardBg, borderWidth: 1, borderColor: color.border, marginRight: spacing.sm, justifyContent: 'center',
   },
   officerChipActive: { backgroundColor: color.primary, borderColor: color.primary },
   officerChipText: { fontSize: font.caption, fontWeight: fontWeight.semibold, color: color.textPrimary },
   officerChipTextActive: { color: color.white },
-  qualityBtn: { margin: spacing.lg, backgroundColor: color.info, paddingVertical: spacing.md, borderRadius: radius.sm, alignItems: 'center' },
+  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+  dateBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  dateText: { fontSize: font.body, fontWeight: fontWeight.semibold, color: color.textPrimary },
+  cards: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+  stat: { flexGrow: 1, flexBasis: '45%', backgroundColor: color.cardBg, borderWidth: 1, borderColor: color.border, borderRadius: radius.md, padding: spacing.md },
+  statValue: { fontSize: font.subtitle, fontWeight: fontWeight.bold, color: color.textPrimary },
+  statLabel: { fontSize: font.caption, color: color.textSecondary },
+  range: { fontSize: font.caption, color: color.textSecondary, marginBottom: spacing.md },
+  legend: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  sectionTitle: { fontSize: font.subtitle, fontWeight: fontWeight.bold, color: color.textPrimary, marginTop: spacing.xl, marginBottom: spacing.sm },
+  muted: { fontSize: font.caption, color: color.textSecondary, marginTop: spacing.sm },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: color.cardBg,
+    borderWidth: 1, borderColor: color.border, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.sm,
+  },
+  rowText: { flex: 1, fontSize: font.caption, color: color.textPrimary },
+  qualityBtn: { marginTop: spacing.xl, backgroundColor: color.info, minHeight: 44, justifyContent: 'center', borderRadius: radius.sm, alignItems: 'center' },
   qualityBtnText: { color: color.white, fontWeight: fontWeight.bold },
-  diagnosticsCard: {
-    backgroundColor: color.cardBg,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: color.border,
-    padding: spacing.lg,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  diagnosticsTitle: { fontSize: font.subtitle, fontWeight: fontWeight.bold, color: color.textPrimary, marginBottom: spacing.md },
-  diagnosticsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  diagStat: { minWidth: 100 },
-  diagStatValue: { fontSize: font.subtitle, fontWeight: fontWeight.bold, color: color.textPrimary },
-  diagStatLabel: { fontSize: font.caption, color: color.textSecondary },
-  warningText: { color: color.error, fontSize: font.caption, marginTop: spacing.sm, paddingHorizontal: spacing.lg },
-  okText: { color: color.success, fontSize: font.caption, marginTop: spacing.sm },
-  pointRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: color.cardBg,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: color.border,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  pointTime: { fontSize: font.caption, fontWeight: fontWeight.semibold, color: color.textPrimary },
-  pointCoords: { fontSize: font.caption, color: color.textSecondary },
-  pointMeta: { fontSize: font.caption, color: color.textSecondary },
+  diag: { marginTop: spacing.md, gap: spacing.xs },
+  good: { color: color.success, fontSize: font.caption },
+  bad: { color: color.error, fontSize: font.caption, marginTop: spacing.sm },
 });

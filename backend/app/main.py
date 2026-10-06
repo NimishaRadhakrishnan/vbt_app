@@ -21,6 +21,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.application.services.gps_retention import purge_old_gps
 from app.core.logging_config import configure_logging
 from app.infrastructure.config.settings import get_settings
 from app.presentation.api.v1.router import api_v1_router
@@ -53,6 +54,21 @@ async def _stale_location_sweep_loop() -> None:
         except Exception:
             logger.exception("stale_location_sweep_failed")
         await asyncio.sleep(_STALE_SWEEP_INTERVAL_SECONDS)
+
+
+_RETENTION_INTERVAL_SECONDS = 24 * 3600
+
+
+async def _gps_retention_loop() -> None:
+    """Deletes GPS history older than settings.gps_retention_days, once a day.
+    First run is a minute after start-up so a restart never delays boot."""
+    await asyncio.sleep(60)
+    while True:
+        try:
+            await purge_old_gps()
+        except Exception:
+            logger.exception("gps_retention_failed")
+        await asyncio.sleep(_RETENTION_INTERVAL_SECONDS)
 
 
 _INSECURE_JWT_SECRETS = {
@@ -117,14 +133,16 @@ async def lifespan(app: FastAPI):
     # sweeps at a time. Not built now - this comment is the tripwire so
     # it isn't silently forgotten when/if that scaling happens.
     sweep_task = asyncio.create_task(_stale_location_sweep_loop())
+    retention_task = asyncio.create_task(_gps_retention_loop())
 
     yield
 
-    sweep_task.cancel()
-    try:
-        await sweep_task
-    except asyncio.CancelledError:
-        pass
+    for task in (sweep_task, retention_task):
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     logger.info("application_shutdown")
 
 

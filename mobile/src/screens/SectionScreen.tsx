@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '../services/api';
 import { findSection, sectionsForRole } from '../navigation/navConfig';
 import SegmentedTabs from '../components/SegmentedTabs';
+import TrackingBanner from '../components/TrackingBanner';
 import ActionList from '../components/ActionList';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
@@ -23,6 +24,8 @@ import AdminVisitReportsScreen from './admin/AdminVisitReportsScreen';
 import AdminDealersScreen from './admin/AdminDealersScreen';
 import AdminLiveMapScreen from './admin/AdminLiveMapScreen';
 import AdminLocationHistoryScreen from './admin/AdminLocationHistoryScreen';
+import AdminAlertsScreen from './admin/AdminAlertsScreen';
+import AdminTerritoriesScreen from './admin/AdminTerritoriesScreen';
 import AdminUsersScreen from './admin/AdminUsersScreen';
 import AdminStockScreen from './admin/AdminStockScreen';
 import AdminMasterDataScreen from './admin/AdminMasterDataScreen';
@@ -65,6 +68,7 @@ export default function SectionScreen({ navigation, route }: any) {
 
   return (
     <View style={styles.container}>
+      <TrackingBanner />
       <SegmentedTabs tabs={section.tabs} activeId={activeId} onSelect={setTabId} />
       <View style={{ flex: 1 }} key={`${activeId}-${resetKey}`}>
         <TabBody
@@ -181,6 +185,14 @@ function TabBody({ tabId, role, navigation, onDone }: { tabId: string; role: str
     }
     case 'history': {
       const C = as(AdminLocationHistoryScreen);
+      return <C navigation={navigation} />;
+    }
+    case 'alerts': {
+      const C = as(AdminAlertsScreen);
+      return <C navigation={navigation} />;
+    }
+    case 'territories': {
+      const C = as(AdminTerritoriesScreen);
       return <C navigation={navigation} />;
     }
     case 'people': {

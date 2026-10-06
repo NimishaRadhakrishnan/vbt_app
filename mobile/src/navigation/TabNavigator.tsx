@@ -30,6 +30,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { findSection } from './navConfig';
 import QuickActionSheet from '../components/QuickActionSheet';
 import { apiClient } from '../services/api';
+import { useTrackingWatchdog } from '../hooks/useTrackingWatchdog';
 import { dbService } from '../services/db';
 import { color, fontWeight } from '../theme';
 
@@ -243,6 +244,8 @@ const TAB_LABELS: Record<string, string> = {
 
 export default function TabNavigator() {
   const [sheetVisible, setSheetVisible] = useState(false);
+  const role = apiClient.getCurrentUser()?.role;
+  useTrackingWatchdog(role === 'field_officer' || role === 'sales_officer');
 
   return (
     <>
