@@ -92,7 +92,7 @@ export default function LoginScreen({ navigation }: any) {
 
         <TextInput
           style={styles.input}
-          placeholder="Employee ID (e.g. VB-1002)"
+          placeholder="Employee ID or Mobile Number"
           placeholderTextColor={color.textMuted}
           value={employeeId}
           onChangeText={setEmployeeId}

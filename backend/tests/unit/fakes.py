@@ -50,6 +50,13 @@ class FakeUserRepository(UserRepository):
     async def exists_by_employee_id(self, employee_id: str) -> bool:
         return await self.get_by_employee_id(employee_id) is not None
 
+    async def find_by_phone(self, phone: str) -> list[User]:
+        tail = "".join(c for c in phone if c.isdigit())[-10:]
+        return [
+            u for u in self._users.values()
+            if u.phone and (u.phone == phone or (len(tail) == 10 and u.phone.endswith(tail)))
+        ][:2]
+
     async def list_all(self, *, limit: int = 50, offset: int = 0) -> list[User]:
         return list(self._users.values())[offset : offset + limit]
 

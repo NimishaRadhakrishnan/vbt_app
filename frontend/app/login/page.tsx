@@ -37,7 +37,7 @@ export default function LoginPage() {
       await login(loginPayload);
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Invalid email/employee ID or password. Please try again.");
+      setError(err instanceof ApiError ? err.message : "Invalid employee ID/mobile number or password. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -57,13 +57,13 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-              Employee ID or Email
+              Employee ID or Mobile Number
             </label>
             <input
               type="text"
               required
               autoComplete="username"
-              placeholder="e.g. VB-1002 or email"
+              placeholder="e.g. VB-1002 or 9876543210"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm bg-white"

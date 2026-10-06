@@ -23,6 +23,9 @@ class UserRepository(ABC):
     async def get_by_employee_id(self, employee_id: str) -> Optional[User]: ...
 
     @abstractmethod
+    async def find_by_phone(self, phone: str) -> list[User]: ...
+
+    @abstractmethod
     async def add(self, user: User) -> User: ...
 
     @abstractmethod

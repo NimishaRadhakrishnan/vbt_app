@@ -126,6 +126,10 @@ async def create_user(
     if await user_repo.exists_by_employee_id(payload.employee_id):
         raise HTTPException(status_code=400, detail="Employee ID already registered")
 
+    # The mobile number can be used to sign in, so it must identify one account.
+    if payload.phone and await user_repo.find_by_phone(payload.phone):
+        raise HTTPException(status_code=400, detail="Mobile number already registered")
+
     if payload.email:
         email_vo = Email(str(payload.email))
         if await user_repo.exists_by_email(email_vo):
@@ -169,6 +173,10 @@ async def edit_user(
 
     if user.employee_id != payload.employee_id and await user_repo.exists_by_employee_id(payload.employee_id):
         raise HTTPException(status_code=400, detail="Employee ID already registered")
+
+    if payload.phone and payload.phone != user.phone:
+        if any(u.id != user.id for u in await user_repo.find_by_phone(payload.phone)):
+            raise HTTPException(status_code=400, detail="Mobile number already registered")
 
     user.full_name = payload.full_name
     user.role = Role(payload.role)

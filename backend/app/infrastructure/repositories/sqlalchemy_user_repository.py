@@ -64,6 +64,23 @@ class SQLAlchemyUserRepository(UserRepository):
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
+    async def find_by_phone(self, phone: str) -> list[User]:
+        """Accounts whose stored phone matches `phone`. Matches the full
+        number, or - so "9876543210" finds "+919876543210" - the last 10
+        digits. Returns at most 2 rows: callers only need to know whether
+        there is none, exactly one, or more than one."""
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        tail = digits[-10:]
+        cond = UserModel.phone == phone
+        if len(tail) == 10:
+            cond = cond | UserModel.phone.like(f"%{tail}")
+        result = await self._session.execute(
+            select(UserModel)
+            .where(cond, UserModel.is_deleted.is_(False))
+            .limit(2)
+        )
+        return [self._to_entity(m) for m in result.scalars().all()]
+
     async def add(self, user: User) -> User:
         model = UserModel(
             id=user.id,

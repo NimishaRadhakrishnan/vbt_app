@@ -7,6 +7,7 @@ from typing import Optional
 from datetime import datetime, timezone
 
 import logging
+import re
 
 from app.application.dto.auth_dto import LoginInput, LoginOutput
 from app.domain.entities.notification import Notification
@@ -55,6 +56,15 @@ class LoginUserUseCase:
                 user = await self._user_repository.get_by_employee_id(data.employee_id)
         elif data.employee_id:
             user = await self._user_repository.get_by_employee_id(data.employee_id)
+            if user is None:
+                # Not an Employee ID - the sign-in box also takes the
+                # account's mobile number. Only an unambiguous match
+                # (exactly one account) signs in.
+                phone = re.sub(r"[\s\-()]", "", data.employee_id)
+                if re.fullmatch(r"\+?[0-9]{7,15}", phone):
+                    matches = await self._user_repository.find_by_phone(phone)
+                    if len(matches) == 1:
+                        user = matches[0]
         elif data.email:
             try:
                 email = Email(data.email)
