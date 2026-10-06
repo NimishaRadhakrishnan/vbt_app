@@ -298,6 +298,7 @@ export default function Dashboard() {
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   // Notifications State
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -1385,6 +1386,69 @@ export default function Dashboard() {
     }
   };
 
+  // Ends the officer's day on the web. Same endpoint the app uses
+  // (POST /attendance/check-out). Never gated on location consent: someone
+  // who is checked in must always be able to check out.
+  const handleWebCheckOut = async () => {
+    if (!window.confirm("Check out for today? You will not be able to check in again until tomorrow.")) return;
+    setIsCheckingOut(true);
+    try {
+      // Use the phone/browser position if we can get one; otherwise fall
+      // back to where the officer checked in, so the record is never a
+      // fake 0,0.
+      let lat: number | null = null;
+      let lng: number | null = null;
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          if (!navigator.geolocation) reject(new Error("no geolocation"));
+          else navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 20000, maximumAge: 60000 });
+        });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+      } catch {
+        lat = myTodayAttendance?.check_in_location_lat ?? null;
+        lng = myTodayAttendance?.check_in_location_lng ?? null;
+      }
+      await apiFetch("/attendance/check-out", {
+        method: "POST",
+        body: JSON.stringify({ latitude: lat ?? 0, longitude: lng ?? 0 }),
+      });
+      fetchDashboardData();
+    } catch (err: any) {
+      console.error("Failed to check out via web", err);
+      alert(err?.message || "Couldn't check out. Please try again.");
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
+  // The Check In / Check Out tile on the officer home. One tile, three
+  // states: not checked in -> Check In; checked in -> Check Out; done.
+  const renderAttendanceTile = () => {
+    const checkedIn = !!myTodayAttendance;
+    const checkedOut = !!myTodayAttendance?.check_out_time;
+    const busy = isCheckingIn || isCheckingOut;
+    const label = checkedOut
+      ? "Checked Out"
+      : checkedIn
+      ? isCheckingOut ? "Checking Out..." : "Check Out"
+      : isCheckingIn ? "Checking In..." : "Check In";
+    return (
+      <button
+        onClick={() => {
+          if (checkedOut || busy) return;
+          if (checkedIn) handleWebCheckOut();
+          else handleWebCheckIn();
+        }}
+        disabled={checkedOut || busy}
+        className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition disabled:opacity-60"
+      >
+        <Activity className="w-6 h-6 mx-auto text-primary-700" />
+        <p className="text-sm font-semibold text-slate-700 mt-2">{label}</p>
+      </button>
+    );
+  };
+
   const handleAcceptLocationConsent = async () => {
     if (!locationConsent) return;
     setIsAcceptingConsent(true);
@@ -2277,16 +2341,7 @@ export default function Dashboard() {
                           location pings, so they can never appear under
                           "Active Officers" - which is the direct cause of
                           that count reading 0. */}
-                      <button
-                        onClick={() => { if (!myTodayAttendance) handleWebCheckIn(); }}
-                        disabled={!!myTodayAttendance || isCheckingIn}
-                        className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition disabled:opacity-60"
-                      >
-                        <Activity className="w-6 h-6 mx-auto text-primary-700" />
-                        <p className="text-sm font-semibold text-slate-700 mt-2">
-                          {myTodayAttendance ? "Checked In" : isCheckingIn ? "Checking In..." : "Check In"}
-                        </p>
-                      </button>
+                      {renderAttendanceTile()}
                     </div>
                   </div>
                 </>
@@ -2304,7 +2359,7 @@ export default function Dashboard() {
                     </div>
                     <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
                       <p className="text-xs text-slate-500 font-medium">Today&apos;s attendance</p>
-                      <p className="text-lg font-bold text-primary-700 mt-1.5">{myTodayAttendance ? "Checked in" : "Not checked in"}</p>
+                      <p className="text-lg font-bold text-primary-700 mt-1.5">{myTodayAttendance?.check_out_time ? "Checked out" : myTodayAttendance ? "Checked in" : "Not checked in"}</p>
                     </div>
                   </div>
 
@@ -2326,16 +2381,7 @@ export default function Dashboard() {
                         <ClipboardList className="w-6 h-6 mx-auto text-primary-700" />
                         <p className="text-sm font-semibold text-slate-700 mt-2">Weekly plan</p>
                       </button>
-                      <button
-                        onClick={() => { if (!myTodayAttendance) handleWebCheckIn(); }}
-                        disabled={!!myTodayAttendance || isCheckingIn}
-                        className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition disabled:opacity-60"
-                      >
-                        <Activity className="w-6 h-6 mx-auto text-primary-700" />
-                        <p className="text-sm font-semibold text-slate-700 mt-2">
-                          {myTodayAttendance ? "Checked In" : isCheckingIn ? "Checking In..." : "Check In"}
-                        </p>
-                      </button>
+                      {renderAttendanceTile()}
                       <button onClick={() => setActiveTab("productivity")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
                         <TrendingUp className="w-6 h-6 mx-auto text-primary-700" />
                         <p className="text-sm font-semibold text-slate-700 mt-2">My KPIs</p>
