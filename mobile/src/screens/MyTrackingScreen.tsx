@@ -37,6 +37,8 @@ import * as TaskManager from 'expo-task-manager';
 
 import { apiClient } from '../services/api';
 import { openBatterySettings } from '../services/batterySettings';
+import { savedPingCount } from '../services/pingBuffer';
+import { trackingDiag, TrackingDiag } from '../services/trackingDiag';
 import { color, font, fontWeight, radius, spacing } from '../theme';
 
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -48,6 +50,12 @@ interface TodayTracking {
   total_distance_km: number;
   checked_in: boolean;
   retention_months: number;
+}
+
+function fmtGap(sec: number): string {
+  if (sec < 60) return `${sec} sec`;
+  const m = Math.floor(sec / 60);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
 }
 
 function formatTime(iso: string | null): string {
@@ -62,6 +70,8 @@ export default function MyTrackingScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [diag, setDiag] = useState<TrackingDiag | null>(null);
+  const [waiting, setWaiting] = useState(0);
 
   const load = useCallback(async () => {
     setError(null);
@@ -76,6 +86,8 @@ export default function MyTrackingScreen() {
 
       const { status } = await Location.getBackgroundPermissionsAsync();
       setPermission(status);
+      setDiag(await trackingDiag.read());
+      setWaiting(await savedPingCount());
       // The phone's own state is known now: show it without waiting for the server.
       setLoading(false);
 
@@ -165,6 +177,21 @@ export default function MyTrackingScreen() {
             last
           />
         </View>
+      )}
+
+      {isOn && (
+        <>
+          <Text style={styles.sectionTitle}>Phone check</Text>
+          <View style={styles.card}>
+            <Row label="Location updates from the phone" value={String(diag?.gpsUpdates ?? 0)} />
+            <Row label="Sent to the server" value={String(diag?.sentOk ?? 0)} />
+            <Row label="Could not send (kept)" value={String(diag?.failed ?? 0)} />
+            <Row label="Waiting to upload" value={String(waiting)} />
+            <Row label="Longest time with no update" value={fmtGap(diag?.longestGapSec ?? 0)} />
+            <Row label="Tracking started" value={diag?.startedAt ? formatTime(new Date(diag.startedAt).toISOString()) : '—'} last />
+            {!!diag?.lastError && <Text style={styles.errorText}>Last problem: {diag.lastError}</Text>}
+          </View>
+        </>
       )}
 
       <Text style={styles.sectionTitle}>Who can see this</Text>

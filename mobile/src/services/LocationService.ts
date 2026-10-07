@@ -3,6 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as Battery from 'expo-battery';
 import { apiClient } from './api';
 import { flushSavedPings, savePing } from './pingBuffer';
+import { trackingDiag } from './trackingDiag';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
@@ -23,6 +24,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     // should show where the officer is now.
     const location = locations[locations.length - 1];
     if (!location) return;
+    void trackingDiag.gpsUpdate(locations.length);
 
     // After Android restarts the app headlessly, nothing has loaded the
     // saved login yet, so load it here instead of dropping the ping.
@@ -111,11 +113,13 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
           LocationService.stopTracking();
           return;
         }
+        void trackingDiag.sent();
         // The signal is back: send what was saved while it was gone.
         void flushSavedPings();
       })
       .catch(async (err) => {
         console.warn('Failed to send location update', err);
+        void trackingDiag.failed(err?.message ?? 'send failed');
         const status = err?.status;
         // A refusal (bad login, invalid data) will not work later either.
         // Everything else (no signal, timeout, server error, busy) is kept.
@@ -193,6 +197,7 @@ export const LocationService = {
       });
 
       console.log('Background location tracking started');
+      void trackingDiag.started();
       return 'started';
     } catch (error) {
       console.error('Error starting location tracking:', error);
