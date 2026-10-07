@@ -3,19 +3,27 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
-// Paired with useDataFetch - one visual error/retry state used everywhere
-// instead of each screen inventing its own (or, on 6 screens, having none
-// at all). Deliberately plain: a message and one big tap target, nothing
-// clever, since this is what an officer sees on a bad connection in a
-// field, not a design showcase.
+// Paired with useDataFetch - one visual error state used everywhere. There is
+// no retry button: the screen quietly tries again a few times by itself
+// (every 12 seconds, up to 4 times), and touching the message tries at once.
 export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const retryRef = React.useRef(onRetry);
+  retryRef.current = onRetry;
+  const [tries, setTries] = React.useState(0);
+
+  React.useEffect(() => {
+    if (tries >= 4) return;
+    const id = setTimeout(() => {
+      setTries((t) => t + 1);
+      retryRef.current();
+    }, 12000);
+    return () => clearTimeout(id);
+  }, [tries]);
+
   return (
     <TouchableOpacity style={styles.container} onPress={onRetry} activeOpacity={0.7}>
-      <Ionicons name="alert-circle-outline" size={48} color={color.warning} style={styles.icon} />
+      <Ionicons name="cloud-offline-outline" size={40} color={color.textMuted} style={styles.icon} />
       <Text style={styles.message}>{message}</Text>
-      <View style={styles.retryBtn}>
-        <Text style={styles.retryText}>Tap to Retry</Text>
-      </View>
     </TouchableOpacity>
   );
 }
@@ -51,7 +59,7 @@ export function EmptyState({ message, actionHint }: { message: string; actionHin
 export function StaleDataBanner({ onRetry }: { onRetry: () => void }) {
   return (
     <TouchableOpacity style={styles.staleBanner} onPress={onRetry} activeOpacity={0.7}>
-      <Text style={styles.staleText}>Showing saved data — tap to update when back online</Text>
+      <Text style={styles.staleText}>Showing saved data. Updating when back online.</Text>
     </TouchableOpacity>
   );
 }
@@ -80,17 +88,6 @@ const styles = StyleSheet.create({
     color: color.textMuted,
     textAlign: 'center',
     marginTop: -spacing.md,
-  },
-  retryBtn: {
-    backgroundColor: color.primary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md - 2,
-    borderRadius: radius.sm,
-  },
-  retryText: {
-    color: color.white,
-    fontWeight: fontWeight.bold,
-    fontSize: font.caption + 1,
   },
   staleBanner: {
     backgroundColor: color.warningBg,

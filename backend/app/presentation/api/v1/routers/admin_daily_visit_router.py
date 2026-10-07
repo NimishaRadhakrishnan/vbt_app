@@ -423,7 +423,7 @@ async def _assemble_visit_detail(visit_id: uuid.UUID, session: AsyncSession) -> 
             "phone": row.farmer_phone,
             "farm_size": f"{row.farm_size_value} {row.farm_size_unit}" if row.farm_size_value else None,
         },
-        "crop": dict(crop_profile) if crop_profile else {},
+        "crop": {**(dict(crop_profile) if crop_profile else {}), "farming_type": row.farming_type},
         "inputs": {
             "npk": dict(nutrients) if nutrients else None,
             "micronutrients": [dict(m) for m in micronutrients],

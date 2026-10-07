@@ -45,7 +45,7 @@ export function useTrackingWatchdog(enabled: boolean) {
 
         let health = await LocationService.getHealth();
         if (!health.running) {
-          const result = await LocationService.startTracking();
+          const result = await LocationService.startTracking({ prompt: false });
           if (result === 'foreground_denied' || result === 'background_denied') {
             if (!cancelled) trackingHealth.set('permission');
             return;

@@ -1,5 +1,6 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useEffect } from 'react';
+import { Alert } from 'react-native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import SplashScreen from '../screens/SplashScreen';
@@ -7,8 +8,11 @@ import LoginScreen from '../screens/LoginScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import LocationDisclosureScreen from '../screens/LocationDisclosureScreen';
 import TabNavigator from './TabNavigator';
+import { apiClient } from '../services/api';
+import { LocationService } from '../services/LocationService';
 
 const Stack = createStackNavigator();
+const navigationRef = createNavigationContainerRef();
 
 // Login-first: Splash and Login are the only screens outside the Tabs
 // navigator, so nothing behind Tabs is reachable before authentication.
@@ -22,8 +26,23 @@ const Stack = createStackNavigator();
 // only inside ProfileStack, which doesn't exist until after login - so
 // the Login screen had no way to reach it at all.
 export default function AppNavigator() {
+  // When the server refuses the saved login for good (the 7-day sign-in ran
+  // out, or the account was changed), go to Login once with a clear message,
+  // instead of leaving every screen showing an error.
+  useEffect(() => {
+    apiClient.onAuthExpired(() => {
+      LocationService.stopTracking();
+      apiClient.logout();
+      if (navigationRef.isReady()) {
+        navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }
+      Alert.alert('Please sign in again', 'Your sign-in has expired. Sign in once more to continue.');
+    });
+    return () => apiClient.onAuthExpired(null);
+  }, []);
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />

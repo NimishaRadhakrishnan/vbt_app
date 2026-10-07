@@ -74,6 +74,8 @@ export default function MyTrackingScreen() {
 
       const { status } = await Location.getBackgroundPermissionsAsync();
       setPermission(status);
+      // The phone's own state is known now: show it without waiting for the server.
+      setLoading(false);
 
       const res: TodayTracking = await apiClient.request(
         '/location/me/today',
@@ -89,10 +91,13 @@ export default function MyTrackingScreen() {
     }
   }, []);
 
+  // Loads when the screen opens and every 30 seconds while it stays in front.
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
       load();
+      const id = setInterval(load, 30000);
+      return () => clearInterval(id);
     }, [load])
   );
 
@@ -153,7 +158,7 @@ export default function MyTrackingScreen() {
       <View style={styles.card}>
         <Text style={styles.bodyText}>
           Your manager and the company admin. Nobody outside the company. This information is
-          kept for {data?.retention_months ?? 12} months and then deleted automatically.
+          kept for {data?.retention_months ?? 3} months and then deleted automatically.
         </Text>
       </View>
     </ScrollView>

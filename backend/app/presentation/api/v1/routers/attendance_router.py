@@ -200,7 +200,7 @@ async def get_officer_attendance_history(
     ]
 
 
-from datetime import datetime, timedelta, timezone, time as time_type
+from datetime import datetime, timedelta, time as time_type
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.config.company_time import company_today, company_tz
@@ -243,7 +243,7 @@ async def get_roster_status(
         checked_in = r.check_in_time is not None
         is_late = False
         if checked_in:
-            local_time = r.check_in_time.astimezone(timezone.utc).time() if r.check_in_time.tzinfo else r.check_in_time.time()
+            local_time = r.check_in_time.astimezone(tz).time() if r.check_in_time.tzinfo else r.check_in_time.time()
             is_late = local_time > time_type(9, 0)
         roster.append({
             "officer_id": str(r.officer_id),

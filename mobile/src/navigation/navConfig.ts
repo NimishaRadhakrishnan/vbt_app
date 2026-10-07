@@ -38,7 +38,8 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: 'home-outline',
     tabs: [
       { id: 'today', label: 'Today', aliases: ['Dashboard', 'Overview'], roles: ALL, ready: true },
-      { id: 'progress', label: 'Progress', aliases: ['My KPIs', 'Productivity', 'Momentum'], roles: ALL, ready: true },
+      { id: 'progress', label: 'Progress', aliases: ['My KPIs', 'Productivity', 'Momentum'], roles: OFFICERS, ready: true },
+      { id: 'tracking', label: 'Tracking', aliases: ['My location', 'Location tracking'], roles: OFFICERS, ready: true },
     ],
   },
   {

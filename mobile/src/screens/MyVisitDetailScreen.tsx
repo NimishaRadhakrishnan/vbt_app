@@ -73,7 +73,7 @@ export default function MyVisitDetailScreen({ route }: any) {
           <Text style={styles.sectionTitle}>Photos</Text>
           <View style={styles.photoRow}>
             {detail.photos.map((p: any, i: number) => (
-              <Image key={i} source={{ uri: p.photo_url }} style={styles.photo} />
+              <Image key={i} source={{ uri: apiClient.fileUrl(p.photo_url) }} style={styles.photo} />
             ))}
           </View>
         </View>

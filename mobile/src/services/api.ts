@@ -39,6 +39,36 @@ interface PersistedSession {
 // device over USB - see mobile/eas.json's development profile comment).
 const BACKEND_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
+// Every request gives up after this long. Without a limit, a weak signal made
+// screens spin for minutes (fetch has no timeout of its own on a phone).
+const REQUEST_TIMEOUT_MS = 20_000;
+// Saving gets longer than reading: a save that gave up early may still have
+// reached the server, and sending it again would record it twice.
+const WRITE_TIMEOUT_MS = 45_000;
+const UPLOAD_TIMEOUT_MS = 90_000;
+
+class RequestTimeoutError extends Error {
+  constructor() {
+    super('The server is taking too long to respond. Please check your signal and try again.');
+    this.name = 'RequestTimeoutError';
+  }
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw new RequestTimeoutError();
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+type RefreshOutcome = 'ok' | 'denied' | 'unreachable';
+
 class FFMAPIClient {
   private isOnline: boolean = true;
   private token: string | null = null;
@@ -46,7 +76,12 @@ class FFMAPIClient {
   // phone silently stopped sending GPS pings (every ping got a 401) a few
   // minutes after login. The refresh token (7 days) gets a new one.
   private refreshToken: string | null = null;
-  private refreshing: Promise<boolean> | null = null;
+  private refreshing: Promise<RefreshOutcome> | null = null;
+  // Set by the navigator: called once when the server has refused the saved
+  // login for good (refresh token rejected), so the app can go to Login
+  // instead of showing every screen as broken.
+  private authExpiredListener: (() => void) | null = null;
+  private authExpiredHandled = false;
   private userId: string | null = null;
   private userFullName: string | null = null;
   private userRole: string | null = null;
@@ -67,6 +102,25 @@ class FFMAPIClient {
 
   public setAuthToken(token: string) {
     this.token = token;
+  }
+
+  public onAuthExpired(listener: (() => void) | null) {
+    this.authExpiredListener = listener;
+  }
+
+  private notifyAuthExpired() {
+    // Nothing to expire when nobody is signed in (e.g. a queued call after sign-out).
+    if (!this.authExpiredListener || this.authExpiredHandled || !this.userId) return;
+    this.authExpiredHandled = true;
+    this.authExpiredListener();
+  }
+
+  /** Adds the login token to a /files/... link so images load (the server
+   *  only serves uploaded files to a signed-in user). */
+  public fileUrl(url: string | null | undefined): string | undefined {
+    if (!url) return undefined;
+    if (!this.token || url.includes('token=')) return url;
+    return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(this.token)}`;
   }
 
   public getUserId(): string | null {
@@ -159,6 +213,7 @@ class FFMAPIClient {
   // actually engaged for mobile logins.
   public async login(employeeId: string, password: string): Promise<{ id: string; fullName: string; role: string }> {
     this.deviceId = await getDeviceId();
+    this.authExpiredHandled = false;
     const loginRes = await this.sendRequest('/auth/login', 'POST', {
       employee_id: employeeId,
       password,
@@ -198,11 +253,11 @@ class FFMAPIClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    const response = await fetchWithTimeout(
+      `${BACKEND_URL}${endpoint}`,
+      { method: 'POST', headers, body: formData },
+      UPLOAD_TIMEOUT_MS,
+    );
 
     if (!response.ok) {
       throw await this.toReadableError(response);
@@ -224,7 +279,10 @@ class FFMAPIClient {
     let message = `Something went wrong (${response.status}). Please try again.`;
     try {
       const body = await response.json();
-      if (typeof body?.detail === 'string') {
+      if (typeof body?.message === 'string' && body.message) {
+        // The server's own error shape: { code, message, request_id }.
+        message = body.message;
+      } else if (typeof body?.detail === 'string') {
         message = body.detail;
       } else if (Array.isArray(body?.detail) && body.detail[0]?.msg) {
         message = body.detail[0].msg;
@@ -259,39 +317,42 @@ class FFMAPIClient {
   // Swaps the refresh token for a fresh access token. One call at a time:
   // the server rotates refresh tokens, so two parallel refreshes (screen +
   // background GPS task) would invalidate each other.
-  private refreshAccessToken(): Promise<boolean> {
+  private refreshAccessToken(): Promise<RefreshOutcome> {
     if (this.refreshing) return this.refreshing;
     const usedToken = this.token;
-    this.refreshing = (async () => {
+    this.refreshing = (async (): Promise<RefreshOutcome> => {
       try {
         // The saved login on disk is the shared truth: the screens and the
         // background GPS task can run in separate JS contexts, and the
         // refresh token is single-use. If the other side already refreshed,
         // take its new token instead of spending the (now dead) old one.
         const raw = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
-        if (!raw) return false; // signed out
+        if (!raw) return 'denied'; // signed out
         const saved: PersistedSession = JSON.parse(raw);
         if (saved.token && saved.token !== usedToken) {
           this.token = saved.token;
           this.refreshToken = saved.refreshToken ?? this.refreshToken;
-          return true;
+          return 'ok';
         }
         const refreshToken = saved.refreshToken ?? this.refreshToken;
-        if (!refreshToken) return false;
-        const res = await fetch(`${BACKEND_URL}/auth/refresh`, {
+        if (!refreshToken) return 'denied';
+        const res = await fetchWithTimeout(`${BACKEND_URL}/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: refreshToken }),
         });
-        if (!res.ok) return false;
+        // A server problem or a bad connection is not the same as the server
+        // refusing the login: only a refusal means the person must sign in.
+        if (res.status >= 500) return 'unreachable';
+        if (!res.ok) return 'denied';
         const body = await res.json();
-        if (!body?.access_token) return false;
+        if (!body?.access_token) return 'denied';
         this.token = body.access_token;
         this.refreshToken = body.refresh_token ?? refreshToken;
         await this.persistSession();
-        return true;
+        return 'ok';
       } catch {
-        return false;
+        return 'unreachable';
       } finally {
         this.refreshing = null;
       }
@@ -312,15 +373,24 @@ class FFMAPIClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-      method,
-      headers,
-      body: method === 'GET' ? undefined : JSON.stringify(data ?? {}),
-    });
+    const response = await fetchWithTimeout(
+      `${BACKEND_URL}${endpoint}`,
+      {
+        method,
+        headers,
+        body: method === 'GET' ? undefined : JSON.stringify(data ?? {}),
+      },
+      method === 'GET' ? REQUEST_TIMEOUT_MS : WRITE_TIMEOUT_MS,
+    );
 
-    if (response.status === 401 && !retried && !endpoint.startsWith('/auth/')) {
-      if (await this.refreshAccessToken()) {
-        return this.sendRequest(endpoint, method, data, true);
+    if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+      if (!retried) {
+        const outcome = await this.refreshAccessToken();
+        if (outcome === 'ok') return this.sendRequest(endpoint, method, data, true);
+        if (outcome === 'denied') this.notifyAuthExpired();
+      } else {
+        // A brand-new token was refused too: the saved login is no good.
+        this.notifyAuthExpired();
       }
     }
     if (!response.ok) {

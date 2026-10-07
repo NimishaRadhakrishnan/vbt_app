@@ -5,6 +5,12 @@ import { apiClient } from './api';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
+// On a weak signal pings can pile up faster than they are sent. Past this
+// many unfinished sends, newer pings wait their turn instead of adding more
+// requests (the live map only needs the latest position).
+const MAX_PINGS_IN_FLIGHT = 3;
+let pingsInFlight = 0;
+
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
     console.error(`[Location Task Error]`, error);
@@ -12,7 +18,10 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   }
   if (data) {
     const { locations } = data as { locations: Location.LocationObject[] };
-    const location = locations[0];
+    // Newest fix first: when the phone delivers several at once, the live map
+    // should show where the officer is now.
+    const location = locations[locations.length - 1];
+    if (!location) return;
 
     // After Android restarts the app headlessly, nothing has loaded the
     // saved login yet, so load it here instead of dropping the ping.
@@ -69,6 +78,8 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       timestamp: new Date(location.timestamp).toISOString(),
     };
 
+    if (pingsInFlight >= MAX_PINGS_IN_FLIGHT) return;
+    pingsInFlight += 1;
     apiClient
       .request('/location/ping', 'POST', 'gps_ping', payload)
       .then((res: any) => {
@@ -80,6 +91,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       })
       .catch(err => {
         console.warn('Failed to send location update', err);
+      })
+      .finally(() => {
+        pingsInFlight = Math.max(0, pingsInFlight - 1);
       });
   }
 });
@@ -91,7 +105,13 @@ export type StartTrackingResult =
   | 'background_denied';
 
 export const LocationService = {
-  startTracking: async (): Promise<StartTrackingResult> => {
+  /**
+   * Starts the background task. `prompt: false` is for automatic checks (the
+   * watchdog): it only starts tracking if the phone already allows it and
+   * never opens a permission dialog or the Settings page by itself.
+   */
+  startTracking: async (options: { prompt?: boolean } = {}): Promise<StartTrackingResult> => {
+    const prompt = options.prompt !== false;
     try {
       // Idempotency guard: this can now be called both at check-in and,
       // separately, on AttendanceScreen mount (to re-arm tracking after
@@ -105,7 +125,9 @@ export const LocationService = {
         return 'already_running';
       }
 
-      const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
+      const { status: foregroundStatus } = prompt
+        ? await Location.requestForegroundPermissionsAsync()
+        : await Location.getForegroundPermissionsAsync();
       if (foregroundStatus !== 'granted') {
         console.log('Foreground location permission denied');
         return 'foreground_denied';
@@ -118,7 +140,9 @@ export const LocationService = {
       // way to know tracking never actually started, and unconditionally
       // told the officer "Live tracking started" regardless. Returning a
       // distinct outcome here lets the caller tell the officer the truth.
-      const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
+      const { status: backgroundStatus } = prompt
+        ? await Location.requestBackgroundPermissionsAsync()
+        : await Location.getBackgroundPermissionsAsync();
       if (backgroundStatus !== 'granted') {
         console.log('Background location permission denied');
         return 'background_denied';
@@ -145,6 +169,35 @@ export const LocationService = {
       // permission for the caller's purposes: tracking did not start,
       // and the officer needs to be told, not left assuming it worked.
       return 'background_denied';
+    }
+  },
+
+  /**
+   * One position for check-in/out, never waiting forever. A recent fix is
+   * used straight away; otherwise it asks the GPS for up to 12 seconds, then
+   * falls back to the last known position from the past 10 minutes. Returns
+   * null when the phone has nothing (GPS off, or no sky view yet).
+   */
+  getFix: async (): Promise<Location.LocationObject | null> => {
+    try {
+      const recent = await Location.getLastKnownPositionAsync({ maxAge: 60_000, requiredAccuracy: 150 });
+      if (recent) return recent;
+    } catch {
+      // fall through to a live fix
+    }
+    try {
+      const live = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 12_000)),
+      ]);
+      if (live) return live;
+    } catch {
+      // fall through to the last known position
+    }
+    try {
+      return await Location.getLastKnownPositionAsync({ maxAge: 600_000 });
+    } catch {
+      return null;
     }
   },
 

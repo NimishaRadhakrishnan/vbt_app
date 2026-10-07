@@ -11,6 +11,7 @@ export default function AttendanceScreen({ navigation }: any) {
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
+  const [busy, setBusy] = useState(false);
 
   // Previously isCheckedIn was plain local state with no fetch-on-mount,
   // so navigating away and back (or restarting the app) always reset the
@@ -44,6 +45,9 @@ export default function AttendanceScreen({ navigation }: any) {
         const stillCheckedIn = !!today && !today.check_out_time;
         setIsCheckedIn(stillCheckedIn);
         setCheckInTime(today?.check_in_time ? new Date(today.check_in_time).toLocaleTimeString() : null);
+        // Show the screen now. Starting tracking can wait on a permission
+        // dialog, and the page must not sit on a spinner until that is answered.
+        setLoadingStatus(false);
 
         if (stillCheckedIn) {
           const trackingResult = await LocationService.startTracking();
@@ -70,7 +74,27 @@ export default function AttendanceScreen({ navigation }: any) {
     return () => { cancelled = true; };
   }, []);
 
+  // A position for check-in/out. Never waits more than about 12 seconds: if the
+  // phone has no fix, say why and what to do instead of hanging.
+  const fixOrExplain = async () => {
+    const enabled = await Location.hasServicesEnabledAsync().catch(() => true);
+    if (!enabled) {
+      Alert.alert('Turn on Location', 'Location (GPS) is switched off on this phone. Turn it on in the quick settings and try again.');
+      return null;
+    }
+    const position = await LocationService.getFix();
+    if (!position) {
+      Alert.alert(
+        'No GPS Signal Yet',
+        'The phone could not find your location. Step outside or near a window, wait a few seconds, then try again.'
+      );
+    }
+    return position;
+  };
+
   const handleCheckIn = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
       // BUG FIX: previously this went straight to the OS permission
       // prompt and then the check-in API call, with no client-side
@@ -107,7 +131,8 @@ export default function AttendanceScreen({ navigation }: any) {
         Alert.alert('Location Required', 'Location permission is needed to check in.');
         return;
       }
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const position = await fixOrExplain();
+      if (!position) return;
 
       const res = await apiClient.request('/attendance/check-in', 'POST', 'check_in', {
         device_id: apiClient.getDeviceIdValue() ?? 'unknown-device',
@@ -153,10 +178,14 @@ export default function AttendanceScreen({ navigation }: any) {
       }
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Check-in failed.');
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleCheckOut = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
       // Field and sales officers file today's closure BEFORE ending the
       // day. Only an explicit "not closed" blocks; if the status can't be
@@ -194,7 +223,8 @@ export default function AttendanceScreen({ navigation }: any) {
         Alert.alert('Location Required', 'Location permission is needed to check out.');
         return;
       }
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const position = await fixOrExplain();
+      if (!position) return;
 
       const res = await apiClient.request('/attendance/check-out', 'POST', 'check_out', {
         latitude: position.coords.latitude,
@@ -214,6 +244,8 @@ export default function AttendanceScreen({ navigation }: any) {
         await LocationService.stopTracking();
       }
       Alert.alert('Error', err.message || 'Check-out failed.');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -238,12 +270,12 @@ export default function AttendanceScreen({ navigation }: any) {
       </View>
 
       {loadingStatus ? null : !isCheckedIn ? (
-        <TouchableOpacity style={styles.btnCheckIn} onPress={handleCheckIn}>
-          <Text style={styles.btnText}>Clock In (Start Duty)</Text>
+        <TouchableOpacity style={[styles.btnCheckIn, busy && styles.btnBusy]} onPress={handleCheckIn} disabled={busy}>
+          {busy ? <ActivityIndicator color={color.white} /> : <Text style={styles.btnText}>Clock In (Start Duty)</Text>}
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity style={styles.btnCheckOut} onPress={handleCheckOut}>
-          <Text style={styles.btnText}>Clock Out (End Duty)</Text>
+        <TouchableOpacity style={[styles.btnCheckOut, busy && styles.btnBusy]} onPress={handleCheckOut} disabled={busy}>
+          {busy ? <ActivityIndicator color={color.white} /> : <Text style={styles.btnText}>Clock Out (End Duty)</Text>}
         </TouchableOpacity>
       )}
 
@@ -309,6 +341,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     alignItems: 'center',
     marginBottom: spacing.lg,
+  },
+  btnBusy: {
+    opacity: 0.7,
   },
   btnText: {
     fontSize: font.title,

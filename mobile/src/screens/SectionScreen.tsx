@@ -10,7 +10,9 @@ import ActionList from '../components/ActionList';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
 import DashboardScreen from './DashboardScreen';
+import AdminHomeScreen from './admin/AdminHomeScreen';
 import KpiSummaryScreen from './KpiSummaryScreen';
+import MyTrackingScreen from './MyTrackingScreen';
 import TasksScreen from './TasksScreen';
 import WeeklyPlanScreen from './WeeklyPlanScreen';
 import MyLeaveScreen from './MyLeaveScreen';
@@ -105,12 +107,18 @@ function TabBody({ tabId, role, navigation, onDone }: { tabId: string; role: str
   switch (tabId) {
     // Home
     case 'today': {
-      const C = as(DashboardScreen);
+      // Admins and managers get the team overview; the officer dashboard is
+      // made of the officer's own targets and visits.
+      const C = as(isOversight ? AdminHomeScreen : DashboardScreen);
       return <C navigation={navigation} />;
     }
     case 'progress': {
       const C = as(KpiSummaryScreen);
       return <C navigation={navigation} />;
+    }
+    case 'tracking': {
+      const C = as(MyTrackingScreen);
+      return <C />;
     }
 
     // Work
