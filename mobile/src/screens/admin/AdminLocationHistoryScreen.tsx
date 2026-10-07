@@ -1,12 +1,11 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '../../services/api';
 import { asList } from '../../utils/lists';
 import { useDataFetch, CONNECTION_ERROR_MESSAGE } from '../../hooks/useDataFetch';
 import { LoadingState, ErrorState, EmptyState } from '../../components/FetchStates';
-import RouteSketch from '../../components/RouteSketch';
-import { analyzeDay, fmtClock, fmtDuration, RawPoint } from '../../utils/routeAnalysis';
+import { analyzeDay, buildJourney, fmtClock, fmtDuration, JourneyItem, RawPoint } from '../../utils/routeAnalysis';
 import { color, font, fontWeight, spacing, radius } from '../../theme';
 
 type SimpleUser = { id: string; full_name: string; role: string };
@@ -36,10 +35,15 @@ function prettyDay(day: string): string {
   });
 }
 
-// Route history for one officer and one day, same rules as the web Route
-// Replay: distance, time moving, stops, gaps with no signal, and a drawing of
-// the path. History is kept for 90 days, so the date picker stops there.
+// Route history for one officer and one day, shown like "where is my train":
+// each place the officer stopped at, by name, with arrival and departure times
+// and the distance travelled in between. Same rules as the web page. History
+// is kept for 90 days, so the date picker stops there.
 const KEEP_DAYS = 90;
+
+// Same rounding the server uses for its place-name cache (about 11 m).
+const placeKey = (lat: number, lng: number) => `${lat.toFixed(4)},${lng.toFixed(4)}`;
+const coords = (lat: number, lng: number) => `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
 export default function AdminLocationHistoryScreen() {
   const [officerId, setOfficerId] = useState<string | null>(null);
@@ -72,23 +76,34 @@ export default function AdminLocationHistoryScreen() {
 
   const summary = useMemo(() => analyzeDay(raw ?? []), [raw]);
 
-  // Timeline: stops and gaps in time order.
-  const timeline = useMemo(() => {
-    const items: { key: string; at: number; kind: 'stop' | 'gap'; text: string; lat?: number; lng?: number }[] = [];
-    summary.stops.forEach((s, i) =>
-      items.push({
-        key: `s${i}`, at: s.start, kind: 'stop', lat: s.lat, lng: s.lng,
-        text: `Stopped ${fmtClock(s.start)} to ${fmtClock(s.end)} (${fmtDuration(s.minutes)})`,
-      }),
-    );
-    summary.gaps.forEach((g, i) =>
-      items.push({
-        key: `g${i}`, at: g.start, kind: 'gap',
-        text: `No signal ${fmtClock(g.start)} to ${fmtClock(g.end)} (${fmtDuration(g.minutes)})`,
-      }),
-    );
-    return items.sort((a, b) => a.at - b.at);
-  }, [summary]);
+  const journey = useMemo(() => buildJourney(summary), [summary]);
+
+  // Names for the places, looked up (and cached) by the server. Until they
+  // arrive, or if they cannot be found, the coordinates are shown.
+  const [names, setNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const wanted = new Map<string, { lat: number; lng: number }>();
+    journey.forEach((j) => {
+      if (j.kind === 'place') wanted.set(placeKey(j.lat, j.lng), { lat: j.lat, lng: j.lng });
+    });
+    const entries = [...wanted.entries()].slice(0, 60);
+    if (entries.length === 0) return;
+    let cancelled = false;
+    apiClient
+      .request('/location/place-names', 'POST', 'admin_action', { points: entries.map(([, p]) => p) }, { queue: false })
+      .then((res: any) => {
+        if (cancelled) return;
+        const found: Record<string, string> = {};
+        (res?.names ?? []).forEach((n: string | null, i: number) => {
+          if (n) found[entries[i]![0]] = n;
+        });
+        setNames((prev) => ({ ...prev, ...found }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [journey]);
 
   // Bumped whenever the officer or day changes, so a quality check still in
   // flight for the old selection cannot land on the new one.
@@ -169,37 +184,14 @@ export default function AdminLocationHistoryScreen() {
             First location {summary.firstAt != null ? fmtClock(summary.firstAt) : '-'} · Last {summary.lastAt != null ? fmtClock(summary.lastAt) : '-'}
           </Text>
 
-          <RouteSketch points={summary.points} stops={summary.stops} />
-          <View style={styles.legend}>
-            <Legend colour={color.success} label="Start" />
-            <Legend colour={color.warning} label="Stop" />
-            <Legend colour={color.error} label="Last seen" />
+          <Text style={styles.sectionTitle}>Places visited</Text>
+          <View style={styles.trainHead}>
+            <Text style={styles.trainHeadText}>Arrival</Text>
+            <Text style={styles.trainHeadText}>Departure</Text>
           </View>
-
-          <Text style={styles.sectionTitle}>Timeline</Text>
-          {timeline.length === 0 ? (
-            <Text style={styles.muted}>No stops or gaps: the officer kept moving with a steady signal.</Text>
-          ) : (
-            timeline.map((t) => (
-              <View key={t.key} style={styles.row}>
-                <Ionicons
-                  name={t.kind === 'stop' ? 'pause-circle-outline' : 'cellular-outline'}
-                  size={20}
-                  color={t.kind === 'stop' ? color.warning : color.error}
-                />
-                <Text style={styles.rowText}>{t.text}</Text>
-                {t.kind === 'stop' && t.lat != null && t.lng != null && (
-                  <TouchableOpacity
-                    onPress={() => { Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${t.lat},${t.lng}`).catch(() => {}); }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Open this stop in Google Maps"
-                  >
-                    <Ionicons name="open-outline" size={20} color={color.primary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))
-          )}
+          {journey.map((item, i) => (
+            <JourneyRow key={item.key} item={item} names={names} isLast={i === journey.length - 1} />
+          ))}
 
           <TouchableOpacity style={styles.qualityBtn} disabled={diagnosticsLoading} onPress={checkDataQuality} accessibilityRole="button">
             {diagnosticsLoading ? <ActivityIndicator color={color.white} size="small" /> : <Text style={styles.qualityBtnText}>Check data quality</Text>}
@@ -215,7 +207,7 @@ export default function AdminLocationHistoryScreen() {
                   ? `${diagnostics.suspect_jumps.length} suspicious jump(s) found.`
                   : 'No suspicious jumps found.'}
               </Text>
-              {summary.badFixes > 0 && <Text style={styles.muted}>{summary.badFixes} poor fixes were left out of the route above.</Text>}
+              {summary.badFixes > 0 && <Text style={styles.muted}>{summary.badFixes} poor fixes were left out of the places above.</Text>}
             </View>
           )}
           {diagnostics?.error && <Text style={styles.bad}>{diagnostics.error}</Text>}
@@ -234,11 +226,60 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Legend({ colour, label }: { colour: string; label: string }) {
+function JourneyRow({ item, names, isLast }: { item: JourneyItem; names: Record<string, string>; isLast: boolean }) {
+  if (item.kind === 'place') {
+    const title = names[placeKey(item.lat, item.lng)] ?? coords(item.lat, item.lng);
+    const sub =
+      item.role === 'start' ? 'Day started: first location recorded'
+      : item.role === 'end' ? 'Last location recorded'
+      : `Stayed ${fmtDuration(item.minutes)}`;
+    return (
+      <View style={styles.trainRow}>
+        <Text style={styles.trainTimeLeft}>{fmtClock(item.arrive)}</Text>
+        <View style={styles.rail}>
+          <View style={[styles.railLine, styles.railLineTop, item.role === 'start' && styles.railHidden]} />
+          <View style={[
+            styles.node,
+            item.role === 'start' && { backgroundColor: color.success },
+            item.role === 'end' && { backgroundColor: color.error },
+          ]}>
+            {item.number != null && <Text style={styles.nodeText}>{item.number}</Text>}
+          </View>
+          <View style={[styles.railLine, styles.railLineBottom, isLast && styles.railHidden]} />
+        </View>
+        <View style={styles.trainBody}>
+          <Text style={styles.placeName}>{title}</Text>
+          <Text style={styles.placeSub}>{sub}</Text>
+          <TouchableOpacity
+            onPress={() => { Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}`).catch(() => {}); }}
+            accessibilityRole="button"
+            accessibilityLabel="Open this place in Google Maps"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.mapLink}>Open in Maps</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.trainTimeRight}>{item.depart != null && item.role === 'stop' ? fmtClock(item.depart) : ''}</Text>
+      </View>
+    );
+  }
+
+  const isGap = item.kind === 'gap';
   return (
-    <View style={styles.legendItem}>
-      <View style={[styles.legendDot, { backgroundColor: colour }]} />
-      <Text style={styles.statLabel}>{label}</Text>
+    <View style={styles.trainRow}>
+      <View style={styles.timeSpacer} />
+      <View style={styles.rail}>
+        <View style={[styles.connector, isGap ? styles.connectorGap : styles.connectorTravel]} />
+      </View>
+      <View style={[styles.trainBody, styles.connectorBody]}>
+        <Text style={styles.connectorTitle}>
+          {isGap ? `No signal for ${fmtDuration(item.minutes)}` : `${item.km} km · ${fmtDuration(Math.max(1, Math.round((item.to - item.from) / 60_000)))}`}
+        </Text>
+        <Text style={styles.placeSub}>
+          {isGap ? `${fmtClock(item.from)} to ${fmtClock(item.to)} · position unknown` : `Travelling, ${fmtClock(item.from)} to ${fmtClock(item.to)}`}
+        </Text>
+      </View>
+      <View style={styles.timeSpacer} />
     </View>
   );
 }
@@ -261,15 +302,30 @@ const styles = StyleSheet.create({
   statValue: { fontSize: font.subtitle, fontWeight: fontWeight.bold, color: color.textPrimary },
   statLabel: { fontSize: font.caption, color: color.textSecondary },
   range: { fontSize: font.caption, color: color.textSecondary, marginBottom: spacing.md },
-  legend: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  trainHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs },
+  trainHeadText: { fontSize: 11, fontWeight: fontWeight.semibold, color: color.textMuted, textTransform: 'uppercase' },
+  trainRow: { flexDirection: 'row', alignItems: 'stretch' },
+  trainTimeLeft: { width: 62, textAlign: 'right', fontSize: font.caption, fontWeight: fontWeight.bold, color: color.textPrimary, paddingTop: 2 },
+  trainTimeRight: { width: 62, fontSize: font.caption, fontWeight: fontWeight.semibold, color: color.textSecondary, paddingTop: 2, paddingLeft: spacing.sm },
+  timeSpacer: { width: 62 },
+  rail: { width: 36, alignItems: 'center' },
+  railLine: { width: 4, flex: 1, backgroundColor: color.info, opacity: 0.35 },
+  railLineTop: { minHeight: 6 },
+  railLineBottom: { minHeight: 6 },
+  railHidden: { opacity: 0 },
+  node: { width: 22, height: 22, borderRadius: 11, backgroundColor: color.textPrimary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: color.cardBg },
+  nodeText: { color: color.white, fontSize: 11, fontWeight: fontWeight.bold },
+  trainBody: { flex: 1, paddingVertical: spacing.sm },
+  placeName: { fontSize: font.body, fontWeight: fontWeight.bold, color: color.textPrimary },
+  placeSub: { fontSize: font.caption, color: color.textSecondary, marginTop: 2 },
+  mapLink: { fontSize: font.caption, color: color.primary, fontWeight: fontWeight.semibold, marginTop: spacing.xs },
+  connector: { width: 4, flex: 1, minHeight: 44 },
+  connectorTravel: { backgroundColor: color.info, opacity: 0.55 },
+  connectorGap: { backgroundColor: color.border },
+  connectorBody: { justifyContent: 'center' },
+  connectorTitle: { fontSize: font.caption, fontWeight: fontWeight.semibold, color: color.textPrimary },
   sectionTitle: { fontSize: font.subtitle, fontWeight: fontWeight.bold, color: color.textPrimary, marginTop: spacing.xl, marginBottom: spacing.sm },
   muted: { fontSize: font.caption, color: color.textSecondary, marginTop: spacing.sm },
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: color.cardBg,
-    borderWidth: 1, borderColor: color.border, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.sm,
-  },
   rowText: { flex: 1, fontSize: font.caption, color: color.textPrimary },
   qualityBtn: { marginTop: spacing.xl, backgroundColor: color.info, minHeight: 44, justifyContent: 'center', borderRadius: radius.sm, alignItems: 'center' },
   qualityBtnText: { color: color.white, fontWeight: fontWeight.bold },

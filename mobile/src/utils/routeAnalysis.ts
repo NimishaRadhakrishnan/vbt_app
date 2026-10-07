@@ -138,6 +138,59 @@ export function analyzeDay(raw: RawPoint[]): DaySummary {
   };
 }
 
+export type JourneyItem =
+  | { kind: 'place'; key: string; role: 'start' | 'stop' | 'end'; number: number | null; lat: number; lng: number; arrive: number; depart: number | null; minutes: number }
+  | { kind: 'travel'; key: string; from: number; to: number; km: number }
+  | { kind: 'gap'; key: string; from: number; to: number; minutes: number };
+
+/**
+ * The day as a list of places in time order, like a train timetable: where the
+ * day started, each stop (arrival and departure), where the last location was
+ * recorded, with the distance travelled and any no-signal period in between.
+ */
+export function buildJourney(day: DaySummary): JourneyItem[] {
+  const pts = day.points;
+  if (pts.length === 0) return [];
+  const first = pts[0]!;
+  const last = pts[pts.length - 1]!;
+
+  type Place = Extract<JourneyItem, { kind: 'place' }>;
+  const places: Place[] = [];
+  const startsInStop = day.stops[0] != null && day.stops[0].start <= first.t;
+  const endsInStop = day.stops.length > 0 && day.stops[day.stops.length - 1]!.end >= last.t;
+  if (!startsInStop) {
+    places.push({ kind: 'place', key: 'start', role: 'start', number: null, lat: first.lat, lng: first.lng, arrive: first.t, depart: first.t, minutes: 0 });
+  }
+  day.stops.forEach((s, i) =>
+    places.push({ kind: 'place', key: `stop${i}`, role: 'stop', number: i + 1, lat: s.lat, lng: s.lng, arrive: s.start, depart: s.end, minutes: s.minutes }),
+  );
+  if (!endsInStop && (pts.length > 1 || startsInStop)) {
+    places.push({ kind: 'place', key: 'end', role: 'end', number: null, lat: last.lat, lng: last.lng, arrive: last.t, depart: null, minutes: 0 });
+  }
+
+  const out: JourneyItem[] = [];
+  places.forEach((place, i) => {
+    out.push(place);
+    const next = places[i + 1];
+    if (!next) return;
+    const from = place.depart ?? place.arrive;
+    const to = next.arrive;
+    let metres = 0;
+    for (let k = 1; k < pts.length; k++) {
+      const a = pts[k - 1]!;
+      const b = pts[k]!;
+      if (a.t < from || b.t > to || b.t - a.t > GAP_MS) continue;
+      metres += haversineM(a.lat, a.lng, b.lat, b.lng);
+    }
+    const gaps = day.gaps.filter((g) => g.start >= from && g.end <= to);
+    if (metres >= 50 || (to > from && gaps.length === 0)) {
+      out.push({ kind: 'travel', key: `travel${i}`, from, to, km: Math.round(metres / 10) / 100 });
+    }
+    gaps.forEach((g, j) => out.push({ kind: 'gap', key: `gap${i}-${j}`, from: g.start, to: g.end, minutes: g.minutes }));
+  });
+  return out;
+}
+
 export function fmtDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);

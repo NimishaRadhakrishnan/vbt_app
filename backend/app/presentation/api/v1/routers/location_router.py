@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.dto.auth_dto import CurrentUserOutput
 from app.application.services import geofence_service
 from app.application.services.alerts_service import AlertsService
+from app.application.services.place_name_service import PlaceNameService
 from app.domain.value_objects.role import Role
 from app.infrastructure.cache.location_cache import LocationCache
 from app.infrastructure.cache.redis_client import get_redis_client
@@ -511,6 +512,36 @@ async def get_location_history(
         }
         for r in rows
     ]
+
+
+class PlacePoint(BaseModel):
+    lat: float = Field(ge=-90.0, le=90.0)
+    lng: float = Field(ge=-180.0, le=180.0)
+
+
+class PlaceNamesRequest(BaseModel):
+    points: list[PlacePoint] = Field(min_length=1, max_length=60)
+
+
+@router.post("/place-names")
+async def get_place_names(
+    payload: PlaceNamesRequest,
+    _current_user: Annotated[CurrentUserOutput, Depends(require_role(Role.ADMIN, Role.MANAGER))],
+) -> dict:
+    """Readable place names for GPS positions, for the route timeline.
+
+    Returns {"names": [...]} in the order of `points`; an entry is null when a
+    position could not be named (the screens then show its coordinates).
+    """
+    settings = get_settings()
+    service = PlaceNameService(
+        redis=get_redis_client(),
+        url=settings.geocoder_url,
+        user_agent=settings.geocoder_user_agent,
+        cache_ttl_seconds=settings.gps_retention_days * 86400,
+    )
+    names = await service.names_for([(p.lat, p.lng) for p in payload.points])
+    return {"names": names}
 
 
 @router.get("/me/today")

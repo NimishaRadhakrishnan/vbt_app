@@ -97,6 +97,15 @@ class Settings(BaseSettings):
     # location disclosure tells officers.
     gps_retention_days: int = Field(default=90)
 
+    # --- Place names for the route timeline ---
+    # Any OpenStreetMap-compatible reverse-geocoding URL. The public
+    # Nominatim service allows one request a second and asks for a
+    # User-Agent that identifies the application; answers are cached, so
+    # normal use is a few requests a day. Point this at your own instance
+    # if usage grows.
+    geocoder_url: str = Field(default="https://nominatim.openstreetmap.org/reverse")
+    geocoder_user_agent: str = Field(default="VBTOne-FieldForce/1.0 (vishakanbiotech.com)")
+
     # --- Company locale ---
     # The calendar day a closure belongs to is the day in the COMPANY's
     # timezone, not the server's. Without this, a closure filed at 11pm

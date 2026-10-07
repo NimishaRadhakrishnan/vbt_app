@@ -4,21 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api/client";
 import { todayIST } from "@/lib/dates";
 import type { Place, RawHistoryRow, Stop, TimelineEvent } from "./types";
-import { analyzeDay, DEFAULT_OPTIONS, positionAt } from "./routeAnalysis";
-import { addDays, fmtDate, fmtDistance, fmtDuration } from "./format";
+import { analyzeDay } from "./routeAnalysis";
+import { addDays, fmtDate, fmtDistance } from "./format";
 import { buildCsv, downloadText } from "./exportUtils";
 import FilterBar, { OfficerOption } from "./FilterBar";
 import SummaryCards from "./SummaryCards";
 import RouteMap, { MapFocus } from "./RouteMap";
-import Timeline from "./Timeline";
-import PlaybackControls from "./PlaybackControls";
+import Timeline, { placeKey } from "./Timeline";
 import QualityReport from "./QualityReport";
 import { ErrorCard, InfoBanner, NoDataState, PickOfficerState } from "./EmptyState";
 
-/** 1x plays one minute of the day per real second. */
-const SIM_SECONDS_PER_SECOND = 60;
-/** Days shorter than this get a notice instead of a replay bar. */
-const MIN_REPLAY_MS = 10 * 60_000;
+/** Most positions the server names in one request. */
+const NAME_BATCH = 60;
 const SEARCH_DAYS = 14;
 
 export interface RouteReplayScreenProps {
@@ -42,14 +39,6 @@ async function defaultFetchDay(officerId: string, date: string): Promise<RawHist
 
 async function defaultFetchDiagnostics(officerId: string, date: string): Promise<any> {
   return apiFetch(`/location/diagnostics/${officerId}?date=${encodeURIComponent(date)}`);
-}
-
-function isTypingTarget(el: EventTarget | null): boolean {
-  if (!(el instanceof HTMLElement)) return false;
-  if (el.isContentEditable) return true;
-  if (el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return true;
-  if (el instanceof HTMLInputElement) return el.type !== "range" && el.type !== "checkbox" && el.type !== "radio";
-  return false;
 }
 
 export default function RouteReplayScreen({
@@ -80,9 +69,8 @@ export default function RouteReplayScreen({
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const [currentT, setCurrentT] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(5);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [names, setNames] = useState<Record<string, string>>({});
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [fitNonce, setFitNonce] = useState(0);
 
@@ -105,7 +93,7 @@ export default function RouteReplayScreen({
     setDiagOpen(false);
     setDiag(null);
     setDiagError(null);
-    setPlaying(false);
+    setSelectedId(null);
 
     if (!officerId || !date) {
       setRows(null);
@@ -139,142 +127,74 @@ export default function RouteReplayScreen({
     [rows, placesSig],
   );
 
-  // New day: playhead back to the start.
+  // New day: nothing selected, map shows the whole route.
   useEffect(() => {
-    setPlaying(false);
     setFocus(null);
-    setCurrentT(analysis ? analysis.startT : 0);
+    setSelectedId(null);
   }, [analysis]);
 
-  const t = analysis ? Math.max(analysis.startT, Math.min(analysis.endT, currentT || analysis.startT)) : 0;
-  const tRef = useRef(t);
-  tRef.current = t;
-
-  const playable = !!analysis && analysis.points.length > 1 && analysis.summary.spanMs >= MIN_REPLAY_MS;
-  const position = useMemo(
-    () => (analysis && playable ? positionAt(analysis.points, t, DEFAULT_OPTIONS.gapMs) : null),
-    [analysis, playable, t],
-  );
-  const activeStopId = useMemo(() => {
-    if (!analysis || !playable) return null;
-    return analysis.stops.find((s) => t >= s.arrival && t <= s.departure)?.id ?? null;
-  }, [analysis, playable, t]);
-
-  // ---- playback -----------------------------------------------------------
+  // Names for the places on the timeline. Stops that match a dealer, farmer or
+  // clinic already have one; every other stop, plus the first and last
+  // position of the day, is looked up (and cached) by the server.
   useEffect(() => {
-    if (!playing || !analysis) return;
-    let last = performance.now();
-    const id = setInterval(() => {
-      const now = performance.now();
-      const dt = now - last;
-      last = now;
-      const next = tRef.current + dt * SIM_SECONDS_PER_SECOND * speed;
-      if (next >= analysis.endT) {
-        setCurrentT(analysis.endT);
-        setPlaying(false);
-      } else {
-        tRef.current = next;
-        setCurrentT(next);
+    if (!analysis || demo) return;
+    const wanted = new Map<string, { lat: number; lng: number }>();
+    const want = (lat: number, lng: number) => {
+      const key = placeKey(lat, lng);
+      if (!wanted.has(key)) wanted.set(key, { lat, lng });
+    };
+    for (const s of analysis.stops) if (!s.placeName) want(s.lat, s.lng);
+    const first = analysis.points[0];
+    const last = analysis.points[analysis.points.length - 1];
+    if (first) want(first.lat, first.lng);
+    if (last) want(last.lat, last.lng);
+    const entries = [...wanted.entries()];
+    if (entries.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      for (let i = 0; i < entries.length; i += NAME_BATCH) {
+        const chunk = entries.slice(i, i + NAME_BATCH);
+        try {
+          const res: any = await apiFetch("/location/place-names", {
+            method: "POST",
+            body: JSON.stringify({ points: chunk.map(([, p]) => ({ lat: p.lat, lng: p.lng })) }),
+          });
+          if (cancelled) return;
+          const found: Record<string, string> = {};
+          (res?.names ?? []).forEach((n: string | null, j: number) => {
+            if (n) found[chunk[j]![0]] = n;
+          });
+          setNames((prev) => ({ ...prev, ...found }));
+        } catch {
+          return; // names are a nicety: the coordinates are shown instead
+        }
       }
-    }, 100);
-    return () => clearInterval(id);
-  }, [playing, speed, analysis]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [analysis, demo]);
 
-  const seek = useCallback(
-    (to: number, opts?: { focus?: { lat: number; lng: number } | "position" }) => {
-      if (!analysis) return;
-      const c = Math.max(analysis.startT, Math.min(analysis.endT, to));
-      setCurrentT(c);
-      if (opts?.focus) {
-        const target =
-          opts.focus === "position" ? positionAt(analysis.points, c, DEFAULT_OPTIONS.gapMs) : opts.focus;
-        if (target) setFocus({ lat: target.lat, lng: target.lng, nonce: Date.now() });
-      }
-    },
-    [analysis],
-  );
-
-  const togglePlay = useCallback(() => {
-    if (!analysis || !playable) return;
-    if (!playing && tRef.current >= analysis.endT - 1000) seek(analysis.startT);
-    setPlaying((p) => !p);
-  }, [analysis, playable, playing, seek]);
-
-  const stops = analysis?.stops ?? [];
-  const prevStopTarget = useMemo(() => {
-    if (!analysis) return null;
-    const before = [...stops].reverse().find((s) => s.arrival < t - 1000);
-    return before ?? null;
-  }, [analysis, stops, t]);
-  const nextStopTarget = useMemo(() => stops.find((s) => s.arrival > t + 1000) ?? null, [stops, t]);
-
-  const goToStop = useCallback(
-    (s: Stop) => {
-      setPlaying(false);
-      seek(s.arrival, { focus: { lat: s.lat, lng: s.lng } });
-    },
-    [seek],
-  );
-  const onPrevStop = useCallback(() => {
-    if (!analysis) return;
-    if (prevStopTarget) goToStop(prevStopTarget);
-    else {
-      setPlaying(false);
-      seek(analysis.startT, { focus: "position" });
-    }
-  }, [analysis, prevStopTarget, goToStop, seek]);
-  const onNextStop = useCallback(() => {
-    if (!analysis) return;
-    if (nextStopTarget) goToStop(nextStopTarget);
-    else {
-      setPlaying(false);
-      seek(analysis.endT, { focus: "position" });
-    }
-  }, [analysis, nextStopTarget, goToStop, seek]);
+  const goToStop = useCallback((s: Stop) => {
+    setSelectedId(s.id);
+    setFocus({ lat: s.lat, lng: s.lng, nonce: Date.now() });
+  }, []);
 
   const onSelectEvent = useCallback(
     (e: TimelineEvent) => {
-      setPlaying(false);
-      if (e.kind === "stop") goToStop(e.stop);
-      else seek(e.at, { focus: "position" });
-    },
-    [goToStop, seek],
-  );
-
-  // ---- keyboard -----------------------------------------------------------
-  useEffect(() => {
-    if (!analysis || !playable) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (isTypingTarget(e.target)) return;
-      const onButton = e.target instanceof HTMLElement && (e.target.tagName === "BUTTON" || e.target.tagName === "A");
-      switch (e.key) {
-        case " ":
-          if (onButton) return; // let the focused button handle its own Space
-          e.preventDefault();
-          togglePlay();
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          seek(tRef.current + (e.shiftKey ? 10 : 1) * 60_000);
-          break;
-        case "ArrowLeft":
-          e.preventDefault();
-          seek(tRef.current - (e.shiftKey ? 10 : 1) * 60_000);
-          break;
-        case "]":
-          e.preventDefault();
-          onNextStop();
-          break;
-        case "[":
-          e.preventDefault();
-          onPrevStop();
-          break;
+      if (!analysis) return;
+      if (e.kind === "stop") {
+        goToStop(e.stop);
+        return;
       }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [analysis, playable, togglePlay, seek, onNextStop, onPrevStop]);
+      const idx = e.kind === "gap" ? e.gap.fromIdx : e.kind === "travel" ? e.fromIdx : e.idx;
+      const p = analysis.points[idx];
+      setSelectedId(e.id);
+      if (p) setFocus({ lat: p.lat, lng: p.lng, nonce: Date.now() });
+    },
+    [analysis, goToStop],
+  );
 
   // ---- actions ------------------------------------------------------------
   const jumpToNearest = async () => {
@@ -338,7 +258,6 @@ export default function RouteReplayScreen({
 
   const empty = !loading && !error && rows !== null && analysis === null;
   const single = !!analysis && analysis.points.length === 1;
-  const short = !!analysis && analysis.points.length > 1 && analysis.summary.spanMs < MIN_REPLAY_MS;
 
   return (
     <div className="space-y-4">
@@ -390,7 +309,7 @@ export default function RouteReplayScreen({
 
           {single && (
             <InfoBanner>
-              Only one GPS point was recorded on this day, so there is no route to replay. The marker shows where it was.
+              Only one GPS point was recorded on this day, so there is no route to show. The marker shows where it was.
             </InfoBanner>
           )}
 
@@ -405,41 +324,18 @@ export default function RouteReplayScreen({
             ) : (
               <RouteMap
                 analysis={analysis}
-                currentT={t}
-                position={position}
-                activeStopId={activeStopId}
+                currentT={analysis.endT}
+                position={null}
+                activeStopId={selectedId}
                 focus={focus}
                 fitNonce={fitNonce}
-                follow={playing}
+                follow={false}
                 onFit={() => setFitNonce((n) => n + 1)}
                 onStopClick={goToStop}
               />
             )}
-            <Timeline analysis={analysis} loading={loading || !analysis} currentT={t} highlight={playable} onSelect={onSelectEvent} />
+            <Timeline analysis={analysis} loading={loading || !analysis} names={names} selectedId={selectedId} onSelect={onSelectEvent} />
           </div>
-
-          {analysis && short && (
-            <InfoBanner>
-              Only {fmtDuration(analysis.summary.spanMs)} of tracking on this day, which is too short to replay. The route and timeline above show everything that was recorded.
-            </InfoBanner>
-          )}
-
-          {analysis && playable && (
-            <PlaybackControls
-              analysis={analysis}
-              currentT={t}
-              position={position}
-              playing={playing}
-              speed={speed}
-              hasPrevStop={true}
-              hasNextStop={true}
-              onToggle={togglePlay}
-              onSeek={(to) => seek(to)}
-              onSpeed={setSpeed}
-              onPrevStop={onPrevStop}
-              onNextStop={onNextStop}
-            />
-          )}
         </>
       )}
     </div>

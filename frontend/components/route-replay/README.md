@@ -1,16 +1,15 @@
 # Route Replay (Team > History)
 
-The story of an officer's day: summary first, then the route, the stops, a
-timeline and playback.
+The story of an officer's day: summary first, then the route on a map and the
+places visited, listed like a train timetable.
 
 ```
 components/route-replay/
-  RouteReplayScreen.tsx   the screen: loads data, owns playback state, wires the parts
+  RouteReplayScreen.tsx   the screen: loads data, looks up place names, wires the parts
   FilterBar.tsx           officer, date (prev / next / Today), GPS quality badge, Export, Data quality report
   SummaryCards.tsx        distance, moving vs stationary, stops, day span (+ skeletons)
   RouteMap.tsx            Leaflet map: faint full path, traveled path, stops, gaps, moving marker, legend
-  Timeline.tsx            day started, stops, travel, no-signal, day ended; click to jump
-  PlaybackControls.tsx    play/pause, prev/next stop, slider with stop ticks and gap shading, speed pills
+  Timeline.tsx            places visited like a train timetable: arrival, place name, departure, travel between; click to show on the map
   EmptyState.tsx          no data, error with Retry, info banner, "choose an officer"
   QualityReport.tsx       the existing /location/diagnostics report
   routeAnalysis.ts        pure logic: distance, bad-fix filter, stops, gaps, quality, positions
@@ -71,16 +70,14 @@ the latest in refs, so a parent re-render never refetches or re-fits the map.
 | Moving / stationary | stationary = time inside stops; moving = tracked time minus stops; gaps counted separately |
 | GPS quality | starts at 100; minus gap share (up to 50), slow pings (up to 25), discarded points (up to 25); Good 80+, Fair 55+, else Poor. Under 10 minutes of tracking is never better than Fair. Hover the badge for the reasons |
 
-## Playback
+## Place names
 
-1x plays one minute of the day per second, so 10x plays 8 hours in under a
-minute. Position is interpolated between pings and held still inside a signal
-gap. Keys: Space play/pause, Left/Right 1 minute (Shift = 10), `[` / `]`
-previous/next stop.
-
-Performance: static layers are memoised, the traveled path is thinned to
-about 800 points per run, and the map uses the canvas renderer. A 5,000+
-point day plays at a steady 60 fps at 10x in headless Chromium.
+Each stop is named from the dealer, farmer or clinic it matches. Every other
+stop (and the first and last position of the day) is named by
+`POST /location/place-names`, which reverse-geocodes through an
+OpenStreetMap-compatible service (`GEOCODER_URL`, default public Nominatim) and
+caches every answer in Redis for the GPS retention period. If a name cannot be
+found the coordinates are shown instead.
 
 ## Design tokens
 
