@@ -39,6 +39,7 @@ import { apiClient } from '../services/api';
 import { openBatterySettings } from '../services/batterySettings';
 import { savedPingCount } from '../services/pingBuffer';
 import { trackingDiag, TrackingDiag } from '../services/trackingDiag';
+import { WakeLock } from '../../modules/wake-lock';
 import { color, font, fontWeight, radius, spacing } from '../theme';
 
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -187,6 +188,10 @@ export default function MyTrackingScreen() {
             <Row label="Sent to the server" value={String(diag?.sentOk ?? 0)} />
             <Row label="Could not send (kept)" value={String(diag?.failed ?? 0)} />
             <Row label="Waiting to upload" value={String(waiting)} />
+            <Row
+              label="Phone kept awake for tracking"
+              value={WakeLock.isAvailable ? (WakeLock.isHeld() ? 'Yes' : 'No') : 'Not in this build'}
+            />
             <Row label="Longest time with no update" value={fmtGap(diag?.longestGapSec ?? 0)} />
             <Row label="Tracking started" value={diag?.startedAt ? formatTime(new Date(diag.startedAt).toISOString()) : '—'} last />
             {!!diag?.lastError && <Text style={styles.errorText}>Last problem: {diag.lastError}</Text>}

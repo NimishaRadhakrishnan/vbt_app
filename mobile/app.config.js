@@ -123,6 +123,7 @@ module.exports = {
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
         "POST_NOTIFICATIONS",
+        "WAKE_LOCK",
       ],
     },
 

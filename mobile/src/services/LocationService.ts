@@ -4,6 +4,7 @@ import * as Battery from 'expo-battery';
 import { apiClient } from './api';
 import { flushSavedPings, savePing } from './pingBuffer';
 import { trackingDiag } from './trackingDiag';
+import { WakeLock } from '../../modules/wake-lock';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
@@ -25,6 +26,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     const location = locations[locations.length - 1];
     if (!location) return;
     void trackingDiag.gpsUpdate(locations.length);
+    // Every update renews the wake lock, so it is also re-taken after Android
+    // restarts the app and it can never be held without tracking running.
+    WakeLock.acquire();
 
     // After Android restarts the app headlessly, nothing has loaded the
     // saved login yet, so load it here instead of dropping the ping.
@@ -156,6 +160,7 @@ export const LocationService = {
       const alreadyRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
       if (alreadyRegistered) {
         console.log('Location tracking already running, skipping re-start.');
+        WakeLock.acquire();
         return 'already_running';
       }
 
@@ -198,6 +203,7 @@ export const LocationService = {
 
       console.log('Background location tracking started');
       void trackingDiag.started();
+      WakeLock.acquire();
       return 'started';
     } catch (error) {
       console.error('Error starting location tracking:', error);
@@ -250,6 +256,7 @@ export const LocationService = {
   },
 
   stopTracking: async () => {
+    WakeLock.release();
     try {
       const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
       if (isRegistered) {
