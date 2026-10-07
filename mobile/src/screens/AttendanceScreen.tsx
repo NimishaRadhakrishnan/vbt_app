@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } fr
 import * as Location from 'expo-location';
 import { apiClient } from '../services/api';
 import { LocationService } from '../services/LocationService';
+import { promptBatterySettingsOnce } from '../services/batterySettings';
 import { ConsentService } from '../services/consent';
 import { showSubmitResult } from '../utils/offlineAlert';
 import { color, font, fontWeight, spacing, radius } from '../theme';
@@ -169,7 +170,9 @@ export default function AttendanceScreen({ navigation }: any) {
             : "Check-in will send when you're back online. Tracking could not start - check location settings."
         );
       } else if (trackingResult === 'started' || trackingResult === 'already_running') {
-        Alert.alert('Checked In Successfully', 'Daily attendance clocked. Live tracking started.');
+        Alert.alert('Checked In Successfully', 'Daily attendance clocked. Live tracking started.', [
+          { text: 'OK', onPress: () => void promptBatterySettingsOnce() },
+        ]);
       } else {
         Alert.alert(
           'Checked In - Tracking Not Active',

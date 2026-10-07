@@ -28,6 +28,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -35,6 +36,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 
 import { apiClient } from '../services/api';
+import { openBatterySettings } from '../services/batterySettings';
 import { color, font, fontWeight, radius, spacing } from '../theme';
 
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -135,6 +137,17 @@ export default function MyTrackingScreen() {
         </Text>
       </View>
 
+      <Text style={styles.sectionTitle}>Keep it running</Text>
+      <View style={styles.card}>
+        <Text style={styles.bodyText}>
+          Some phones stop apps when the screen is off. Set VBT One to "Don't optimise" or "Unrestricted" in the
+          battery list, and keep location on "Allow all the time".
+        </Text>
+        <TouchableOpacity style={styles.batteryBtn} onPress={() => void openBatterySettings()}>
+          <Text style={styles.batteryBtnText}>Open battery settings</Text>
+        </TouchableOpacity>
+      </View>
+
       <Text style={styles.sectionTitle}>What was recorded today</Text>
 
       {error ? (
@@ -183,6 +196,14 @@ const styles = StyleSheet.create({
     backgroundColor: color.screenBg,
   },
   content: { padding: spacing.lg },
+  batteryBtn: {
+    marginTop: spacing.md,
+    backgroundColor: color.primary,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  batteryBtnText: { color: color.white, fontWeight: fontWeight.bold, fontSize: font.body },
   statusCard: {
     borderRadius: radius.md,
     borderWidth: 1,

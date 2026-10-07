@@ -52,7 +52,11 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     // Get battery percentage
     let battery_pct = 100;
     try {
-      const batteryLevel = await Battery.getBatteryLevelAsync();
+      // Never let a slow battery read hold up the ping.
+      const batteryLevel = await Promise.race([
+        Battery.getBatteryLevelAsync(),
+        new Promise<number>((_, reject) => setTimeout(() => reject(new Error('battery read timed out')), 2000)),
+      ]);
       battery_pct = Math.round(batteryLevel * 100);
     } catch (err) {
       console.warn('Failed to get battery level', err);
@@ -154,6 +158,7 @@ export const LocationService = {
         distanceInterval: 0,
         deferredUpdatesInterval: 5000,
         showsBackgroundLocationIndicator: true,
+        pausesUpdatesAutomatically: false,
         foregroundService: {
           notificationTitle: 'GPS Tracking Active',
           notificationBody: 'Tracking location for field operations',
