@@ -53,10 +53,12 @@ export default function AdminDayClosureScreen() {
     () => apiClient.request('/day-closure/missing-today', 'GET', 'admin_action'),
     []
   );
-  const recent = useDataFetch<ClosureRow[]>(
-    () => apiClient.request('/day-closure', 'GET', 'admin_action'),
-    []
-  );
+  // Only the last two weeks, newest first: asking for everything ever
+  // recorded made this tab load for a long time.
+  const recent = useDataFetch<ClosureRow[]>(() => {
+    const from = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+    return apiClient.request(`/day-closure?date_from=${from}&limit=200`, 'GET', 'admin_action');
+  }, []);
 
   const active = tab === 'missing' ? missing : recent;
 

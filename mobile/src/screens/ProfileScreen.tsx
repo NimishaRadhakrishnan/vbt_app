@@ -71,7 +71,10 @@ export default function ProfileScreen({ navigation }: any) {
             return;
           }
           try {
-            const closureStatus: any = await apiClient.request('/day-closure/status', 'GET', 'task_action');
+            // A quick look only: if the answer is slow, sign out anyway.
+            const closureStatus: any = await apiClient.request('/day-closure/status', 'GET', 'task_action', undefined, {
+              timeoutMs: 6000,
+            });
             if (closureStatus?.closed_today) {
               await performLogout();
             } else {

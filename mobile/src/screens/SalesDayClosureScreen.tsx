@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert,
   ActivityIndicator, KeyboardAvoidingView, Platform,
@@ -92,6 +92,7 @@ export default function SalesDayClosureScreen({ navigation }: any) {
   const [dealerPhotos, setDealerPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
+  const uploadedPhotos = useRef<Record<string, string>>({});
   const [customFields, setCustomFields] = useState<any[]>([]);
   const [customFieldAnswers, setCustomFieldAnswers] = useState<Record<string, any>>({});
   const [configVersion, setConfigVersion] = useState<number>(1);
@@ -214,11 +215,17 @@ export default function SalesDayClosureScreen({ navigation }: any) {
       // Photos are uploaded first so the closure payload carries real
       // URLs. A failed upload must not silently drop the photo, so it
       // surfaces before the closure is submitted rather than after.
+      // A photo that already went up is not sent again if the officer taps
+      // Submit a second time after a failure further along.
       const images: { image_url: string; image_type: string }[] = [];
       for (const uri of dealerPhotos) {
-        const url = await apiClient.uploadFile(
-          '/day-closure/upload', uri, `sales-closure-${Date.now()}.jpg`, 'image/jpeg',
-        );
+        let url = uploadedPhotos.current[uri];
+        if (!url) {
+          url = await apiClient.uploadFile(
+            '/day-closure/upload', uri, `sales-closure-${Date.now()}.jpg`, 'image/jpeg',
+          );
+          uploadedPhotos.current[uri] = url;
+        }
         images.push({ image_url: url, image_type: 'dealer_shop' });
       }
 

@@ -30,12 +30,8 @@ export default function Timeline({ analysis, loading, names, selectedId, onSelec
       aria-label="Places visited"
       className="flex h-[540px] flex-col rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
     >
-      <header className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+      <header className="border-b border-slate-100 px-4 py-3">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Places visited</h3>
-        <span className="flex gap-12 pr-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-          <span>Arrival</span>
-          <span>Departure</span>
-        </span>
       </header>
 
       {loading || !analysis ? (

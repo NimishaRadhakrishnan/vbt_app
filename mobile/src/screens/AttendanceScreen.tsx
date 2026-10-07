@@ -198,7 +198,10 @@ export default function AttendanceScreen({ navigation }: any) {
       if (role === 'field_officer' || role === 'sales_officer') {
         let closed: boolean | undefined;
         try {
-          const closure: any = await apiClient.request('/day-closure/status', 'GET', 'task_action');
+          // A quick look only: if the answer is slow, check out anyway.
+          const closure: any = await apiClient.request('/day-closure/status', 'GET', 'task_action', undefined, {
+            timeoutMs: 6000,
+          });
           closed = closure?.closed_today;
         } catch {
           closed = undefined;

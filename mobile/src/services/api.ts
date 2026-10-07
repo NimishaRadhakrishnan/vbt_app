@@ -237,27 +237,61 @@ class FFMAPIClient {
   // camera's cache) isn't safely replayable later the way a JSON payload
   // is, so this only succeeds while actually online.
   public async uploadFile(endpoint: string, fileUri: string, fileName: string, mimeType: string): Promise<string> {
-    const formData = new FormData();
-    // React Native's FormData expects this {uri, name, type} shape for a
-    // file field, not a browser File object - fetch/RN sets the
-    // multipart boundary itself, so Content-Type is intentionally not
-    // set manually here (matches the JSON path avoiding that mistake too).
-    formData.append('file', {
-      uri: fileUri,
-      name: fileName,
-      type: mimeType,
-    } as any);
+    // One try at sending the photo. A fresh FormData each time, because a
+    // body that has been sent once cannot be sent again.
+    const attempt = async (): Promise<Response> => {
+      const formData = new FormData();
+      // React Native's FormData expects this {uri, name, type} shape for a
+      // file field, not a browser File object - fetch/RN sets the
+      // multipart boundary itself, so Content-Type is intentionally not
+      // set manually here (matches the JSON path avoiding that mistake too).
+      formData.append('file', {
+        uri: fileUri,
+        name: fileName,
+        type: mimeType,
+      } as any);
 
-    const headers: Record<string, string> = {};
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+      const headers: Record<string, string> = {};
+      if (this.token) {
+        headers['Authorization'] = `Bearer ${this.token}`;
+      }
+      return fetchWithTimeout(
+        `${BACKEND_URL}${endpoint}`,
+        { method: 'POST', headers, body: formData },
+        UPLOAD_TIMEOUT_MS,
+      );
+    };
+
+    // A dropped connection gets one more go. A timeout does not: it already
+    // waited the full time, and the server may still be saving the photo.
+    const send = async (): Promise<Response> => {
+      try {
+        return await attempt();
+      } catch (err: any) {
+        if (err instanceof RequestTimeoutError) throw err;
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        try {
+          return await attempt();
+        } catch (retryErr: any) {
+          if (retryErr instanceof RequestTimeoutError) throw retryErr;
+          throw new Error('Could not reach the server. Check your signal and try again.');
+        }
+      }
+    };
+
+    let response = await send();
+
+    // The login token only lasts 15 minutes. Photos are often added well
+    // after sign-in, so a refused upload gets a fresh token and one more try
+    // (every other request already does this; uploads did not).
+    if (response.status === 401) {
+      const outcome = await this.refreshAccessToken();
+      if (outcome === 'ok') {
+        response = await send();
+      } else if (outcome === 'denied') {
+        this.notifyAuthExpired();
+      }
     }
-
-    const response = await fetchWithTimeout(
-      `${BACKEND_URL}${endpoint}`,
-      { method: 'POST', headers, body: formData },
-      UPLOAD_TIMEOUT_MS,
-    );
 
     if (!response.ok) {
       throw await this.toReadableError(response);
@@ -367,7 +401,13 @@ class FFMAPIClient {
     return this.userId;
   }
 
-  private async sendRequest(endpoint: string, method: string, data?: any, retried = false): Promise<any> {
+  private async sendRequest(
+    endpoint: string,
+    method: string,
+    data?: any,
+    retried = false,
+    timeoutMs?: number,
+  ): Promise<any> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
@@ -380,13 +420,13 @@ class FFMAPIClient {
         headers,
         body: method === 'GET' ? undefined : JSON.stringify(data ?? {}),
       },
-      method === 'GET' ? REQUEST_TIMEOUT_MS : WRITE_TIMEOUT_MS,
+      timeoutMs ?? (method === 'GET' ? REQUEST_TIMEOUT_MS : WRITE_TIMEOUT_MS),
     );
 
     if (response.status === 401 && !endpoint.startsWith('/auth/')) {
       if (!retried) {
         const outcome = await this.refreshAccessToken();
-        if (outcome === 'ok') return this.sendRequest(endpoint, method, data, true);
+        if (outcome === 'ok') return this.sendRequest(endpoint, method, data, true, timeoutMs);
         if (outcome === 'denied') this.notifyAuthExpired();
       } else {
         // A brand-new token was refused too: the saved login is no good.
@@ -407,7 +447,7 @@ class FFMAPIClient {
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     type: SyncPayload['type'],
     data?: any,
-    options: { queue?: boolean } = {}
+    options: { queue?: boolean; timeoutMs?: number } = {}
   ): Promise<any> {
     // queue:false is for calls that must never be replayed later (searches,
     // lookups sent as POST): they just fail and the user can retry.
@@ -424,7 +464,7 @@ class FFMAPIClient {
     }
 
     try {
-      return await this.sendRequest(endpoint, method, data);
+      return await this.sendRequest(endpoint, method, data, false, options.timeoutMs);
     } catch (err: any) {
       // Only queue for retry when the request genuinely couldn't be
       // delivered (network blip, or the server itself had a problem -

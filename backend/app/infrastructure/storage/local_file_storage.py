@@ -28,6 +28,7 @@ import uuid
 from typing import Optional
 
 from fastapi import UploadFile
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,8 +46,13 @@ async def save_upload(file: UploadFile, uploaded_by: uuid.UUID, session: AsyncSe
     unique_filename = f"{uuid.uuid4()}{file_ext}"
     file_path = os.path.join(UPLOAD_DIR, unique_filename)
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    def _write() -> None:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+    # Off the event loop: a photo of a few MB written on it would stall every
+    # other request (live pings, check-ins) for as long as the disk takes.
+    await run_in_threadpool(_write)
 
     await session.execute(
         text("INSERT INTO file_uploads (filename, uploaded_by) VALUES (:filename, :uploaded_by)"),

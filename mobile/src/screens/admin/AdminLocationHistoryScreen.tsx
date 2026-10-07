@@ -185,10 +185,6 @@ export default function AdminLocationHistoryScreen() {
           </Text>
 
           <Text style={styles.sectionTitle}>Places visited</Text>
-          <View style={styles.trainHead}>
-            <Text style={styles.trainHeadText}>Arrival</Text>
-            <Text style={styles.trainHeadText}>Departure</Text>
-          </View>
           {journey.map((item, i) => (
             <JourneyRow key={item.key} item={item} names={names} isLast={i === journey.length - 1} />
           ))}
@@ -302,8 +298,6 @@ const styles = StyleSheet.create({
   statValue: { fontSize: font.subtitle, fontWeight: fontWeight.bold, color: color.textPrimary },
   statLabel: { fontSize: font.caption, color: color.textSecondary },
   range: { fontSize: font.caption, color: color.textSecondary, marginBottom: spacing.md },
-  trainHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs },
-  trainHeadText: { fontSize: 11, fontWeight: fontWeight.semibold, color: color.textMuted, textTransform: 'uppercase' },
   trainRow: { flexDirection: 'row', alignItems: 'stretch' },
   trainTimeLeft: { width: 62, textAlign: 'right', fontSize: font.caption, fontWeight: fontWeight.bold, color: color.textPrimary, paddingTop: 2 },
   trainTimeRight: { width: 62, fontSize: font.caption, fontWeight: fontWeight.semibold, color: color.textSecondary, paddingTop: 2, paddingLeft: spacing.sm },

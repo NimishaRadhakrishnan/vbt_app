@@ -30,7 +30,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -370,6 +370,7 @@ async def list_day_closures(
     date_to: Optional[date] = None,
     officer_id: Optional[uuid.UUID] = None,
     include_detail: bool = False,
+    limit: int = Query(500, ge=1, le=1000),
 ) -> list[DayClosureAdminResponse]:
     query_str = """
         SELECT dc.id, dc.officer_id, u.full_name AS officer_name, dc.date,
@@ -399,7 +400,10 @@ async def list_day_closures(
         query_str += " AND dc.officer_id = :officer_id"
         params["officer_id"] = officer_id
 
-    query_str += " ORDER BY dc.date DESC"
+    # Newest first, and never more than `limit`: with no filters this used to
+    # return every closure ever recorded, joined to seven tables.
+    query_str += " ORDER BY dc.date DESC, dc.created_at DESC LIMIT :limit"
+    params["limit"] = limit
 
     result = await session.execute(text(query_str).bindparams(**params))
     rows = result.all()
