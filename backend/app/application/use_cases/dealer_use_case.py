@@ -199,6 +199,13 @@ class DealerUseCase:
             priced[prod_id] = await self._dealer_repository.resolve_price(
                 prod_id, total_qty, dealer_id=dealer_id
             )
+            # Products added without a price (price 0) work everywhere else but
+            # must not be sold at 0: refuse the order and say which product.
+            if priced[prod_id].price <= 0:
+                raise BusinessRuleViolationException(
+                    f"The price for {product.name} has not been set yet. "
+                    "Ask an admin to set it on the Products page."
+                )
 
         order_items = []
         total_amount = Decimal("0")
