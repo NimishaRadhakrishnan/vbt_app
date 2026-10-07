@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 import uuid
@@ -13,6 +13,20 @@ class LocationPingRequest(BaseModel):
     is_mocked: Optional[bool] = False
     status: str = "active"  # "active" or "location_unavailable"
     timestamp: datetime
+
+class LocationBackfillPoint(BaseModel):
+    lat: float
+    lng: float
+    accuracy: Optional[float] = None
+    speed_kmh: Optional[float] = None
+    battery_pct: Optional[int] = None
+    timestamp: datetime
+
+
+class LocationBackfillRequest(BaseModel):
+    """Positions the phone saved while it had no signal, sent later in bulk."""
+    points: list[LocationBackfillPoint] = Field(min_length=1, max_length=200)
+
 
 class LocationActiveResponse(BaseModel):
     officer_id: uuid.UUID

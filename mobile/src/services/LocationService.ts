@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import * as Battery from 'expo-battery';
 import { apiClient } from './api';
+import { flushSavedPings, savePing } from './pingBuffer';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
@@ -82,19 +83,44 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       timestamp: new Date(location.timestamp).toISOString(),
     };
 
-    if (pingsInFlight >= MAX_PINGS_IN_FLIGHT) return;
+    // A position that cannot go now is kept and uploaded later (pingBuffer.ts)
+    // so the history has no hole in it.
+    const keepForLater = () =>
+      savePing({
+        lat: payload.lat,
+        lng: payload.lng,
+        accuracy: payload.accuracy,
+        speed_kmh: payload.speed_kmh,
+        battery_pct: payload.battery_pct,
+        timestamp: payload.timestamp,
+      }).catch(() => undefined);
+
+    if (pingsInFlight >= MAX_PINGS_IN_FLIGHT) {
+      await keepForLater();
+      return;
+    }
     pingsInFlight += 1;
     apiClient
-      .request('/location/ping', 'POST', 'gps_ping', payload)
+      // queue:false: a late copy of a live position would put the officer
+      // back where they were. Failed ones are kept by keepForLater instead.
+      .request('/location/ping', 'POST', 'gps_ping', payload, { queue: false })
       .then((res: any) => {
         // The officer checked out (possibly on the web). Stop tracking
         // on this phone too instead of pinging all evening.
         if (res?.status === 'stopped') {
           LocationService.stopTracking();
+          return;
         }
+        // The signal is back: send what was saved while it was gone.
+        void flushSavedPings();
       })
-      .catch(err => {
+      .catch(async (err) => {
         console.warn('Failed to send location update', err);
+        const status = err?.status;
+        // A refusal (bad login, invalid data) will not work later either.
+        // Everything else (no signal, timeout, server error, busy) is kept.
+        const refused = typeof status === 'number' && status >= 400 && status < 500 && status !== 429;
+        if (!refused) await keepForLater();
       })
       .finally(() => {
         pingsInFlight = Math.max(0, pingsInFlight - 1);

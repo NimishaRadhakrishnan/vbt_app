@@ -23,7 +23,11 @@ from app.infrastructure.database.session import AsyncSessionLocal, get_db_sessio
 from app.infrastructure.websockets.redis_pubsub_broadcaster import RedisPubSubBroadcaster
 from app.presentation.api.v1.dependencies import CurrentUser, require_role
 from app.presentation.middleware.rate_limiter import enforce_location_ping_rate_limit
-from app.presentation.schemas.location_schemas import LocationActiveResponse, LocationPingRequest
+from app.presentation.schemas.location_schemas import (
+    LocationActiveResponse,
+    LocationBackfillRequest,
+    LocationPingRequest,
+)
 
 router = APIRouter(prefix="/location", tags=["location"])
 
@@ -267,6 +271,84 @@ async def sweep_stale_locations() -> None:
                 )
             )
             await alert_session.commit()
+
+def usable_backfill_points(points, now: datetime, retention_days: int) -> list:
+    """Oldest first; drops points from the future and points past retention."""
+    oldest = now - timedelta(days=retention_days)
+    latest = now + timedelta(minutes=5)
+    kept = []
+    for p in points:
+        ts = p.timestamp if p.timestamp.tzinfo else p.timestamp.replace(tzinfo=UTC)
+        if oldest <= ts <= latest:
+            kept.append((ts, p))
+    kept.sort(key=lambda pair: pair[0])
+    return [p for _, p in kept]
+
+
+@router.post(
+    "/ping/batch",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(enforce_location_ping_rate_limit)],
+)
+async def ping_location_batch(payload: LocationBackfillRequest, current_user: CurrentUser) -> dict:
+    """Saves positions the phone recorded while it had no signal.
+
+    These only fill in the officer's history. They never touch the live map,
+    the alerts or the geofence, because those describe where the officer is
+    now and these points are old. Sending the same point twice is harmless.
+    """
+    settings = get_settings()
+    points = usable_backfill_points(payload.points, datetime.now(UTC), settings.gps_retention_days)
+    stored = 0
+    async with AsyncSessionLocal() as session:
+        for p in points:
+            ts = p.timestamp if p.timestamp.tzinfo else p.timestamp.replace(tzinfo=UTC)
+            res = await session.execute(
+                text("""
+                    INSERT INTO gps_tracks (
+                        id, user_id, recorded_at, location, accuracy, speed, is_idle,
+                        distance_from_prev, territory_violation, battery_level, created_at
+                    )
+                    SELECT
+                        gen_random_uuid(), :user_id, :recorded_at,
+                        ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
+                        :accuracy, :speed, :is_idle,
+                        COALESCE(
+                            ST_Distance(
+                                (
+                                    SELECT location FROM gps_tracks
+                                    WHERE user_id = :user_id
+                                      AND recorded_at < :recorded_at
+                                      AND DATE(recorded_at AT TIME ZONE :company_tz) = DATE(:recorded_at AT TIME ZONE :company_tz)
+                                    ORDER BY recorded_at DESC
+                                    LIMIT 1
+                                ),
+                                ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
+                            ),
+                            0.0
+                        ),
+                        false, :battery_level, :created_at
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM gps_tracks WHERE user_id = :user_id AND recorded_at = :recorded_at
+                    )
+                """).bindparams(
+                    user_id=current_user.user_id,
+                    company_tz=settings.company_timezone,
+                    recorded_at=ts,
+                    lng=p.lng,
+                    lat=p.lat,
+                    accuracy=p.accuracy if p.accuracy is not None else 9999.0,
+                    speed=p.speed_kmh or 0.0,
+                    is_idle=(p.speed_kmh or 0.0) < 0.5,
+                    battery_level=p.battery_pct,
+                    created_at=datetime.now(UTC),
+                )
+            )
+            stored += res.rowcount or 0
+        await session.commit()
+    # Everything sent is finished with, even points skipped as too old or repeated.
+    return {"received": len(payload.points), "stored": stored}
+
 
 @router.post(
     "/ping",

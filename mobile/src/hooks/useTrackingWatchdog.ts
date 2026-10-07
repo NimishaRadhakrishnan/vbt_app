@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { apiClient } from '../services/api';
 import { LocationService } from '../services/LocationService';
 import { trackingHealth } from '../services/trackingHealth';
+import { flushSavedPings } from '../services/pingBuffer';
 
 const CHECK_EVERY_MS = 60_000;
 // If the server has seen nothing from this phone for this long while the
@@ -41,6 +42,9 @@ export function useTrackingWatchdog(enabled: boolean) {
           return; // offline or no record yet: say nothing, try again later
         }
         if (cancelled) return;
+
+        // The server answered, so there is signal: send any saved positions.
+        void flushSavedPings();
 
         const checkedIn = !!today && !!today.check_in_time && !today.check_out_time;
         if (!checkedIn) {

@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } fr
 import * as Location from 'expo-location';
 import { apiClient } from '../services/api';
 import { LocationService } from '../services/LocationService';
+import { flushSavedPings } from '../services/pingBuffer';
 import { promptBatterySettingsOnce } from '../services/batterySettings';
 import { ConsentService } from '../services/consent';
 import { showSubmitResult } from '../utils/offlineAlert';
@@ -237,6 +238,7 @@ export default function AttendanceScreen({ navigation }: any) {
       setIsCheckedIn(false);
       setCheckInTime(null);
       await LocationService.stopTracking();
+      void flushSavedPings(); // send anything saved while the signal was gone
       showSubmitResult(res, 'Checked Out Successfully', 'Shift completed. Live location tracking stopped.');
       navigation.goBack();
     } catch (err: any) {
