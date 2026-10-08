@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     # under normal operation (~4/min) per LocationService.ts's
     # timeInterval. 20 per 60s gives headroom for retries/reconnects
     # while still capping a runaway client or abuse.
-    location_ping_rate_limit_attempts: int = Field(default=20)
+    location_ping_rate_limit_attempts: int = Field(default=40)
     location_ping_rate_limit_window_seconds: int = Field(default=60)
 
     # --- Location staleness (two-tier) ---

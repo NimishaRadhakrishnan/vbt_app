@@ -148,6 +148,13 @@ export default function RouteReplayScreen({
     const last = analysis.points[analysis.points.length - 1];
     if (first) want(first.lat, first.lng);
     if (last) want(last.lat, last.lng);
+    // Where the signal was lost and where it came back (the first 20 gaps).
+    for (const g of analysis.gaps.slice(0, 20)) {
+      const a = analysis.points[g.fromIdx];
+      const b = analysis.points[g.toIdx];
+      if (a) want(a.lat, a.lng);
+      if (b) want(b.lat, b.lng);
+    }
     const entries = [...wanted.entries()];
     if (entries.length === 0) return;
 

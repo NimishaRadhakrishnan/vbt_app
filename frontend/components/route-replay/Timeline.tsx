@@ -2,6 +2,7 @@
 
 import type { Analysis, TimelineEvent } from "./types";
 import { fmtDistance, fmtDuration, fmtTime, trackingWindow } from "./format";
+import { haversineM } from "./routeAnalysis";
 
 interface Props {
   analysis: Analysis | null;
@@ -97,7 +98,7 @@ export default function Timeline({ analysis, loading, names, selectedId, onSelec
                   </span>
                   <span className="py-2">
                     <span className="block text-xs font-semibold text-slate-700">{text}</span>
-                    <span className="block text-[11px] text-slate-400">{sub}</span>
+                    <span className="block whitespace-pre-line text-[11px] text-slate-400">{sub}</span>
                   </span>
                   <span />
                 </button>
@@ -139,13 +140,36 @@ export default function Timeline({ analysis, loading, names, selectedId, onSelec
                   `Travelling, ${fmtTime(e.at)} to ${fmtTime(e.endAt)}`,
                   `Travelled ${fmtDistance(e.distanceM)} in ${fmtDuration(e.endAt - e.at)}`,
                 );
-              case "gap":
+              case "gap": {
+                const a = analysis.points[e.gap.fromIdx];
+                const b = analysis.points[e.gap.toIdx];
+                let detail = `${fmtTime(e.at)} to ${fmtTime(e.endAt)} · position unknown`;
+                if (a && b) {
+                  const movedM = haversineM(a.lat, a.lng, b.lat, b.lng);
+                  const lastSeen = nameAt(a.lat, a.lng);
+                  const nextSeen = nameAt(b.lat, b.lng);
+                  // A guess from the numbers only: the server never hears why a phone went quiet.
+                  const likely =
+                    a.battery != null && a.battery <= 15
+                      ? `Battery was low (${a.battery}%).`
+                      : movedM < 150
+                        ? "Same place before and after: the phone was probably still and the app was paused by battery saving, or GPS was blocked."
+                        : movedM >= 500
+                          ? `The phone moved about ${fmtDistance(movedM)} with nothing recorded: no mobile network or GPS, or the app was stopped by the phone.`
+                          : "Weak signal, or the app was paused by the phone.";
+                  detail =
+                    `${fmtTime(e.at)} to ${fmtTime(e.endAt)}\n` +
+                    `Last seen: ${lastSeen}${a.battery != null ? ` · battery ${a.battery}%` : ""}\n` +
+                    `Next seen: ${nextSeen}\n` +
+                    `Likely: ${likely}`;
+                }
                 return connector(
                   "bg-slate-300",
                   `No signal for ${fmtDuration(e.endAt - e.at)}`,
-                  `${fmtTime(e.at)} to ${fmtTime(e.endAt)} · position unknown`,
+                  detail,
                   `No signal for ${fmtDuration(e.endAt - e.at)}`,
                 );
+              }
               case "end": {
                 const p = analysis.points[e.idx]!;
                 const win = trackingWindow(e.at);
