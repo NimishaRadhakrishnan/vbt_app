@@ -1361,6 +1361,37 @@ async def admin_delete_user(
         await session.commit() # just in case user_repo.update doesn't commit
         return {"result": "archived"}
 
+@router.delete("/users/{user_id}/permanent", response_model=dict)
+async def admin_purge_user(
+    user_id: uuid.UUID,
+    current_user: _AdminOnly,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
+) -> dict:
+    """Permanently erase an ARCHIVED user and the data that belongs to them."""
+    from app.infrastructure.audit.user_purge import purge_user
+    if user_id == current_user.user_id:
+        raise HTTPException(status_code=400, detail="An admin cannot delete their own account.")
+    user = await user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.is_active or not user.is_deleted:
+        raise HTTPException(status_code=400, detail="Archive the user first; only archived users can be permanently deleted.")
+    name, code = user.full_name, getattr(user, "employee_id", None)
+    try:
+        summary = await purge_user(session, user_id, current_user.user_id)
+        await write_audit_log(
+            session, user_id=current_user.user_id, event_type="admin_user_purge",
+            description=f"Admin permanently deleted user {name} ({code}) {user_id}; rows removed: {summary}",
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        logger.error("purge_user_failed: %s", user_id, exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Could not permanently delete {name}. Nothing was changed; the user is still archived.")
+    return {"result": "purged", "removed": summary}
+
+
 @router.post("/users/{user_id}/restore", response_model=dict)
 async def admin_restore_user(
     user_id: uuid.UUID,

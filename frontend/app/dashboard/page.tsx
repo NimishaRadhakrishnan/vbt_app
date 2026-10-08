@@ -98,6 +98,10 @@ export default function Dashboard() {
   const [deletingUser, setDeletingUser] = useState<any>(null);
   const [deleteImpact, setDeleteImpact] = useState<any>(null);
   const [isArchivedTab, setIsArchivedTab] = useState(false);
+  const [purgingUser, setPurgingUser] = useState<any>(null);
+  const [purgeImpact, setPurgeImpact] = useState<Record<string, number>>({});
+  const [purgeConfirmText, setPurgeConfirmText] = useState("");
+  const [purgeBusy, setPurgeBusy] = useState(false);
 
   const userRoleRef = useRef(user?.role);
   useEffect(() => {
@@ -4921,7 +4925,7 @@ export default function Dashboard() {
                       {deleteImpact.can_hard_delete ? (
                         `Delete ${deletingUser.full_name} (${deletingUser.employee_id || "no employee ID"}) permanently? This cannot be undone.`
                       ) : (
-                        `${deletingUser.full_name} (${deletingUser.employee_id || "no employee ID"}) has ${deleteImpact.counts.visits || 0} visits and ${deleteImpact.counts.day_closures || 0} day closures. They will be archived: hidden from lists, all records kept. You can restore them later.`
+                        `${deletingUser.full_name} (${deletingUser.employee_id || "no employee ID"}) has ${Object.values(deleteImpact.counts as Record<string, number>).reduce((a, b) => a + b, 0)} linked records (${Object.entries(deleteImpact.counts as Record<string, number>).map(([t, n]) => `${n} ${t.replace(/_/g, " ")}`).join(", ")}). They will be moved to the Archived Users tab and all records kept. There you can restore them, or delete them and their data permanently.`
                       )}
                     </p>
                     <div className="flex gap-3 justify-end pt-2">
@@ -4955,6 +4959,50 @@ export default function Dashboard() {
                         className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition"
                       >
                         {deleteImpact.can_hard_delete ? "Delete permanently" : "Archive"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Permanent delete modal (archived users only) */}
+              {purgingUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                  <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-100 space-y-4 max-w-md w-full">
+                    <h3 className="font-bold text-red-700 text-lg">Delete permanently</h3>
+                    <p className="text-sm text-slate-600">
+                      This erases <b>{purgingUser.full_name}</b> ({purgingUser.employee_id || "no employee ID"}) and the data linked to them
+                      {Object.keys(purgeImpact).length > 0 ? `: ${Object.entries(purgeImpact).map(([t, n]) => `${n} ${t.replace(/_/g, " ")}`).join(", ")}, plus anything attached to those records` : ""}.
+                      It cannot be undone. To keep the data, choose Cancel and use Keep (Restore).
+                    </p>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500">Type {purgingUser.employee_id || purgingUser.full_name} to confirm</label>
+                      <input
+                        value={purgeConfirmText}
+                        onChange={(e) => setPurgeConfirmText(e.target.value)}
+                        className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex gap-3 justify-end pt-2">
+                      <button onClick={() => setPurgingUser(null)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition">Cancel</button>
+                      <button
+                        disabled={purgeBusy || purgeConfirmText.trim() !== (purgingUser.employee_id || purgingUser.full_name)}
+                        onClick={async () => {
+                          setPurgeBusy(true); setFormError(""); setFormSuccess("");
+                          try {
+                            await apiFetch(`/admin/users/${purgingUser.id}/permanent`, { method: "DELETE" });
+                            setFormSuccess("User and their data deleted permanently.");
+                            setUsersList(prev => prev.filter(x => x.id !== purgingUser.id));
+                          } catch (err: any) {
+                            setFormError(err.message || "Failed to delete permanently");
+                          } finally {
+                            setPurgeBusy(false); setPurgingUser(null);
+                          }
+                        }}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-sm font-semibold rounded-lg transition"
+                      >
+                        {purgeBusy ? "Deleting..." : "Delete permanently"}
                       </button>
                     </div>
                   </div>
@@ -4997,6 +5045,7 @@ export default function Dashboard() {
                             </td>
                             <td className="p-4 text-right">
                               {isArchivedTab ? (
+                                <div className="flex items-center justify-end gap-2">
                                 <button
                                   onClick={async () => {
                                     setFormError(""); setFormSuccess("");
@@ -5008,8 +5057,23 @@ export default function Dashboard() {
                                   }}
                                   className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2.5 py-1 rounded-lg transition"
                                 >
-                                  Restore
+                                  Keep (Restore)
                                 </button>
+                                <button
+                                  onClick={async () => {
+                                    setFormError(""); setFormSuccess("");
+                                    try {
+                                      const impact: any = await apiFetch(`/admin/users/${u.id}/delete-impact`);
+                                      setPurgeImpact(impact?.counts || {});
+                                      setPurgeConfirmText("");
+                                      setPurgingUser(u);
+                                    } catch(err: any) { setFormError(err.message); }
+                                  }}
+                                  className="text-xs bg-red-600 hover:bg-red-700 text-white font-semibold px-2.5 py-1 rounded-lg transition"
+                                >
+                                  Delete permanently
+                                </button>
+                                </div>
                               ) : (
                                 <div className="flex items-center justify-end gap-2 relative">
                                   <button
