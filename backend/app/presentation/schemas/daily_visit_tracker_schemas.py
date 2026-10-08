@@ -121,6 +121,7 @@ class DailyVisitTrackerSubmitRequest(BaseModel):
     crop_category_id: Optional[uuid.UUID] = None
     crop_category_other_text: Optional[str] = None
     crop_id: Optional[uuid.UUID] = None
+    crop_other_text: Optional[str] = None  # typed crop name when the officer picks "Other"
     variety_id: Optional[uuid.UUID] = None
     variety_text: Optional[str] = None
     crop_age_value: Optional[float] = None

@@ -3,7 +3,7 @@ import { Text, View, TouchableOpacity } from 'react-native';
 import { spacing } from '../../theme';
 import { sharedStyles as styles } from './sharedStyles';
 import { FieldRow, TextInputLike, ChipPicker } from './FormFields';
-import type { MasterItem } from './types';
+import { isOtherName, otherLast, OTHER_PLACEHOLDER, type MasterItem } from './types';
 
 type MicronutrientSel = Record<string, { quantity: string; unit: string }>;
 type FarmOperationSel = Record<string, { date: string; remarks: string }>;
@@ -38,6 +38,9 @@ type Props = {
   setAdvisorySource: (v: 'agri_clinic' | 'kvk' | 'other') => void;
   advisoryRemarks: string;
   setAdvisoryRemarks: (v: string) => void;
+
+  otherTexts: Record<string, string>;
+  setOtherText: (key: string, v: string) => void;
 };
 
 export default function Step4FarmPractices({
@@ -46,6 +49,7 @@ export default function Step4FarmPractices({
   farmOperationOptions, selectedFarmOperations, onToggleFarmOperation, setSelectedFarmOperations,
   organicSolutionOptions, selectedOrganicSolutions, onToggleOrganicSolution, setSelectedOrganicSolutions,
   usedAdvisory, setUsedAdvisory, onClearAdvisorySource, advisorySource, setAdvisorySource, advisoryRemarks, setAdvisoryRemarks,
+  otherTexts, setOtherText,
 }: Props) {
   return (
     <View>
@@ -72,7 +76,7 @@ export default function Step4FarmPractices({
       {micronutrientOptions.length === 0 ? (
         <Text style={styles.placeholderValue}>Loading…</Text>
       ) : (
-        micronutrientOptions.map((m) => {
+        otherLast(micronutrientOptions).map((m) => {
           const sel = selectedMicronutrients[m.id];
           return (
             <View key={m.id} style={styles.multiSelectRow}>
@@ -82,6 +86,9 @@ export default function Step4FarmPractices({
                 </View>
                 <Text style={styles.checkLabel}>{m.name}</Text>
               </TouchableOpacity>
+              {sel && isOtherName(m.name) && (
+                <TextInputLike value={otherTexts[`micro:${m.id}`] ?? ''} onChangeText={(v) => setOtherText(`micro:${m.id}`, v)} placeholder={OTHER_PLACEHOLDER} />
+              )}
               {sel && (
                 <View style={styles.inlineRow}>
                   <View style={{ flex: 1, marginRight: spacing.sm }}>
@@ -110,7 +117,7 @@ export default function Step4FarmPractices({
       {farmOperationOptions.length === 0 ? (
         <Text style={styles.placeholderValue}>Loading…</Text>
       ) : (
-        farmOperationOptions.map((op) => {
+        otherLast(farmOperationOptions).map((op) => {
           const sel = selectedFarmOperations[op.id];
           return (
             <View key={op.id} style={styles.multiSelectRow}>
@@ -120,6 +127,9 @@ export default function Step4FarmPractices({
                 </View>
                 <Text style={styles.checkLabel}>{op.name}</Text>
               </TouchableOpacity>
+              {sel && isOtherName(op.name) && (
+                <TextInputLike value={otherTexts[`op:${op.id}`] ?? ''} onChangeText={(v) => setOtherText(`op:${op.id}`, v)} placeholder={OTHER_PLACEHOLDER} />
+              )}
               {sel && (
                 <View>
                   <TextInputLike
@@ -143,7 +153,7 @@ export default function Step4FarmPractices({
       {organicSolutionOptions.length === 0 ? (
         <Text style={styles.placeholderValue}>Loading…</Text>
       ) : (
-        organicSolutionOptions.map((sol) => {
+        otherLast(organicSolutionOptions).map((sol) => {
           const sel = selectedOrganicSolutions[sol.id];
           return (
             <View key={sol.id} style={styles.multiSelectRow}>
@@ -153,6 +163,9 @@ export default function Step4FarmPractices({
                 </View>
                 <Text style={styles.checkLabel}>{sol.name}</Text>
               </TouchableOpacity>
+              {sel && isOtherName(sol.name) && (
+                <TextInputLike value={otherTexts[`org:${sol.id}`] ?? ''} onChangeText={(v) => setOtherText(`org:${sol.id}`, v)} placeholder={OTHER_PLACEHOLDER} />
+              )}
               {sel && (
                 <View>
                   <View style={styles.inlineRow}>

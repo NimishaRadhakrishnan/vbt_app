@@ -280,7 +280,10 @@ async def _assemble_visit_detail(visit_id: uuid.UUID, session: AsyncSession) -> 
         await session.execute(
             text(
                 """
-                SELECT cc.name AS crop_category, c.name AS crop_name, cv.name AS variety_name,
+                SELECT COALESCE(cc.name, CASE WHEN vcp.crop_category_other_text IS NOT NULL THEN 'Other: ' || vcp.crop_category_other_text END) AS crop_category,
+                       CASE WHEN c.id IS NULL AND vcp.crop_other_text IS NOT NULL THEN 'Other: ' || vcp.crop_other_text
+                            ELSE c.name END AS crop_name,
+                       cv.name AS variety_name,
                        vcp.variety_text, vcp.crop_age_value, vcp.crop_age_unit, vcp.sowing_date,
                        vcp.previous_crop_text, vcp.previous_yield_value, vcp.previous_yield_unit
                 FROM visit_crop_profiles vcp
@@ -301,7 +304,8 @@ async def _assemble_visit_detail(visit_id: uuid.UUID, session: AsyncSession) -> 
         await session.execute(
             text(
                 """
-                SELECT m.name, vm.quantity, vm.unit FROM visit_micronutrients vm
+                SELECT CASE WHEN vm.other_text IS NOT NULL AND vm.other_text <> '' THEN m.name || ': ' || vm.other_text ELSE m.name END AS name,
+                       vm.quantity, vm.unit FROM visit_micronutrients vm
                 JOIN micronutrients m ON m.id = vm.micronutrient_id WHERE vm.visit_id = :visit_id
                 """
             ).bindparams(visit_id=visit_id)
@@ -312,7 +316,8 @@ async def _assemble_visit_detail(visit_id: uuid.UUID, session: AsyncSession) -> 
         await session.execute(
             text(
                 """
-                SELECT fo.name, vfo.performed_date, vfo.remarks FROM visit_farm_operations vfo
+                SELECT CASE WHEN vfo.other_text IS NOT NULL AND vfo.other_text <> '' THEN fo.name || ': ' || vfo.other_text ELSE fo.name END AS name,
+                       vfo.performed_date, vfo.remarks FROM visit_farm_operations vfo
                 JOIN farm_operations fo ON fo.id = vfo.farm_operation_id WHERE vfo.visit_id = :visit_id
                 """
             ).bindparams(visit_id=visit_id)
@@ -323,7 +328,8 @@ async def _assemble_visit_detail(visit_id: uuid.UUID, session: AsyncSession) -> 
         await session.execute(
             text(
                 """
-                SELECT os.name, vos.quantity, vos.unit, vos.application_date, vos.remarks
+                SELECT CASE WHEN vos.other_text IS NOT NULL AND vos.other_text <> '' THEN os.name || ': ' || vos.other_text ELSE os.name END AS name,
+                       vos.quantity, vos.unit, vos.application_date, vos.remarks
                 FROM visit_organic_solutions vos
                 JOIN organic_solutions os ON os.id = vos.organic_solution_id WHERE vos.visit_id = :visit_id
                 """
@@ -336,7 +342,7 @@ async def _assemble_visit_detail(visit_id: uuid.UUID, session: AsyncSession) -> 
     ).mappings().first()
 
     health = (
-        await session.execute(text("SELECT crop_status, severity FROM visit_health WHERE visit_id = :visit_id").bindparams(visit_id=visit_id))
+        await session.execute(text("SELECT crop_status, severity, status_other_text, pest_other_text, disease_other_text FROM visit_health WHERE visit_id = :visit_id").bindparams(visit_id=visit_id))
     ).mappings().first()
 
     pests = (
@@ -433,9 +439,10 @@ async def _assemble_visit_detail(visit_id: uuid.UUID, session: AsyncSession) -> 
         },
         "health": {
             "status": health["crop_status"] if health else None,
+            "status_other_text": health["status_other_text"] if health else None,
             "severity": health["severity"] if health else None,
-            "pests": list(pests),
-            "diseases": list(diseases),
+            "pests": _with_other_text(pests, health["pest_other_text"] if health else None),
+            "diseases": _with_other_text(diseases, health["disease_other_text"] if health else None),
             "chemicals": [dict(c) for c in chemicals],
         },
         "trial": {
@@ -482,6 +489,14 @@ _EXCEL_HEADERS = [
     "Purchased", "Products Bought", "Order Value", "Conversion Status",
     "Follow-up Date", "Remarks",
 ]
+
+
+def _with_other_text(names: list[str], other_text: Optional[str]) -> list[str]:
+    """Show what the officer typed next to "Other", e.g. "Other: stem borer"."""
+    text_value = (other_text or "").strip()
+    if not text_value:
+        return list(names)
+    return [f"{n}: {text_value}" if n.strip().lower() in ("other", "others") else n for n in names]
 
 
 def _join(values: list[str]) -> str:

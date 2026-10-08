@@ -220,11 +220,11 @@ async def submit_daily_visit(
         text(
             """
             INSERT INTO visit_crop_profiles (
-                id, visit_id, crop_category_id, crop_category_other_text, crop_id, variety_id, variety_text,
+                id, visit_id, crop_category_id, crop_category_other_text, crop_id, crop_other_text, variety_id, variety_text,
                 crop_age_value, crop_age_unit, sowing_date, previous_crop_text,
                 previous_yield_value, previous_yield_unit, recurring_issue_text
             ) VALUES (
-                gen_random_uuid(), :visit_id, :crop_category_id, :crop_category_other_text, :crop_id, :variety_id, :variety_text,
+                gen_random_uuid(), :visit_id, :crop_category_id, :crop_category_other_text, :crop_id, :crop_other_text, :variety_id, :variety_text,
                 :crop_age_value, :crop_age_unit, :sowing_date, :previous_crop_text,
                 :previous_yield_value, :previous_yield_unit, :recurring_issue_text
             )
@@ -232,6 +232,7 @@ async def submit_daily_visit(
         ).bindparams(
             visit_id=visit_id, crop_category_id=payload.crop_category_id,
             crop_category_other_text=payload.crop_category_other_text, crop_id=payload.crop_id,
+            crop_other_text=payload.crop_other_text,
             variety_id=payload.variety_id, variety_text=payload.variety_text,
             crop_age_value=payload.crop_age_value, crop_age_unit=payload.crop_age_unit,
             sowing_date=payload.sowing_date, previous_crop_text=payload.previous_crop_text,

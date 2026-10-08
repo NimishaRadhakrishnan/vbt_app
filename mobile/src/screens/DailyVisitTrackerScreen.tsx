@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { apiClient } from '../services/api';
 import { color, font, fontWeight, spacing, radius } from '../theme';
-import { STEP_TITLES, type Farmer, type MasterItem, type CropOption, type VarietyOption, FARMING_TYPES } from './dailyVisitTracker/types';
+import { STEP_TITLES, OTHER_ID, isOtherName, type Farmer, type MasterItem, type CropOption, type VarietyOption, FARMING_TYPES } from './dailyVisitTracker/types';
 import Step1VisitDetails from './dailyVisitTracker/Step1VisitDetails';
 import Step2FarmerFarm from './dailyVisitTracker/Step2FarmerFarm';
 import Step3CropProfile from './dailyVisitTracker/Step3CropProfile';
@@ -157,6 +157,11 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
   const [previousYieldUnit, setPreviousYieldUnit] = useState('');
   const [farmingType, setFarmingType] = useState<string | null>(null);
 
+  // What the officer typed after choosing "Other", keyed by list:
+  // category, crop, pests, diseases, chemical, micro:<id>, op:<id>, org:<id>.
+  const [otherTexts, setOtherTexts] = useState<Record<string, string>>({});
+  const setOtherText = (key: string, v: string) => setOtherTexts((prev) => ({ ...prev, [key]: v }));
+
   useEffect(() => {
     if (step !== 2 || cropCategories.length > 0) return;
     apiClient
@@ -166,7 +171,7 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
   }, [step]);
 
   useEffect(() => {
-    if (!selectedCategoryId) { setCrops([]); return; }
+    if (!selectedCategoryId || selectedCategoryId === OTHER_ID) { setCrops([]); if (selectedCategoryId) setSelectedCropId(null); return; }
     setSelectedCropId(null);
     apiClient
       .request(`/master-data/crops?crop_category_id=${selectedCategoryId}`, 'GET', 'plan_submit')
@@ -175,7 +180,7 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
   }, [selectedCategoryId]);
 
   useEffect(() => {
-    if (!selectedCropId) { setVarieties([]); return; }
+    if (!selectedCropId || selectedCropId === OTHER_ID) { setVarieties([]); return; }
     setSelectedVarietyId(null);
     apiClient
       .request(`/master-data/crop-varieties?crop_id=${selectedCropId}`, 'GET', 'plan_submit')
@@ -357,6 +362,42 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
   // --- Step 9: build payload + review summary from everything above ---
   const [submitting, setSubmitting] = useState(false);
 
+  const nameIn = (list: MasterItem[], id: string | null | undefined) => list.find((i) => i.id === id)?.name;
+  const categoryIsOther = selectedCategoryId === OTHER_ID || isOtherName(nameIn(cropCategories, selectedCategoryId));
+  const cropIsOther = selectedCropId === OTHER_ID || isOtherName(nameIn(crops, selectedCropId));
+  const pestIsOther = selectedPestIds.some((id) => isOtherName(nameIn(pestOptions, id)));
+  const diseaseIsOther = selectedDiseaseIds.some((id) => isOtherName(nameIn(diseaseOptions, id)));
+  const typed = (key: string): string | undefined => otherTexts[key]?.trim() || undefined;
+
+  // The first "Other" the officer chose but did not describe, or null.
+  const missingOtherText = (forStep: number): string | null => {
+    if (forStep === 2) {
+      if (categoryIsOther && !typed('category')) return 'Please type the crop category you chose as "Other".';
+      if (cropIsOther && !typed('crop')) return 'Please type the crop you chose as "Other".';
+      if (selectedVarietyId && (selectedVarietyId === OTHER_ID || isOtherName(nameIn(varieties, selectedVarietyId))) && !varietyText.trim()) {
+        return 'Please type the variety you chose as "Other".';
+      }
+    }
+    if (forStep === 3) {
+      const lists: [Record<string, unknown>, MasterItem[], string][] = [
+        [selectedMicronutrients, micronutrientOptions, 'micro'],
+        [selectedFarmOperations, farmOperationOptions, 'op'],
+        [selectedOrganicSolutions, organicSolutionOptions, 'org'],
+      ];
+      for (const [chosen, options, prefix] of lists) {
+        for (const id of Object.keys(chosen)) {
+          if (isOtherName(nameIn(options, id)) && !typed(`${prefix}:${id}`)) return 'Please type your answer for the "Other" you selected.';
+        }
+      }
+    }
+    if (forStep === 4 && cropStatus === 'pest_disease_affected') {
+      if (pestIsOther && !typed('pests')) return 'Please type the pest you chose as "Other".';
+      if (diseaseIsOther && !typed('diseases')) return 'Please type the disease you chose as "Other".';
+      if (selectedChemicals[OTHER_ID] && !typed('chemical')) return 'Please type the chemical you chose as "Other".';
+    }
+    return null;
+  };
+
   const buildPayload = (): DailyVisitSubmitPayload => ({
     latitude: gps?.lat ?? 0,
     longitude: gps?.lng ?? 0,
@@ -369,15 +410,17 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
             village: villageBlock,
             taluk: villageBlock, // no separate taluk field collected in this wizard - village/block doubles as taluk for new-farmer creation, matching the coarser granularity Step 1 actually asks for
             district,
-            crop: crops.find((c) => c.id === selectedCropId)?.name ?? '',
+            crop: cropIsOther ? (typed('crop') ?? 'Other') : (crops.find((c) => c.id === selectedCropId)?.name ?? ''),
             cents: Number(farmSize) || 0,
           },
         }),
     farm_size_value: Number(farmSize) || 0,
     farm_size_unit: farmSizeUnit,
-    crop_category_id: selectedCategoryId ?? undefined,
-    crop_id: selectedCropId ?? undefined,
-    variety_id: selectedVarietyId ?? undefined,
+    crop_category_id: selectedCategoryId && selectedCategoryId !== OTHER_ID ? selectedCategoryId : undefined,
+    crop_category_other_text: categoryIsOther ? typed('category') : undefined,
+    crop_id: selectedCropId && selectedCropId !== OTHER_ID ? selectedCropId : undefined,
+    crop_other_text: cropIsOther ? typed('crop') : undefined,
+    variety_id: selectedVarietyId && selectedVarietyId !== OTHER_ID ? selectedVarietyId : undefined,
     variety_text: varietyText || undefined,
     crop_age_value: cropAgeValue ? Number(cropAgeValue) : undefined,
     crop_age_unit: cropAgeValue ? cropAgeUnit : undefined,
@@ -395,17 +438,20 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
       micronutrient_id: id,
       quantity: v.quantity ? Number(v.quantity) : undefined,
       unit: v.unit || undefined,
+      other_text: isOtherName(nameIn(micronutrientOptions, id)) ? typed(`micro:${id}`) : undefined,
     })),
     farm_operations: Object.entries(selectedFarmOperations).map(([id, v]) => ({
       farm_operation_id: id,
       performed_date: v.date || undefined,
       remarks: v.remarks || undefined,
+      other_text: isOtherName(nameIn(farmOperationOptions, id)) ? typed(`op:${id}`) : undefined,
     })),
     organic_solutions: Object.entries(selectedOrganicSolutions).map(([id, v]) => ({
       organic_solution_id: id,
       quantity: v.quantity ? Number(v.quantity) : undefined,
       unit: v.unit || undefined,
       remarks: v.remarks || undefined,
+      other_text: isOtherName(nameIn(organicSolutionOptions, id)) ? typed(`org:${id}`) : undefined,
     })),
     used_advisory: usedAdvisory === true,
     advisory_source: advisorySource ?? undefined,
@@ -413,9 +459,12 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
     crop_status: cropStatus ?? '',
     status_other_text: cropStatus === 'other' ? (statusOtherText || undefined) : undefined,
     pest_ids: selectedPestIds,
+    pest_other_text: pestIsOther ? typed('pests') : undefined,
     disease_ids: selectedDiseaseIds,
+    disease_other_text: diseaseIsOther ? typed('diseases') : undefined,
     chemicals: Object.entries(selectedChemicals).map(([id, v]) => ({
-      chemical_id: id,
+      chemical_id: id === OTHER_ID ? undefined : id,
+      chemical_name_text: id === OTHER_ID ? typed('chemical') : undefined,
       quantity: v.quantity || undefined,
       frequency: v.frequency || undefined,
     })),
@@ -464,7 +513,7 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
       title: 'Crop Profile',
       stepIndex: 2,
       rows: [
-        { label: 'Crop', value: crops.find((c) => c.id === selectedCropId)?.name ?? '—' },
+        { label: 'Crop', value: cropIsOther ? `Other: ${typed('crop') ?? ''}` : crops.find((c) => c.id === selectedCropId)?.name ?? '—' },
         { label: 'Farming Type', value: FARMING_TYPES.find((f) => f.value === farmingType)?.label ?? '—' },
       ],
     },
@@ -497,6 +546,13 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
   ];
 
   const handleSubmit = async () => {
+    for (const s of [2, 3, 4]) {
+      const problem = missingOtherText(s);
+      if (problem) {
+        Alert.alert('Missing Information', problem);
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const endpoint = adminOfficerId
@@ -536,7 +592,7 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
   // without the backend needing to understand this blob's shape.
   const buildDraftBlob = () => ({
     _farmer_name: farmerName || undefined,
-    _crop_name: crops.find((c) => c.id === selectedCropId)?.name,
+    _crop_name: cropIsOther ? typed('crop') : crops.find((c) => c.id === selectedCropId)?.name,
     _step_label: STEP_TITLES[step],
     step, district, villageBlock, gps,
     farmerMode, selectedFarmer, farmerName, farmerPhone, farmSize,
@@ -545,7 +601,7 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
     npkN, npkP, npkK, npkUnit, npkFrequency,
     selectedMicronutrients, selectedFarmOperations, selectedOrganicSolutions,
     usedAdvisory, advisorySource, advisoryRemarks,
-    cropStatus, selectedPestIds, selectedDiseaseIds, selectedChemicals, severity,
+    cropStatus, selectedPestIds, selectedDiseaseIds, selectedChemicals, severity, otherTexts,
     isTrial, visitPurpose, demoStatus, trialPlotSize, selectedTrialProducts,
     purchased, selectedSaleProducts, orderValue, conversionStatus,
     // Only fully-uploaded photos are worth saving - a mid-upload local
@@ -592,6 +648,7 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
     if (d.selectedDiseaseIds) setSelectedDiseaseIds(d.selectedDiseaseIds);
     if (d.selectedChemicals) setSelectedChemicals(d.selectedChemicals);
     if (typeof d.severity === 'number') setSeverity(d.severity);
+    if (d.otherTexts) setOtherTexts(d.otherTexts);
     if (typeof d.isTrial === 'boolean') setIsTrial(d.isTrial);
     if (d.visitPurpose) setVisitPurpose(d.visitPurpose);
     if (d.demoStatus) setDemoStatus(d.demoStatus);
@@ -714,6 +771,13 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
       }
       if (!farmSize.trim() || Number(farmSize) <= 0) {
         Alert.alert('Missing Information', 'Please enter a farm size greater than zero.');
+        return;
+      }
+    }
+    if (step >= 2 && step <= 4) {
+      const problem = missingOtherText(step);
+      if (problem) {
+        Alert.alert('Missing Information', problem);
         return;
       }
     }
@@ -921,6 +985,8 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
             setPreviousYieldUnit={setPreviousYieldUnit}
             farmingType={farmingType}
             setFarmingType={setFarmingType}
+            otherTexts={otherTexts}
+            setOtherText={setOtherText}
           />
         ) : step === 3 ? (
           <Step4FarmPractices
@@ -948,6 +1014,8 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
             setAdvisorySource={setAdvisorySource}
             advisoryRemarks={advisoryRemarks}
             setAdvisoryRemarks={setAdvisoryRemarks}
+            otherTexts={otherTexts}
+            setOtherText={setOtherText}
           />
         ) : step === 4 ? (
           <Step5HealthDiagnosis
@@ -967,6 +1035,8 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
             setSeverity={setSeverity}
             statusOtherText={statusOtherText}
             setStatusOtherText={setStatusOtherText}
+            otherTexts={otherTexts}
+            setOtherText={setOtherText}
           />
         ) : step === 5 ? (
           <Step6TrialDemo

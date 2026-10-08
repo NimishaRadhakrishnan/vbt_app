@@ -14,6 +14,21 @@ export type Farmer = {
 };
 
 export type MasterItem = { id: string; name: string };
+
+// "Other" in any pick-list: the officer taps it and types their own answer.
+// Lists that already hold an "Other" row keep it (moved to the end); lists
+// without one (crop category, crop, variety, chemicals) get a built-in
+// "Other" whose id is OTHER_ID, which is never sent to the server as an id.
+export const OTHER_ID = '__other__';
+export const isOtherName = (name?: string | null): boolean => !!name && /^others?$/i.test(name.trim());
+export function otherLast<T extends { id: string; name: string }>(list: T[]): T[] {
+  return [...list.filter((i) => !isOtherName(i.name)), ...list.filter((i) => isOtherName(i.name))];
+}
+export function withOther<T extends { id: string; name: string }>(list: T[]): T[] {
+  if (list.some((i) => isOtherName(i.name))) return otherLast(list);
+  return [...list, { id: OTHER_ID, name: 'Other' } as T];
+}
+export const OTHER_PLACEHOLDER = 'Type your answer';
 export type CropOption = { id: string; name: string; crop_category_id: string };
 export type VarietyOption = { id: string; name: string; crop_id: string };
 
@@ -59,6 +74,8 @@ export type DailyVisitSubmitPayload = {
   farm_size_unit: string;
   crop_category_id?: string;
   crop_id?: string;
+  crop_other_text?: string;
+  crop_category_other_text?: string;
   variety_id?: string;
   variety_text?: string;
   crop_age_value?: number;
@@ -73,16 +90,18 @@ export type DailyVisitSubmitPayload = {
   npk_k?: number;
   npk_unit?: string;
   npk_frequency?: string;
-  micronutrients: { micronutrient_id: string; quantity?: number; unit?: string }[];
-  farm_operations: { farm_operation_id: string; performed_date?: string; remarks?: string }[];
-  organic_solutions: { organic_solution_id: string; quantity?: number; unit?: string; application_date?: string; remarks?: string }[];
+  micronutrients: { micronutrient_id: string; quantity?: number; unit?: string; other_text?: string }[];
+  farm_operations: { farm_operation_id: string; performed_date?: string; remarks?: string; other_text?: string }[];
+  organic_solutions: { organic_solution_id: string; quantity?: number; unit?: string; application_date?: string; remarks?: string; other_text?: string }[];
   used_advisory: boolean;
   advisory_source?: string;
   advisory_remarks?: string;
   crop_status: string;
   status_other_text?: string;
   pest_ids: string[];
+  pest_other_text?: string;
   disease_ids: string[];
+  disease_other_text?: string;
   chemicals: { chemical_id?: string; chemical_name_text?: string; quantity?: string; frequency?: string }[];
   severity?: number;
   is_trial: boolean;

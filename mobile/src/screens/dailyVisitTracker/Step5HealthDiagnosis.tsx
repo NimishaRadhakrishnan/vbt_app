@@ -5,7 +5,7 @@ import { color, spacing } from '../../theme';
 import { sharedStyles as styles } from './sharedStyles';
 import { FieldRow, TextInputLike } from './FormFields';
 import LinearScaleInput from '../../components/LinearScaleInput';
-import type { MasterItem } from './types';
+import { OTHER_ID, OTHER_PLACEHOLDER, isOtherName, otherLast, withOther, type MasterItem } from './types';
 
 const CROP_STATUSES: { value: string; label: string; icon: string }[] = [
   { value: 'healthy', label: 'Healthy', icon: 'checkmark-circle-outline' },
@@ -41,6 +41,9 @@ type Props = {
 
   statusOtherText: string;
   setStatusOtherText: (v: string) => void;
+
+  otherTexts: Record<string, string>;
+  setOtherText: (key: string, v: string) => void;
 };
 
 // Section 13/14/15/16: current crop status drives which fields appear
@@ -65,7 +68,11 @@ export default function Step5HealthDiagnosis({
   setSeverity,
   statusOtherText,
   setStatusOtherText,
+  otherTexts,
+  setOtherText,
 }: Props) {
+  const pestIsOther = selectedPestIds.some((id) => id === OTHER_ID || isOtherName(pestOptions.find((p) => p.id === id)?.name));
+  const diseaseIsOther = selectedDiseaseIds.some((id) => id === OTHER_ID || isOtherName(diseaseOptions.find((d) => d.id === id)?.name));
   const showDiagnosis = cropStatus === 'pest_disease_affected';
   const showStatusOther = cropStatus === 'other';
 
@@ -99,7 +106,7 @@ export default function Step5HealthDiagnosis({
             <Text style={styles.placeholderValue}>Loading…</Text>
           ) : (
             <View style={styles.chipWrap}>
-              {pestOptions.map((p) => (
+              {otherLast(pestOptions).map((p) => (
                 <TouchableOpacity
                   key={p.id}
                   style={[styles.chip, selectedPestIds.includes(p.id) && styles.chipActive]}
@@ -110,13 +117,16 @@ export default function Step5HealthDiagnosis({
               ))}
             </View>
           )}
+          {pestIsOther && (
+            <TextInputLike value={otherTexts.pests ?? ''} onChangeText={(v) => setOtherText('pests', v)} placeholder={OTHER_PLACEHOLDER} />
+          )}
 
           <Text style={styles.sectionHeading}>Disease</Text>
           {diseaseOptions.length === 0 ? (
             <Text style={styles.placeholderValue}>Loading…</Text>
           ) : (
             <View style={styles.chipWrap}>
-              {diseaseOptions.map((d) => (
+              {otherLast(diseaseOptions).map((d) => (
                 <TouchableOpacity
                   key={d.id}
                   style={[styles.chip, selectedDiseaseIds.includes(d.id) && styles.chipActive]}
@@ -127,12 +137,15 @@ export default function Step5HealthDiagnosis({
               ))}
             </View>
           )}
+          {diseaseIsOther && (
+            <TextInputLike value={otherTexts.diseases ?? ''} onChangeText={(v) => setOtherText('diseases', v)} placeholder={OTHER_PLACEHOLDER} />
+          )}
 
           <Text style={styles.sectionHeading}>Chemicals Currently in Use</Text>
           {chemicalOptions.length === 0 ? (
             <Text style={styles.placeholderValue}>Loading…</Text>
           ) : (
-            chemicalOptions.map((c) => {
+            withOther(chemicalOptions).map((c) => {
               const sel = selectedChemicals[c.id];
               return (
                 <View key={c.id} style={styles.multiSelectRow}>
@@ -142,6 +155,9 @@ export default function Step5HealthDiagnosis({
                     </View>
                     <Text style={styles.checkLabel}>{c.name}</Text>
                   </TouchableOpacity>
+                  {sel && c.id === OTHER_ID && (
+                    <TextInputLike value={otherTexts.chemical ?? ''} onChangeText={(v) => setOtherText('chemical', v)} placeholder={OTHER_PLACEHOLDER} />
+                  )}
                   {sel && (
                     <View style={styles.inlineRow}>
                       <View style={{ flex: 1, marginRight: spacing.sm }}>

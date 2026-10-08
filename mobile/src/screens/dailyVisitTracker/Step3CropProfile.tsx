@@ -3,7 +3,7 @@ import { Text, View, TouchableOpacity } from 'react-native';
 import { spacing } from '../../theme';
 import { sharedStyles as styles } from './sharedStyles';
 import { FieldRow, TextInputLike, ChipPicker } from './FormFields';
-import { FARMING_TYPES, CROP_AGE_UNITS, type MasterItem, type CropOption, type VarietyOption } from './types';
+import { FARMING_TYPES, CROP_AGE_UNITS, OTHER_ID, OTHER_PLACEHOLDER, isOtherName, withOther, type MasterItem, type CropOption, type VarietyOption } from './types';
 
 type Props = {
   cropCategories: MasterItem[];
@@ -31,6 +31,8 @@ type Props = {
   setPreviousYieldUnit: (v: string) => void;
   farmingType: string | null;
   setFarmingType: (v: string) => void;
+  otherTexts: Record<string, string>;
+  setOtherText: (key: string, v: string) => void;
 };
 
 export default function Step3CropProfile({
@@ -59,16 +61,28 @@ export default function Step3CropProfile({
   setPreviousYieldUnit,
   farmingType,
   setFarmingType,
+  otherTexts,
+  setOtherText,
 }: Props) {
+  const categoryList = withOther(cropCategories);
+  const cropList = withOther(crops);
+  const varietyList = withOther(varieties);
+  const nameOf = (list: MasterItem[], id: string | null) => list.find((i) => i.id === id)?.name;
+  const categoryIsOther = selectedCategoryId === OTHER_ID || isOtherName(nameOf(cropCategories, selectedCategoryId));
+  const cropIsOther = selectedCropId === OTHER_ID || isOtherName(nameOf(crops, selectedCropId));
+  const varietyIsOther = selectedVarietyId === OTHER_ID || isOtherName(nameOf(varieties, selectedVarietyId));
   return (
     <View>
       <FieldRow label="Crop Category">
         <ChipPicker
-          options={cropCategories.map((c) => ({ value: c.id, label: c.name }))}
+          options={categoryList.map((c) => ({ value: c.id, label: c.name }))}
           value={selectedCategoryId}
           onChange={setSelectedCategoryId}
           emptyText="Loading categories…"
         />
+        {categoryIsOther && (
+          <TextInputLike value={otherTexts.category ?? ''} onChangeText={(v) => setOtherText('category', v)} placeholder={OTHER_PLACEHOLDER} />
+        )}
       </FieldRow>
 
       <FieldRow label="Crop">
@@ -76,18 +90,21 @@ export default function Step3CropProfile({
           <Text style={styles.placeholderValue}>Select a category first</Text>
         ) : (
           <ChipPicker
-            options={crops.map((c) => ({ value: c.id, label: c.name }))}
+            options={cropList.map((c) => ({ value: c.id, label: c.name }))}
             value={selectedCropId}
             onChange={setSelectedCropId}
             emptyText="No crops found for this category"
           />
+        )}
+        {!!selectedCategoryId && cropIsOther && (
+          <TextInputLike value={otherTexts.crop ?? ''} onChangeText={(v) => setOtherText('crop', v)} placeholder={OTHER_PLACEHOLDER} />
         )}
       </FieldRow>
 
       <FieldRow label="Variety / Hybrid">
         {selectedCropId && varieties.length > 0 ? (
           <ChipPicker
-            options={varieties.map((v) => ({ value: v.id, label: v.name }))}
+            options={varietyList.map((v) => ({ value: v.id, label: v.name }))}
             value={selectedVarietyId}
             onChange={setSelectedVarietyId}
             emptyText="No varieties listed"
@@ -98,6 +115,9 @@ export default function Step3CropProfile({
             onChangeText={setVarietyText}
             placeholder={selectedCropId ? 'Not listed — type variety name' : 'Select a crop first'}
           />
+        )}
+        {selectedCropId && varieties.length > 0 && varietyIsOther && (
+          <TextInputLike value={varietyText} onChangeText={setVarietyText} placeholder={OTHER_PLACEHOLDER} />
         )}
       </FieldRow>
 
