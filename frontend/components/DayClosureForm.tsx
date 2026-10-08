@@ -553,7 +553,7 @@ export default function DayClosureForm({
             <Field label="Age of Crop"><input type="number" className={inputCls} value={cropAgeValue} onChange={(e) => setCropAgeValue(e.target.value)} /></Field>
             <Field label="Unit">
               <select className={inputCls} value={cropAgeUnit} onChange={(e) => setCropAgeUnit(e.target.value)}>
-                <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option>
+                <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option><option value="years">Years</option>
               </select>
             </Field>
           </div>

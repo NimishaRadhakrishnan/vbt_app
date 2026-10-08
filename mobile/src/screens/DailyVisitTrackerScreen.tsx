@@ -150,7 +150,7 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
   const [selectedVarietyId, setSelectedVarietyId] = useState<string | null>(null);
   const [varietyText, setVarietyText] = useState('');
   const [cropAgeValue, setCropAgeValue] = useState('');
-  const [cropAgeUnit, setCropAgeUnit] = useState<'days' | 'weeks' | 'months'>('days');
+  const [cropAgeUnit, setCropAgeUnit] = useState<'days' | 'weeks' | 'months' | 'years'>('days');
   const [sowingDate, setSowingDate] = useState('');
   const [previousCropText, setPreviousCropText] = useState('');
   const [previousYieldValue, setPreviousYieldValue] = useState('');

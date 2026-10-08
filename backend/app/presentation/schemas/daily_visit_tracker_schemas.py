@@ -125,7 +125,7 @@ class DailyVisitTrackerSubmitRequest(BaseModel):
     variety_id: Optional[uuid.UUID] = None
     variety_text: Optional[str] = None
     crop_age_value: Optional[float] = None
-    crop_age_unit: Optional[str] = None  # days | weeks | months
+    crop_age_unit: Optional[str] = None  # days | weeks | months | years
     sowing_date: Optional[date] = None
     previous_crop_text: Optional[str] = None
     previous_yield_value: Optional[float] = None

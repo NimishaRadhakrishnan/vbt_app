@@ -39,7 +39,7 @@ export const FARMING_TYPES: { value: string; label: string }[] = [
   { value: 'conventional', label: 'Conventional / Chemical' },
 ];
 
-export const CROP_AGE_UNITS = ['days', 'weeks', 'months'] as const;
+export const CROP_AGE_UNITS = ['days', 'weeks', 'months', 'years'] as const;
 
 export const STEP_TITLES = [
   'Visit Details',
