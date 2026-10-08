@@ -211,3 +211,12 @@ export function thin<T>(items: T[], max: number): T[] {
   for (let k = 0; k < max; k++) out.push(items[Math.round(k * step)]!);
   return out;
 }
+
+/** 9:00 AM and 6:00 PM (Asia/Kolkata) of the day a moment falls on. */
+export function trackingWindow(t: number): { start: number; end: number } {
+  const ymd = new Date(t).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  return {
+    start: new Date(`${ymd}T09:00:00+05:30`).getTime(),
+    end: new Date(`${ymd}T18:00:00+05:30`).getTime(),
+  };
+}

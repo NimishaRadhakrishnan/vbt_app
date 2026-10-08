@@ -5,7 +5,7 @@ import { apiClient } from '../../services/api';
 import { asList } from '../../utils/lists';
 import { useDataFetch, CONNECTION_ERROR_MESSAGE } from '../../hooks/useDataFetch';
 import { LoadingState, ErrorState, EmptyState } from '../../components/FetchStates';
-import { analyzeDay, buildJourney, fmtClock, fmtDuration, JourneyItem, RawPoint } from '../../utils/routeAnalysis';
+import { analyzeDay, buildJourney, fmtClock, fmtDuration, trackingWindow, JourneyItem, RawPoint } from '../../utils/routeAnalysis';
 import { color, font, fontWeight, spacing, radius } from '../../theme';
 
 type SimpleUser = { id: string; full_name: string; role: string };
@@ -225,13 +225,19 @@ function Stat({ label, value }: { label: string; value: string }) {
 function JourneyRow({ item, names, isLast }: { item: JourneyItem; names: Record<string, string>; isLast: boolean }) {
   if (item.kind === 'place') {
     const title = names[placeKey(item.lat, item.lng)] ?? coords(item.lat, item.lng);
+    // The day is shown as 9:00 AM to 6:00 PM; 6:00 PM only once the day is over.
+    const win = trackingWindow(item.arrive);
+    const lateStart = item.arrive - win.start >= 60_000;
+    const dayOver = Date.now() >= win.end;
+    const earlyEnd = win.end - item.arrive >= 60_000;
     const sub =
-      item.role === 'start' ? 'Day started: first location recorded'
-      : item.role === 'end' ? 'Last location recorded'
+      item.role === 'start' ? (lateStart ? `Day started · first location at ${fmtClock(item.arrive)}` : 'Day started: first location recorded')
+      : item.role === 'end' ? (dayOver ? (earlyEnd ? `Day ended · last location at ${fmtClock(item.arrive)}` : 'Day ended: last location recorded') : 'Last location recorded')
       : `Stayed ${fmtDuration(item.minutes)}`;
+    const shownTime = item.role === 'start' ? win.start : item.role === 'end' && dayOver ? win.end : item.arrive;
     return (
       <View style={styles.trainRow}>
-        <Text style={styles.trainTimeLeft}>{fmtClock(item.arrive)}</Text>
+        <Text style={styles.trainTimeLeft}>{fmtClock(shownTime)}</Text>
         <View style={styles.rail}>
           <View style={[styles.railLine, styles.railLineTop, item.role === 'start' && styles.railHidden]} />
           <View style={[

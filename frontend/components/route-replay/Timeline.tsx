@@ -1,7 +1,7 @@
 "use client";
 
 import type { Analysis, TimelineEvent } from "./types";
-import { fmtDistance, fmtDuration, fmtTime } from "./format";
+import { fmtDistance, fmtDuration, fmtTime, trackingWindow } from "./format";
 
 interface Props {
   analysis: Analysis | null;
@@ -107,13 +107,15 @@ export default function Timeline({ analysis, loading, names, selectedId, onSelec
             switch (e.kind) {
               case "start": {
                 const p = analysis.points[e.idx]!;
+                const win = trackingWindow(e.at);
+                const lateStart = e.at - win.start >= 60_000;
                 return station(
                   <span className="mt-0.5 h-4 w-4 rounded-full border-[3px] border-white bg-emerald-600 ring-2 ring-emerald-600" />,
                   nameAt(p.lat, p.lng),
-                  "Day started: first location recorded",
-                  fmtTime(e.at),
+                  lateStart ? `Day started · first location at ${fmtTime(e.at)}` : "Day started: first location recorded",
+                  fmtTime(win.start),
                   "",
-                  `Day started at ${fmtTime(e.at)}`,
+                  `Day started at ${fmtTime(win.start)}`,
                 );
               }
               case "stop": {
@@ -146,11 +148,17 @@ export default function Timeline({ analysis, loading, names, selectedId, onSelec
                 );
               case "end": {
                 const p = analysis.points[e.idx]!;
+                const win = trackingWindow(e.at);
+                // Show 6:00 PM only once the day is over; before that the day is still running.
+                const dayOver = Date.now() >= win.end;
+                const earlyEnd = win.end - e.at >= 60_000;
                 return station(
                   <span className="mt-0.5 h-4 w-4 rounded-full border-[3px] border-white bg-rose-600 ring-2 ring-rose-600" />,
                   nameAt(p.lat, p.lng),
-                  "Last location recorded",
-                  fmtTime(e.at),
+                  dayOver
+                    ? earlyEnd ? `Day ended · last location at ${fmtTime(e.at)}` : "Day ended: last location recorded"
+                    : "Last location recorded",
+                  fmtTime(dayOver ? win.end : e.at),
                   "",
                   `Last location at ${fmtTime(e.at)}`,
                 );

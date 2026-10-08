@@ -38,3 +38,18 @@ export function addDays(ymd: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
+
+const ymdFmt = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+
+/**
+ * The tracking window of the day a moment falls on: 9:00 AM to 6:00 PM in
+ * Asia/Kolkata. The route screens show the day as starting at 9:00 AM and
+ * ending at 6:00 PM, whatever the first and last recorded positions are.
+ */
+export function trackingWindow(ms: number): { start: number; end: number } {
+  const ymd = ymdFmt.format(new Date(ms));
+  return {
+    start: new Date(`${ymd}T09:00:00+05:30`).getTime(),
+    end: new Date(`${ymd}T18:00:00+05:30`).getTime(),
+  };
+}
