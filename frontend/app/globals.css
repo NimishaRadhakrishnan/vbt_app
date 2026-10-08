@@ -60,9 +60,12 @@ body {
 /* ------------------------------------------------------------------
  * Route Replay (components/route-replay)
  * ------------------------------------------------------------------ */
-/* Washed-out base map so the route is the loudest thing on it. */
-.route-tiles {
-  filter: grayscale(0.85) contrast(0.92) brightness(1.06);
+/* White base map: the standard map tiles turned grey and bright, so land and
+   water read as white and only roads and labels stay faintly visible. Done
+   with a filter because the white map styles from other providers need a key. */
+.route-tiles,
+.light-tiles {
+  filter: grayscale(1) contrast(0.75) brightness(1.3);
 }
 
 /* Native range input drawn on top of our own track, ticks and gap shading. */
