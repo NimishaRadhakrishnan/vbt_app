@@ -13,7 +13,7 @@ exactly one definition of "today" for the whole application.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from app.infrastructure.config.settings import get_settings
@@ -123,3 +123,40 @@ async def is_company_working_day(session, day=None) -> bool:
         _text("SELECT 1 FROM holiday_calendar WHERE date = :d").bindparams(d=day)
     )
     return row.first() is None
+
+
+# --- Location tracking window (approved) ---
+# The officer's route is recorded and shown only from 09:00 to 18:00 company
+# time, and not at all on a day of approved leave. This is the tracking
+# window, kept separate from WORK_END (17:30, used by day-closure rules):
+# the two answer different questions and may change independently.
+TRACKING_START = time(9, 0)
+TRACKING_END = time(18, 0)
+
+
+def tracking_window_bounds(day: date) -> tuple[datetime, datetime]:
+    """Start and end (inclusive) of the tracking window on a company day."""
+    tz = company_tz()
+    return (
+        datetime.combine(day, TRACKING_START, tzinfo=tz),
+        datetime.combine(day, TRACKING_END, tzinfo=tz),
+    )
+
+
+def in_tracking_window(moment: datetime | None = None) -> bool:
+    """Is this moment (timezone-aware, or now) inside 09:00-18:00 company time?"""
+    local = (moment or company_now()).astimezone(company_tz())
+    start, end = tracking_window_bounds(local.date())
+    return start <= local <= end
+
+
+async def is_on_approved_leave(session, officer_id, day: date) -> bool:
+    """True when the officer has an approved leave covering this company day."""
+    from sqlalchemy import text as _text
+    row = await session.execute(
+        _text(
+            "SELECT 1 FROM leave_requests WHERE officer_id = :uid AND status = 'approved' "
+            "AND start_date <= :d AND end_date >= :d LIMIT 1"
+        ).bindparams(uid=officer_id, d=day)
+    )
+    return row.first() is not None

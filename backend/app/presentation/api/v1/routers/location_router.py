@@ -17,7 +17,13 @@ from app.application.services.place_name_service import PlaceNameService
 from app.domain.value_objects.role import Role
 from app.infrastructure.cache.location_cache import LocationCache
 from app.infrastructure.cache.redis_client import get_redis_client
-from app.infrastructure.config.company_time import company_today, company_tz
+from app.infrastructure.config.company_time import (
+    company_today,
+    company_tz,
+    in_tracking_window,
+    is_on_approved_leave,
+    tracking_window_bounds,
+)
 from app.infrastructure.config.settings import get_settings
 from app.infrastructure.database.session import AsyncSessionLocal, get_db_session
 from app.infrastructure.websockets.redis_pubsub_broadcaster import RedisPubSubBroadcaster
@@ -146,6 +152,25 @@ async def async_insert_gps_track(
             await session.commit()
 
 
+async def _on_leave_today(officer_id: uuid.UUID, day, redis) -> bool:
+    """Approved leave today? Remembered for 5 minutes, because a ping arrives
+    every few seconds and leave does not change that fast."""
+    key = f"track_leave:{officer_id}:{day.isoformat()}"
+    try:
+        cached = await redis.get(key)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return cached in (b"1", "1")
+    async with AsyncSessionLocal() as session:
+        on_leave = await is_on_approved_leave(session, officer_id, day)
+    try:
+        await redis.set(key, "1" if on_leave else "0", ex=300)
+    except Exception:
+        pass
+    return on_leave
+
+
 async def sweep_stale_locations() -> None:
     """Tier 2 check: broadcasts an admin alert for officers whose location
     has gone stale past settings.location_stale_tier2_seconds. Called
@@ -174,10 +199,15 @@ async def sweep_stale_locations() -> None:
     broadcaster = RedisPubSubBroadcaster(redis)
 
     
+    # Nobody is tracked outside 09:00-18:00, so a quiet phone then is not a gap.
+    if not in_tracking_window():
+        return
+
     tz = company_tz()
     day_start = datetime.combine(company_today(), time.min, tzinfo=tz)
     day_end = day_start + timedelta(days=1)
-    
+    window_start, _window_end = tracking_window_bounds(company_today())
+
     async with AsyncSessionLocal() as session:
         res = await session.execute(
             text("""
@@ -192,7 +222,12 @@ async def sweep_stale_locations() -> None:
                 WHERE u.role IN ('field_officer', 'sales_officer')
                   AND u.is_active = true AND u.is_deleted = false
                   AND att.check_out_time IS NULL
-            """).bindparams(day_start=day_start, day_end=day_end)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM leave_requests lr
+                      WHERE lr.officer_id = u.id AND lr.status = 'approved'
+                        AND lr.start_date <= :today AND lr.end_date >= :today
+                  )
+            """).bindparams(day_start=day_start, day_end=day_end, today=company_today())
         )
         rows = res.all()
 
@@ -214,6 +249,8 @@ async def sweep_stale_locations() -> None:
             check_in = r.check_in_time
             if check_in.tzinfo is None:
                 check_in = check_in.replace(tzinfo=UTC)
+            # Pings before 09:00 are not recorded, so the grace starts at the window.
+            check_in = max(check_in, window_start)
             if (now - check_in).total_seconds() > grace and not await cache.has_stale_alert_been_sent(uid_str):
                 msg = f"{r.officer_name} checked in but no location has been received yet."
                 await broadcaster.broadcast("alerts", {
@@ -299,6 +336,20 @@ async def ping_location_batch(payload: LocationBackfillRequest, current_user: Cu
     """
     settings = get_settings()
     points = usable_backfill_points(payload.points, datetime.now(UTC), settings.gps_retention_days)
+    # Only positions inside 09:00-18:00 on a day without approved leave are kept.
+    redis = get_redis_client()
+    leave_by_day: dict = {}
+    allowed = []
+    for p in points:
+        ts = p.timestamp if p.timestamp.tzinfo else p.timestamp.replace(tzinfo=UTC)
+        if not in_tracking_window(ts):
+            continue
+        day = ts.astimezone(company_tz()).date()
+        if day not in leave_by_day:
+            leave_by_day[day] = await _on_leave_today(current_user.user_id, day, redis)
+        if not leave_by_day[day]:
+            allowed.append(p)
+    points = allowed
     stored = 0
     async with AsyncSessionLocal() as session:
         for p in points:
@@ -371,6 +422,11 @@ async def ping_location(
     # Checked out for the day: record nothing and tell the phone to stop.
     if await cache.is_off_duty(str(officer_id)):
         return {"status": "stopped"}
+
+    # Outside 09:00-18:00, or on approved leave: record nothing. The phone is
+    # not told to stop, so tracking carries on by itself at the next 09:00.
+    if not in_tracking_window(now) or await _on_leave_today(officer_id, company_today(), redis):
+        return {"status": "paused"}
 
     # 1. Save live state to Redis
     location_data = {
@@ -566,9 +622,11 @@ async def get_location_history(
     #
     # A half-open range on the raw column fixes both at once - correct
     # across the timezone boundary AND index-friendly.
-    tz = company_tz()
-    day_start = datetime.combine(target_date, time.min, tzinfo=tz)
-    day_end = day_start + timedelta(days=1)
+    # The route is shown for the tracking window only (09:00-18:00), and not
+    # at all for a day of approved leave.
+    day_start, day_end = tracking_window_bounds(target_date)
+    if await is_on_approved_leave(session, officer_id, target_date):
+        return []
 
     res = await session.execute(
         text("""
@@ -576,7 +634,7 @@ async def get_location_history(
             FROM gps_tracks
             WHERE user_id = :officer_id
               AND recorded_at >= :day_start
-              AND recorded_at <  :day_end
+              AND recorded_at <= :day_end
             ORDER BY recorded_at ASC
         """).bindparams(officer_id=officer_id, day_start=day_start, day_end=day_end)
     )
