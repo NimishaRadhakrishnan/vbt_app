@@ -28,6 +28,7 @@ export default function AdminStockPage() {
   // Issue Stock state
   const [selectedOfficer, setSelectedOfficer] = useState("");
   const [issueInputs, setIssueInputs] = useState<Record<string, string>>({});
+  const [productSearch, setProductSearch] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadPreview, setUploadPreview] = useState<any[]>([]);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
@@ -200,31 +201,91 @@ export default function AdminStockPage() {
 
         {tab === "issue" && (
           <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
             <div className="bg-white p-6 rounded-xl border border-slate-200">
               <h2 className="text-lg font-semibold mb-4">Manual Allocation</h2>
-              <select className="border border-slate-300 rounded p-2 w-full max-w-sm mb-4" value={selectedOfficer} onChange={e => setSelectedOfficer(e.target.value)}>
-                <option value="">-- Select Officer --</option>
-                {officers.map(o => <option key={o.id} value={o.id}>{o.full_name} ({o.employee_id || o.email})</option>)}
-              </select>
-              
-              <table className="w-full text-left text-sm whitespace-nowrap mb-4 border">
+              <div className="flex flex-wrap gap-3 mb-4">
+                <select className="border border-slate-300 rounded p-2 w-full max-w-sm" value={selectedOfficer} onChange={e => setSelectedOfficer(e.target.value)}>
+                  <option value="">-- Select Officer --</option>
+                  {officers.map(o => <option key={o.id} value={o.id}>{o.full_name} ({o.employee_id || o.email})</option>)}
+                </select>
+                <input
+                  type="search"
+                  placeholder="Search product or SKU..."
+                  className="border border-slate-300 rounded p-2 w-full max-w-sm"
+                  value={productSearch}
+                  onChange={e => setProductSearch(e.target.value)}
+                />
+              </div>
+
+              <table className="w-full text-left text-sm mb-4 border">
                 <thead className="bg-slate-50 border-b">
                   <tr><th className="p-3">Product</th><th className="p-3">Quantity to Issue</th></tr>
                 </thead>
                 <tbody>
-                  {products.filter(p => p.is_active).map(p => (
-                    <tr key={p.id} className="border-b">
+                  {products
+                    .filter(p => p.is_active)
+                    .filter(p => {
+                      const q = productSearch.trim().toLowerCase();
+                      return !q || p.name.toLowerCase().includes(q) || (p.sku_code || "").toLowerCase().includes(q);
+                    })
+                    .map(p => (
+                    <tr key={p.id} className={`border-b ${parseFloat(issueInputs[p.id] || "0") > 0 ? "bg-green-50" : ""}`}>
                       <td className="p-3">{p.name} ({p.sku_code})</td>
                       <td className="p-3">
                         <input type="number" min="0" className="border rounded p-1 w-24" value={issueInputs[p.id] || ""} onChange={e => setIssueInputs({...issueInputs, [p.id]: e.target.value})} />
                       </td>
                     </tr>
                   ))}
+                  {products.filter(p => p.is_active).every(p => {
+                    const q = productSearch.trim().toLowerCase();
+                    return q && !(p.name.toLowerCase().includes(q) || (p.sku_code || "").toLowerCase().includes(q));
+                  }) && (
+                    <tr><td colSpan={2} className="p-4 text-center text-slate-400">No product matches &quot;{productSearch}&quot;.</td></tr>
+                  )}
                 </tbody>
               </table>
-              <button onClick={handleIssueSubmit} className="bg-primary-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary-800 transition">Submit Allocation</button>
             </div>
-            
+
+            {(() => {
+              const picked = products.filter(p => parseFloat(issueInputs[p.id] || "0") > 0);
+              const officer = officers.find(o => o.id === selectedOfficer);
+              return (
+                <div className="bg-white p-5 rounded-xl border border-slate-200 lg:sticky lg:top-4 space-y-3">
+                  <h3 className="text-base font-semibold">Allocation Summary</h3>
+                  <p className="text-sm text-slate-600">
+                    Officer: <b>{officer ? officer.full_name : "not selected"}</b>
+                  </p>
+                  <div className="max-h-[50vh] overflow-y-auto divide-y border rounded">
+                    {picked.length === 0 ? (
+                      <p className="p-3 text-sm text-slate-400">No products selected yet. Type a quantity next to a product.</p>
+                    ) : picked.map(p => (
+                      <div key={p.id} className="flex items-center justify-between gap-2 p-2 text-sm">
+                        <span className="min-w-0 truncate" title={p.name}>{p.name}</span>
+                        <span className="flex items-center gap-2 shrink-0">
+                          <b>{issueInputs[p.id]}</b>
+                          <button
+                            onClick={() => { const n = { ...issueInputs }; delete n[p.id]; setIssueInputs(n); }}
+                            className="text-slate-400 hover:text-red-600"
+                            aria-label={`Remove ${p.name}`}
+                          >✕</button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500">{picked.length} product{picked.length === 1 ? "" : "s"} selected</p>
+                  <button
+                    onClick={handleIssueSubmit}
+                    disabled={picked.length === 0 || !selectedOfficer}
+                    className="w-full bg-primary-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary-800 disabled:opacity-40 transition"
+                  >
+                    Submit Allocation
+                  </button>
+                </div>
+              );
+            })()}
+            </div>
+
             <div className="bg-white p-6 rounded-xl border border-slate-200">
               <h2 className="text-lg font-semibold mb-4">Bulk Upload via CSV</h2>
               <p className="text-sm text-slate-600 mb-4">CSV format must have headers: <code>officer_employee_id, sku_code, quantity</code></p>
