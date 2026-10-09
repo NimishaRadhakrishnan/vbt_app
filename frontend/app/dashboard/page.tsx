@@ -2551,10 +2551,12 @@ export default function Dashboard() {
                     <div className="text-xs text-slate-600 space-y-1">
                       {selectedMarker.type === "officer" && (
                         <>
-                          <p><strong>District:</strong> {selectedMarker.district}</p>
+                          <p><strong>Status:</strong> {selectedMarker.status ?? "—"}</p>
+                          <p><strong>District:</strong> {selectedMarker.district || "Not set"}</p>
                           <p><strong>Speed:</strong> {selectedMarker.speed !== null ? `${selectedMarker.speed} km/h` : "N/A"}</p>
                           <p><strong>Battery:</strong> {selectedMarker.battery !== null ? `${selectedMarker.battery}%` : "N/A"}</p>
-                          <p><strong>Last Logged Spot:</strong> {selectedMarker.lastVisit}</p>
+                          {selectedMarker.accuracy != null && <p><strong>GPS accuracy:</strong> ±{selectedMarker.accuracy} m</p>}
+                          <p><strong>Last update:</strong> {selectedMarker.lastVisit}</p>
                           <p>
                             <strong>Checked in today:</strong>{" "}
                             {selectedMarker.loginTime
@@ -2604,7 +2606,8 @@ export default function Dashboard() {
                 )}
 
                 <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur px-3 py-2 rounded-lg text-xs border border-slate-200 text-slate-600 flex flex-col gap-1 z-20">
-                  <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-green-500 rounded-full" /> Sales Officer (Active)</div>
+                  <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-green-500 rounded-full" /> Officer (Active)</div>
+                  <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-slate-400 rounded-full" /> Officer (Stale / Offline)</div>
                   <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-blue-600 rounded animate-none" /> Dealer Outlet</div>
                   <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-amber-500 rounded-full" /> Registered Farmer</div>
                 </div>

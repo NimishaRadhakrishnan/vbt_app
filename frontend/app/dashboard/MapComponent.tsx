@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMap, Circle, Polyline } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -27,6 +27,29 @@ function trailColor(id: string): string {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return TRAIL_COLORS[h % TRAIL_COLORS.length] ?? "#2563eb";
+}
+
+// Leaflet only measures its container when it is created. If the page lays
+// out afterwards (sidebar, fonts, a banner above the map), it keeps the old
+// size and leaves grey, unloaded bands. Re-measure whenever the box changes.
+function MapSizeFix() {
+  const map = useMap();
+  useEffect(() => {
+    const fix = () => map.invalidateSize();
+    const t1 = setTimeout(fix, 100);
+    const t2 = setTimeout(fix, 600);
+    const el = map.getContainer();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fix) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", fix);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      ro?.disconnect();
+      window.removeEventListener("resize", fix);
+    };
+  }, [map]);
+  return null;
 }
 
 function MapController({ selectedMarker }: { selectedMarker: any }) {
@@ -100,6 +123,9 @@ export default function MapComponent({
           className="light-tiles"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          keepBuffer={4}
+          updateWhenIdle={false}
+          maxZoom={19}
         />
 
         {/* Movement trails: today's path of each officer, growing live */}
@@ -146,16 +172,6 @@ export default function MapComponent({
                   click: () => onMarkerClick({ ...o, type: "officer" }),
                 }}
               >
-                <Popup>
-                  <div className="space-y-1 text-slate-800">
-                    <div className="font-bold text-sm">{o.name} ({o.role})</div>
-                    <div className="text-xs">Status: <span className={statusColorClass}>{o.status}</span></div>
-                    <div className="text-xs">Speed: {o.speed !== null ? `${o.speed} km/h` : "—"}</div>
-                    <div className="text-xs">Battery: {o.battery !== null ? `${o.battery}%` : "—"}</div>
-                    {o.accuracy !== null && <div className="text-xs">Accuracy: ±{o.accuracy}m</div>}
-                    {o.lastVisit && <div className="text-xs italic">{o.lastVisit}</div>}
-                  </div>
-                </Popup>
               </Marker>
               
               {/* Draw accuracy circle if we have a valid accuracy and a recent/active position */}
@@ -188,14 +204,6 @@ export default function MapComponent({
                 click: () => onMarkerClick({ ...d, type: "dealer" }),
               }}
             >
-              <Popup>
-                <div className="space-y-1 text-slate-800">
-                  <div className="font-bold text-sm">{d.name} (Dealer Outlet)</div>
-                  <div className="text-xs">Contact: {d.contact || d.contact_person}</div>
-                  <div className="text-xs">District: {d.district}</div>
-                  {d.stockLevel && <div className="text-xs font-semibold text-red-600">Stock: {d.stockLevel.toUpperCase()}</div>}
-                </div>
-              </Popup>
             </Marker>
           );
         })}
@@ -212,18 +220,11 @@ export default function MapComponent({
                 click: () => onMarkerClick({ ...f, type: "farmer" }),
               }}
             >
-              <Popup>
-                <div className="space-y-1 text-slate-800">
-                  <div className="font-bold text-sm">{f.name} (Registered Farmer)</div>
-                  <div className="text-xs">Crop: {f.crop}</div>
-                  <div className="text-xs">Centage: {f.cents} cents</div>
-                  <div className="text-xs">Village: {f.village}</div>
-                </div>
-              </Popup>
             </Marker>
           );
         })}
 
+        <MapSizeFix />
         <MapController selectedMarker={selectedMarker} />
       </MapContainer>
     </div>
