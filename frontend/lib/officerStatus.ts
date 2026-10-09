@@ -103,6 +103,14 @@ export function formatLastAction(
   return `Location off since ${timeFmt.format(new Date(t))} (${formatLastSeen(seen, now).replace("Last seen ", "")})`;
 }
 
+/** GPS speed is noisy: a phone lying still often reports 1-2 km/h. Show a
+ *  tidy number, and call near-zero speed "0" instead of a long decimal. */
+export function formatSpeed(speed: number | null | undefined): string {
+  if (speed === null || speed === undefined || !Number.isFinite(speed)) return "-";
+  if (speed < 2) return "0 km/h";
+  return `${Math.round(speed * 10) / 10} km/h`;
+}
+
 export function computeLiveOfficers(
   users: RawUser[],
   activeLocations: RawActiveLocation[],

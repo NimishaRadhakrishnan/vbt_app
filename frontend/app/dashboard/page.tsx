@@ -15,7 +15,7 @@ import { apiFetch, API_BASE_URL, ApiError } from "@/lib/api/client";
 import PhotoGallery from "@/components/PhotoViewer";
 import { tokenStorage } from "@/lib/api/token-storage";
 import { useAuth } from "@/lib/auth-context";
-import { computeLiveOfficers, countActive as countActiveOfficers, LiveOfficer } from "@/lib/officerStatus";
+import { computeLiveOfficers, countActive as countActiveOfficers, formatSpeed, LiveOfficer } from "@/lib/officerStatus";
 import dynamic from "next/dynamic";
 import SectionTabs from "@/components/SectionTabs";
 import { findActive, hrefFor, navForRole, searchNav } from "@/lib/navigation";
@@ -2553,7 +2553,7 @@ export default function Dashboard() {
                         <>
                           <p><strong>Status:</strong> {selectedMarker.status ?? "—"}</p>
                           <p><strong>District:</strong> {selectedMarker.district || "Not set"}</p>
-                          <p><strong>Speed:</strong> {selectedMarker.speed !== null ? `${selectedMarker.speed} km/h` : "N/A"}</p>
+                          <p><strong>Speed:</strong> {selectedMarker.speed !== null ? formatSpeed(selectedMarker.speed) : "N/A"}</p>
                           <p><strong>Battery:</strong> {selectedMarker.battery !== null ? `${selectedMarker.battery}%` : "N/A"}</p>
                           {selectedMarker.accuracy != null && <p><strong>GPS accuracy:</strong> ±{selectedMarker.accuracy} m</p>}
                           <p><strong>Last update:</strong> {selectedMarker.lastVisit}</p>
@@ -2677,6 +2677,9 @@ export default function Dashboard() {
                           }`}>
                             {o.status}
                           </span>
+                          {!o.loginTime && o.everReported && (
+                            <div className="text-[10px] text-slate-400 mt-1">Not checked in - GPS only</div>
+                          )}
                         </td>
                         <td className="px-6 py-4 font-mono text-xs">
                           {o.lat !== null && o.lng !== null ? `${Number(o.lat).toFixed(4)}, ${Number(o.lng).toFixed(4)}` : "No GPS logs"}
@@ -2686,7 +2689,7 @@ export default function Dashboard() {
                             ? `${Number(o.loginLat).toFixed(4)}, ${Number(o.loginLng).toFixed(4)}`
                             : "Not checked in"}
                         </td>
-                        <td className="px-6 py-4">{o.speed !== null ? `${o.speed} km/h` : "-"}</td>
+                        <td className="px-6 py-4">{formatSpeed(o.speed)}</td>
                         <td className="px-6 py-4">
                           {o.battery !== null ? (
                             <div className="flex items-center gap-2">
