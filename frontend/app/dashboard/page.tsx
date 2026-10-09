@@ -12,6 +12,7 @@ import {
   CalendarOff, BookOpen, HelpCircle, Upload, ImageIcon, X, Camera, Settings, Smartphone, Menu
 } from "lucide-react";
 import { apiFetch, API_BASE_URL, ApiError } from "@/lib/api/client";
+import PhotoGallery from "@/components/PhotoViewer";
 import { tokenStorage } from "@/lib/api/token-storage";
 import { useAuth } from "@/lib/auth-context";
 import { computeLiveOfficers, countActive as countActiveOfficers, LiveOfficer } from "@/lib/officerStatus";
@@ -4296,11 +4297,7 @@ export default function Dashboard() {
                       {salesClosureDetail.images?.length > 0 && (
                         <div className="pt-3">
                           <p className="text-xs font-bold text-slate-500 uppercase mb-2">Photos</p>
-                          <div className="flex gap-2 flex-wrap">
-                            {salesClosureDetail.images.map((u: string, i: number) => (
-                              <img key={i} src={withFileToken(u)} className="w-24 h-24 object-cover rounded border border-slate-200" />
-                            ))}
-                          </div>
+                          <PhotoGallery urls={salesClosureDetail.images} />
                         </div>
                       )}
                     </div>

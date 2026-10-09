@@ -4,16 +4,7 @@ import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { downloadAuthenticatedFile } from "@/lib/api/download";
-import { tokenStorage } from "@/lib/api/token-storage";
-
-// Uploaded photos are served from GET /files/{name}, which needs ?token=...
-// (an <img> tag cannot send an Authorization header). Without it every photo
-// came back 401 and showed as a broken image.
-function withFileToken(url: string): string {
-  const token = tokenStorage.getAccessToken();
-  if (!token || !url) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
-}
+import PhotoGallery from "@/components/PhotoViewer";
 
 // Extracted from app/dashboard/daily-visits/page.tsx (where it was
 // previously a page-local, non-exported component) so the Day Closure
@@ -129,17 +120,7 @@ export function VisitDetailPanel({ visitId, onClose }: { visitId: string; onClos
               {detail.photos?.length > 0 && (
                 <div>
                   <h3 className="text-sm font-bold text-green-700 mb-2">Photos</h3>
-                  <div className="flex gap-2 flex-wrap">
-                    {detail.photos.map((p: any, i: number) => (
-                      <a key={i} href={withFileToken(p.photo_url)} target="_blank" rel="noopener noreferrer">
-                      <img
-                        src={withFileToken(p.photo_url)}
-                        alt={`Visit photo ${i + 1}`}
-                        className="w-24 h-24 object-cover rounded border border-slate-200"
-                      />
-                      </a>
-                    ))}
-                  </div>
+                  <PhotoGallery urls={detail.photos.map((p: any) => p.photo_url)} />
                 </div>
               )}
             </>

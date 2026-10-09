@@ -350,9 +350,14 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
       Alert.alert('Gallery Access Required', 'Photo library access is needed to attach a photo.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.5 });
-    if (result.canceled || !result.assets?.[0]) return;
-    uploadPhoto(result.assets[0].uri);
+    // Several photos at once: tick as many as needed in the gallery.
+    const result = await ImagePicker.launchImageLibraryAsync({
+      quality: 0.5,
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    for (const asset of result.assets) uploadPhoto(asset.uri);
   };
 
   const removePhoto = (uri: string) => {

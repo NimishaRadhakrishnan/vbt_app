@@ -164,6 +164,22 @@ export default function SalesDayClosureScreen({ navigation }: any) {
     }
   };
 
+  const pickFromGallery = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Gallery Access Needed', 'Allow photo library access to attach dealer shop photos.');
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      quality: 0.6,
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
+    });
+    if (!res.canceled && res.assets?.length) {
+      setDealerPhotos((p) => [...p, ...res.assets.map((a) => a.uri)]);
+    }
+  };
+
   // "No activity today" - an officer who was sick, travelling or in
   // training has nothing valid to submit otherwise, and with 17:30
   // logout enforcement live they would be unable to sign out at all.
@@ -391,6 +407,9 @@ export default function SalesDayClosureScreen({ navigation }: any) {
               <Text style={styles.photoBtnText}>
                 {dealerPhotos.length > 0 ? `${dealerPhotos.length} photo(s) — add another` : 'Take Photo'}
               </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.photoBtn, { marginTop: spacing.sm }]} onPress={pickFromGallery}>
+              <Text style={styles.photoBtnText}>Choose from gallery (select several)</Text>
             </TouchableOpacity>
           </FieldRow>
         )}
