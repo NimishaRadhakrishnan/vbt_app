@@ -72,15 +72,11 @@ async def test_duplicate_check_in_is_409_with_the_real_message() -> None:
             f"{first.status_code}/{second.status_code} — consent setup above did not take"
         )
 
-        # Whichever of the two hits an existing check-in must explain itself.
-        refused = second if second.status_code >= 400 else first
-        assert refused.status_code == 409, (
-            f"a second check-in returned {refused.status_code}; a business rule is "
-            "reaching the user as a server fault again"
+        # A repeat check-in on the same day (signed out and back in, or a
+        # retry) must hand back the open shift, not an error or a server fault.
+        assert first.status_code < 400 and second.status_code < 400, (
+            f"check-in {first.status_code}, repeat check-in {second.status_code}"
         )
-        payload = refused.json()
-        assert "already checked in" in payload.get("message", "").lower(), payload
-        assert "unexpected error" not in payload.get("message", "").lower(), payload
 
 
 def test_no_bare_value_errors_left_in_the_application_layer() -> None:

@@ -36,7 +36,18 @@ class AttendanceUseCase:
         today = date.today()
         existing = await self._attendance_repository.get_by_user_and_date(user_id, today)
         if existing:
-            raise ConflictException("You have already checked in for today.")
+            if existing.check_out_time is None:
+                # Already on shift (e.g. signed out and back in, or a retry
+                # after a dropped connection): hand back the open shift
+                # instead of an error that strands the officer.
+                return existing
+            # Clocked out earlier today and starting again: reopen the same
+            # day's record. One record per day is kept; the first check-in
+            # time stays, the check-out is cleared.
+            existing.check_out_time = None
+            existing.check_out_location_lat = None
+            existing.check_out_location_lng = None
+            return await self._attendance_repository.update(existing)
 
         attendance = Attendance(
             user_id=user_id,

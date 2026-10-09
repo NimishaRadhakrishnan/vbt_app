@@ -82,6 +82,8 @@ class SQLAlchemyAttendanceRepository(AttendanceRepository):
         if model is None:
             raise ValueError(f"Cannot update non-existent attendance {attendance.id}")
         model.check_out_time = attendance.check_out_time
+        if attendance.check_out_time is None:
+            model.check_out_location = None
         if attendance.check_out_location_lat is not None and attendance.check_out_location_lng is not None:
             model.check_out_location = f"POINT({attendance.check_out_location_lng} {attendance.check_out_location_lat})"
         await self._session.flush()
