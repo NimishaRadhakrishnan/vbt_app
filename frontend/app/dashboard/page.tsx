@@ -43,6 +43,7 @@ const RouteReplayScreen = dynamic(() => import("@/components/route-replay"), {
 import MomentumWidget from "@/components/MomentumWidget";
 import DayClosureForm from "@/components/DayClosureForm";
 import SalesDayClosureForm from "@/components/SalesDayClosureForm";
+import DeletedClosuresPanel from "@/components/DeletedClosuresPanel";
 import DayClosureFormBuilder from "@/components/DayClosureFormBuilder";
 import { downloadAuthenticatedFile, datedFilename } from "@/lib/api/download";
 import { OtherDescriptionInput, descriptionMissing, OTHER_DESCRIPTION_MESSAGE } from "@/components/OtherDescriptionInput";
@@ -174,10 +175,6 @@ export default function Dashboard() {
   const [adminDayClosures, setAdminDayClosures] = useState<any[]>([]);
   // Admin CRUD on Day Closure Reports
   const [dayClosureDetailVisitId, setDayClosureDetailVisitId] = useState<string | null>(null);
-  const [editingClosure, setEditingClosure] = useState<any | null>(null);
-  const [editClosureForm, setEditClosureForm] = useState<Record<string, any>>({});
-  const [editClosureError, setEditClosureError] = useState("");
-  const [editClosureSaving, setEditClosureSaving] = useState(false);
   const [showCreateClosure, setShowCreateClosure] = useState(false);
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   // Sales Officer closures (admin view)
@@ -188,9 +185,6 @@ export default function Dashboard() {
   const [salesClosureOfficerId, setSalesClosureOfficerId] = useState("");
   const [salesClosureDistrict, setSalesClosureDistrict] = useState("");
   const [salesClosureDetail, setSalesClosureDetail] = useState<any | null>(null);
-  const [editingSalesClosure, setEditingSalesClosure] = useState<any | null>(null);
-  const [salesEditForm, setSalesEditForm] = useState<Record<string, any>>({});
-  const [salesEditSaving, setSalesEditSaving] = useState(false);
   const [showPhonePreview, setShowPhonePreview] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [createClosureOfficerId, setCreateClosureOfficerId] = useState("");
@@ -1243,45 +1237,12 @@ export default function Dashboard() {
     }
   };
 
-  const saveSalesClosureEdit = async () => {
-    if (!editingSalesClosure) return;
-    setSalesEditSaving(true);
-    try {
-      await apiFetch(`/day-closure/sales/${editingSalesClosure.closure_id}`, {
-        method: "PUT",
-        body: JSON.stringify(salesEditForm),
-      });
-      setEditingSalesClosure(null);
-      await fetchSalesClosures();
-    } catch (err: any) {
-      alert(err.message || "Couldn't save changes.");
-    } finally {
-      setSalesEditSaving(false);
-    }
-  };
-
   // Admin fixes to the stock-left rows of one dealer closure: change a
   // quantity or remove a row. Sends the full remaining list, which is
   // what the PUT endpoint replaces.
-  const saveStockLines = async (closureId: string, lines: any[]) => {
-    try {
-      await apiFetch(`/day-closure/sales/${closureId}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          stock_lines: lines
-            .filter((l) => l.product_id)
-            .map((l) => ({ product_id: l.product_id, quantity_left: Math.max(0, Math.floor(Number(l.quantity_left) || 0)), remarks: l.remarks ?? null })),
-        }),
-      });
-      await openSalesClosureDetail(closureId);
-    } catch (err: any) {
-      alert(err.message || "Couldn't update the stock sheet.");
-    }
-  };
-
   const handleDeleteSalesClosure = async (s: any) => {
     const confirmed = window.confirm(
-      `Delete the dealer day closure of ${s.officer_name || "this officer"} for ${s.dealer_name} (${s.date})?\n\nIt disappears from the lists and reports.`
+      `Delete the dealer day closure of ${s.officer_name || "this officer"} for ${s.dealer_name} (${s.date})?\n\nIt disappears from the lists and reports. You can restore it, or delete it permanently, from \"Deleted closures\".`
     );
     if (!confirmed) return;
     try {
@@ -1298,7 +1259,7 @@ export default function Dashboard() {
     // this removes the closure bookkeeping only. Said explicitly here
     // since that's not obvious from a bare "Delete" button.
     const confirmed = window.confirm(
-      `Delete this day closure record for ${closure.officer_name} (${closure.date})?\n\nThis removes the closure record only; the underlying visit data (farmer, crop, sales history) is kept.`
+      `Delete this day closure record for ${closure.officer_name} (${closure.date})?\n\nIt disappears from the lists and reports. You can restore it, or delete it permanently, from \"Deleted closures\". The underlying visit data (farmer, crop, sales history) is kept.`
     );
     if (!confirmed) return;
     try {
@@ -1306,52 +1267,6 @@ export default function Dashboard() {
       await fetchAdminDayClosures();
     } catch (err: any) {
       alert(err.message || "Failed to delete day closure.");
-    }
-  };
-
-  const openEditDayClosure = (closure: any) => {
-    setEditingClosure(closure);
-    setEditClosureForm({
-      crop_status: closure.crop_status || "",
-      status_other_text: closure.status_other_text || "",
-      demo_status: closure.demo_status || "",
-      purchased: closure.purchased ?? false,
-      order_value: closure.order_value ?? "",
-      conversion_status: closure.conversion_status || "",
-    });
-    setEditClosureError("");
-  };
-
-  const saveEditDayClosure = async () => {
-    if (!editingClosure) return;
-    if (descriptionMissing(editClosureForm.crop_status === "other", editClosureForm.status_other_text)) {
-      setEditClosureError(OTHER_DESCRIPTION_MESSAGE);
-      return;
-    }
-    setEditClosureSaving(true);
-    setEditClosureError("");
-    try {
-      const payload: Record<string, any> = {};
-      if (editClosureForm.crop_status) payload.crop_status = editClosureForm.crop_status;
-      // Cleared when the status is no longer "other", so an abandoned
-      // description is never stored against a different status.
-      payload.status_other_text =
-        editClosureForm.crop_status === "other" ? (editClosureForm.status_other_text || "").trim() : null;
-      if (editClosureForm.demo_status) payload.demo_status = editClosureForm.demo_status;
-      payload.purchased = !!editClosureForm.purchased;
-      if (editClosureForm.order_value !== "") payload.order_value = parseFloat(editClosureForm.order_value);
-      if (editClosureForm.conversion_status) payload.conversion_status = editClosureForm.conversion_status;
-
-      await apiFetch(`/admin/day-closures/${editingClosure.id}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
-      setEditingClosure(null);
-      await fetchAdminDayClosures();
-    } catch (err: any) {
-      setEditClosureError(err.message || "Failed to save changes.");
-    } finally {
-      setEditClosureSaving(false);
     }
   };
 
@@ -4127,7 +4042,6 @@ export default function Dashboard() {
                                   {closure.visit_id && (
                                     <button onClick={() => setDayClosureDetailVisitId(closure.visit_id)} className="text-slate-500 hover:text-slate-800 text-xs font-semibold">View</button>
                                   )}
-                                  <button onClick={() => openEditDayClosure(closure)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">Edit</button>
                                   <button onClick={() => handleDeleteDayClosure(closure)} className="text-red-500 hover:text-red-700 text-xs font-semibold">Delete</button>
                                 </div>
                               </td>
@@ -4287,14 +4201,6 @@ export default function Dashboard() {
                             <td className="px-4 py-3">
                               <div className="flex justify-end gap-3">
                                 <button onClick={() => openSalesClosureDetail(s.closure_id)} className="text-slate-500 hover:text-slate-800 text-xs font-semibold">View</button>
-                                {/* Edit shown only after the PUT endpoint was
-                                    verified working against a real database. */}
-                                <button
-                                  onClick={() => { setEditingSalesClosure(s); setSalesEditForm({ dealer_name: s.dealer_name, district: s.district, amount_collected: s.amount_collected ?? "", remarks: s.remarks ?? "" }); }}
-                                  className="text-blue-600 hover:text-blue-800 text-xs font-semibold"
-                                >
-                                  Edit
-                                </button>
                                 <button onClick={() => handleDeleteSalesClosure(s)} className="text-red-600 hover:text-red-800 text-xs font-semibold">Delete</button>
                               </div>
                             </td>
@@ -4305,6 +4211,8 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+
+              <DeletedClosuresPanel onChanged={() => { fetchSalesClosures(); fetchAdminDayClosures(); }} />
 
               {salesClosureDetail && (
                 <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setSalesClosureDetail(null); }}>
@@ -4347,7 +4255,7 @@ export default function Dashboard() {
                           <p className="text-xs font-bold text-slate-500 uppercase mb-2">Stock left in dealer&apos;s shop</p>
                           <table className="w-full text-sm">
                             <thead className="text-xs text-slate-500 text-left">
-                              <tr><th className="py-1 font-semibold">Product</th><th className="py-1 font-semibold w-24">Qty left</th><th className="w-16"></th></tr>
+                              <tr><th className="py-1 font-semibold">Product</th><th className="py-1 font-semibold w-24 text-right">Qty left</th></tr>
                             </thead>
                             <tbody>
                               {salesClosureDetail.stock_lines.map((l: any, i: number) => (
@@ -4356,25 +4264,7 @@ export default function Dashboard() {
                                     {l.product_name}
                                     {l.category && <span className="block text-xs text-slate-400">{l.category}</span>}
                                   </td>
-                                  <td className="py-1">
-                                    <input
-                                      type="number" min={0} defaultValue={l.quantity_left}
-                                      className="w-20 px-2 py-1 text-sm border border-slate-200 rounded"
-                                      onBlur={(e) => {
-                                        const v = Math.max(0, Math.floor(Number(e.target.value) || 0));
-                                        if (v === l.quantity_left) return;
-                                        saveStockLines(salesClosureDetail.closure_id,
-                                          salesClosureDetail.stock_lines.map((x: any, j: number) => (j === i ? { ...x, quantity_left: v } : x)));
-                                      }}
-                                    />
-                                  </td>
-                                  <td className="py-1 text-right">
-                                    <button
-                                      className="text-xs font-semibold text-red-600 hover:text-red-800"
-                                      onClick={() => saveStockLines(salesClosureDetail.closure_id,
-                                        salesClosureDetail.stock_lines.filter((_: any, j: number) => j !== i))}
-                                    >Remove</button>
-                                  </td>
+                                  <td className="py-1 text-right font-semibold text-slate-800">{l.quantity_left}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -4392,125 +4282,8 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {editingSalesClosure && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-                  <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
-                    <h3 className="text-lg font-bold text-slate-800">Edit Sales Closure</h3>
-                    {[["dealer_name","Dealer"],["district","District"],["amount_collected","Amount Collected (₹)"],["remarks","Remarks"]].map(([k,lbl]) => (
-                      <div key={k}>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">{lbl}</label>
-                        <input
-                          className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                          value={(salesEditForm as any)[k as string] ?? ""}
-                          onChange={(e) => setSalesEditForm({ ...salesEditForm, [k as string]: e.target.value })}
-                        />
-                      </div>
-                    ))}
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => setEditingSalesClosure(null)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg">Cancel</button>
-                      <button onClick={saveSalesClosureEdit} disabled={salesEditSaving} className="px-4 py-2 bg-green-700 hover:bg-green-800 disabled:bg-slate-300 text-white text-sm font-bold rounded-lg">
-                        {salesEditSaving ? "Saving…" : "Save Changes"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {dayClosureDetailVisitId && (
                 <VisitDetailPanel visitId={dayClosureDetailVisitId} onClose={() => setDayClosureDetailVisitId(null)} />
-              )}
-
-              {editingClosure && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-                  <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
-                    <h3 className="text-lg font-bold text-slate-800">
-                      Edit Day Closure — {editingClosure.officer_name} ({editingClosure.date})
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      Corrects the linked visit&apos;s summary fields. Only changed fields are saved.
-                    </p>
-                    {editClosureError && <p className="text-xs font-bold text-red-600">{editClosureError}</p>}
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Crop Status</label>
-                      <select
-                        className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                        value={editClosureForm.crop_status}
-                        onChange={(e) => setEditClosureForm({ ...editClosureForm, crop_status: e.target.value })}
-                      >
-                        <option value="">— No change —</option>
-                        <option value="healthy">Healthy</option>
-                        <option value="mild_stress">Mild stress</option>
-                        <option value="pest_disease_affected">Pest/Disease affected</option>
-                        <option value="drought">Drought</option>
-                        <option value="waterlogged">Waterlogged</option>
-                        <option value="nutrient_deficiency">Nutrient deficiency</option>
-                        <option value="other">Other</option>
-                      </select>
-                      {/* Admin edit must capture the same description an
-                          officer would be required to give, or an admin
-                          switching a record to "Other" silently drops it. */}
-                      <OtherDescriptionInput
-                        required={editClosureForm.crop_status === "other"}
-                        value={editClosureForm.status_other_text ?? ""}
-                        onChange={(v) => setEditClosureForm({ ...editClosureForm, status_other_text: v })}
-                        showError={!!editClosureError}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Demo Status</label>
-                      <select
-                        className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                        value={editClosureForm.demo_status}
-                        onChange={(e) => setEditClosureForm({ ...editClosureForm, demo_status: e.target.value })}
-                      >
-                        <option value="">— No change —</option>
-                        <option value="not_discussed">No demo - not discussed</option>
-                        <option value="explained_not_interested">Demo explained - not interested</option>
-                        <option value="agreed_not_started">Farmer agreed - not started</option>
-                        <option value="started_today">Demo started today</option>
-                        <option value="followup_running">Follow-up on running demo</option>
-                        <option value="completed_success">Demo completed - success</option>
-                        <option value="completed_failed">Demo completed - failed</option>
-                        <option value="converted">Converted to paid purchase</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="edit-purchased"
-                        checked={!!editClosureForm.purchased}
-                        onChange={(e) => setEditClosureForm({ ...editClosureForm, purchased: e.target.checked })}
-                      />
-                      <label htmlFor="edit-purchased" className="text-sm text-slate-700">Farmer purchased</label>
-                    </div>
-
-                    {editClosureForm.purchased && (
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">Order Value (₹)</label>
-                        <input
-                          type="number"
-                          className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
-                          value={editClosureForm.order_value}
-                          onChange={(e) => setEditClosureForm({ ...editClosureForm, order_value: e.target.value })}
-                        />
-                      </div>
-                    )}
-
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => setEditingClosure(null)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg">Cancel</button>
-                      <button
-                        onClick={saveEditDayClosure}
-                        disabled={editClosureSaving}
-                        className="px-4 py-2 bg-green-700 hover:bg-green-800 disabled:bg-slate-300 text-white text-sm font-bold rounded-lg"
-                      >
-                        {editClosureSaving ? "Saving…" : "Save Changes"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
               )}
 
               {showFormBuilder && (

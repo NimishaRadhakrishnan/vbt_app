@@ -58,7 +58,6 @@ from app.presentation.schemas.day_closure_schemas import (
     MissingClosureOfficer,
     SalesClosureSubmitRequest,
     SalesClosureResponse,
-    StockLineInput,
     StockLineResponse,
 )
 
@@ -145,6 +144,27 @@ async def get_today_closure_status(
     )
 
 
+async def _clear_deleted_closure(session: AsyncSession, officer_id: uuid.UUID, day: date) -> None:
+    """Drop the leftover of a closure an admin deleted for this officer and day.
+
+    A deleted closure keeps its row so it can be restored, but the
+    one-closure-per-officer-per-day rule still counts that row. Without
+    this, an officer whose closure was deleted could neither file it again
+    nor be allowed to sign out. Filing again is the officer redoing the
+    day, so the old deleted copy is cleared first. Runs in the caller's
+    transaction.
+    """
+    row = (
+        await session.execute(
+            text("SELECT id FROM day_closures WHERE officer_id = :o AND date = :d AND is_deleted = true")
+            .bindparams(o=officer_id, d=day)
+        )
+    ).first()
+    if row:
+        await session.execute(text("DELETE FROM custom_field_answers WHERE record_id = :id").bindparams(id=row.id))
+        await session.execute(text("DELETE FROM day_closures WHERE id = :id").bindparams(id=row.id))
+
+
 @router.post("/no-activity", status_code=status.HTTP_201_CREATED)
 async def submit_no_activity_closure(
     payload: dict,
@@ -178,6 +198,7 @@ async def submit_no_activity_closure(
         )
 
     today = company_today()
+    await _clear_deleted_closure(session, current_user.user_id, today)
     existing = await session.execute(
         text("SELECT id, closure_type, no_activity_reason FROM day_closures WHERE officer_id = :oid AND date = :d")
         .bindparams(oid=current_user.user_id, d=today)
@@ -314,6 +335,7 @@ async def submit_day_closure(
             detail="Your day closure is the dealer (sales) closure. Ask your admin if this should change.",
         )
     today = company_today()
+    await _clear_deleted_closure(session, current_user.user_id, today)
     existing_row = await session.execute(
         text("SELECT id, visit_id FROM day_closures WHERE officer_id = :officer_id AND date = :today")
         .bindparams(officer_id=current_user.user_id, today=today)
@@ -589,6 +611,7 @@ async def submit_sales_day_closure(
     visit_purpose_other = clear_if_not_required(purpose_needs_desc, payload.visit_purpose_other_text)
 
     today = company_today()
+    await _clear_deleted_closure(session, current_user.user_id, today)
     existing = await session.execute(
         text("SELECT id, closure_type FROM day_closures WHERE officer_id = :oid AND date = :today")
         .bindparams(oid=current_user.user_id, today=today)
@@ -861,57 +884,18 @@ async def get_sales_closure_detail(
     return await _sales_row_to_response(session, row)
 
 
-@router.put("/sales/{closure_id}", response_model=SalesClosureResponse)
-async def admin_update_sales_closure(
+@router.put("/sales/{closure_id}")
+async def sales_closure_is_locked(
     closure_id: uuid.UUID,
-    payload: dict,
-    current_user: Annotated[CurrentUserOutput, Depends(require_role(Role.ADMIN))],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> SalesClosureResponse:
-    """Admin correction of a submitted sales closure (spec section 5
-    UPDATE). Partial - only the keys supplied are changed, matching the
-    dynamic-SET pattern used by the other admin update endpoints."""
-    existing = await session.execute(
-        text("SELECT id FROM sales_closure_details WHERE closure_id = :cid").bindparams(cid=closure_id)
+    _current_user: Annotated[CurrentUserOutput, Depends(require_role(Role.ADMIN))],
+) -> None:
+    """Submitted closures are locked: nobody, admin included, edits them.
+    A wrong closure is deleted (it can be restored) or deleted permanently,
+    and the officer files it again."""
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Submitted day closures are locked and cannot be edited. Delete it and ask the officer to submit again.",
     )
-    if not existing.first():
-        raise HTTPException(status_code=404, detail="Sales closure not found.")
-
-    editable = {
-        "district", "dealer_name", "village", "dealer_contact", "visit_purpose",
-        "order_booked", "order_value", "amount_collected", "new_dealer_details",
-        "reviewed_fo_visit", "competitor_activity", "stock_status", "day_rating", "remarks",
-    }
-    fields = {k: v for k, v in payload.items() if k in editable}
-    stock_lines = None
-    if "stock_lines" in payload:
-        try:
-            stock_lines = [StockLineInput(**ln) for ln in (payload.get("stock_lines") or [])]
-        except Exception:
-            raise HTTPException(status_code=400, detail="Check the stock sheet rows (product and quantity).")
-    if not fields and stock_lines is None:
-        raise HTTPException(status_code=400, detail="No editable fields were provided.")
-
-    if fields:
-        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
-        await session.execute(
-            text(f"UPDATE sales_closure_details SET {set_clause}, updated_at = now() WHERE closure_id = :cid")
-            .bindparams(**fields, cid=closure_id)
-        )
-    if stock_lines is not None:
-        await _save_stock_lines(session, closure_id, stock_lines)
-        fields["stock_lines"] = True
-    await write_audit_log(
-        session, user_id=current_user.user_id, event_type="admin_sales_closure_edit",
-        description=f"Admin edited sales day closure {closure_id}",
-        context_data={"closure_id": str(closure_id), "fields": list(fields.keys())},
-    )
-    await session.commit()
-
-    result = await session.execute(
-        text(f"SELECT {_SALES_SELECT} {_SALES_FROM} WHERE d.closure_id = :cid").bindparams(cid=closure_id)
-    )
-    return await _sales_row_to_response(session, result.first())
 
 
 # ---------------------------------------------------------------------

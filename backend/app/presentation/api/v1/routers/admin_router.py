@@ -1146,63 +1146,117 @@ async def admin_delete_day_closure(
 
 
 @router.put("/day-closures/{closure_id}")
-async def admin_update_day_closure(
+async def admin_day_closure_is_locked(closure_id: uuid.UUID, current_user: _AdminOnly) -> None:
+    """Submitted closures are locked: nobody, admin included, edits them.
+    Delete the closure (it can be restored) or delete it permanently, and
+    the officer files it again."""
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Submitted day closures are locked and cannot be edited. Delete it and ask the officer to submit again.",
+    )
+
+
+@router.get("/day-closures/deleted")
+async def admin_list_deleted_day_closures(
+    current_user: _AdminOnly,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> list[dict]:
+    """Closures an admin deleted, farmer and dealer alike, newest first, so
+    they can be restored or deleted for good."""
+    result = await session.execute(
+        text("""
+            SELECT dc.id, dc.date, dc.closure_type, dc.created_at, dc.officer_id,
+                   u.full_name AS officer_name,
+                   sd.dealer_name, sd.district AS dealer_district,
+                   f.name AS farmer_name, f.village AS farmer_village
+            FROM day_closures dc
+            JOIN users u ON u.id = dc.officer_id
+            LEFT JOIN sales_closure_details sd ON sd.closure_id = dc.id
+            LEFT JOIN visits v ON v.id = dc.visit_id
+            LEFT JOIN farmers f ON f.id = v.farmer_id
+            WHERE dc.is_deleted = true
+            ORDER BY dc.date DESC, dc.created_at DESC
+            LIMIT 500
+        """)
+    )
+    return [
+        {
+            "id": str(r.id), "date": r.date.isoformat(), "closure_type": r.closure_type,
+            "officer_id": str(r.officer_id), "officer_name": r.officer_name,
+            "kind": "dealer" if r.closure_type == "sales_activity" else ("no_activity" if r.closure_type == "no_activity" else "farmer"),
+            "summary": (
+                f"{r.dealer_name}" + (f" - {r.dealer_district}" if r.dealer_district else "")
+                if r.dealer_name else
+                (f"{r.farmer_name}" + (f" - {r.farmer_village}" if r.farmer_village else "") if r.farmer_name else "-")
+            ),
+        }
+        for r in result.all()
+    ]
+
+
+@router.post("/day-closures/{closure_id}/restore", response_model=dict)
+async def admin_restore_day_closure(
     closure_id: uuid.UUID,
-    payload: dict,
     current_user: _AdminOnly,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict:
-    """Corrects the linked visit's editable summary fields. Reuses
-    DailyVisitTrackerSubmitRequest's field names where they overlap
-    (crop_status, severity, demo_status, purchased, order_value,
-    conversion_status, officer_remarks) so the same field understood
-    everywhere else in this app means the same thing here - only a
-    partial update (whatever keys are present in the payload), matching
-    the dynamic-SET-clause pattern this file already uses for
-    admin_update_farmer/admin_update_dealer, since a full visit has 15
-    satellite tables and an admin correction realistically only ever
-    touches a handful of summary fields, not the entire submission."""
-    closure_row = await session.execute(
-        text("SELECT visit_id FROM day_closures WHERE id = :id AND is_deleted = false").bindparams(id=closure_id)
-    )
-    closure = closure_row.first()
-    if not closure or not closure.visit_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Day closure not found, or has no linked visit.")
-    visit_id = closure.visit_id
-
-    health_fields = {k: payload[k] for k in ("crop_status", "severity") if k in payload}
-    trial_fields = {k: payload[k] for k in ("demo_status",) if k in payload}
-    sales_fields = {k: payload[k] for k in ("purchased", "order_value", "conversion_status") if k in payload}
-    visit_fields = {k: payload[k] for k in ("officer_remarks", "follow_up_remarks") if k in payload}
-
-    if not any([health_fields, trial_fields, sales_fields, visit_fields]):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No editable fields were provided.")
-
-    for table, fields in (
-        ("visit_health", health_fields),
-        ("visit_trial_details", trial_fields),
-        ("visit_sales", sales_fields),
-        ("visits", visit_fields),
-    ):
-        if not fields:
-            continue
-        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+    row = (
         await session.execute(
-            text(f"UPDATE {table} SET {set_clause} WHERE visit_id = :visit_id" if table != "visits" else f"UPDATE visits SET {set_clause} WHERE id = :visit_id")
-            .bindparams(**fields, visit_id=visit_id)
+            text("UPDATE day_closures SET is_deleted = false WHERE id = :id AND is_deleted = true RETURNING id, officer_id, date")
+            .bindparams(id=closure_id)
         )
-
+    ).first()
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="That deleted closure is no longer there (the officer may have filed a new one for that day).",
+        )
     await write_audit_log(
-        session,
-        user_id=current_user.user_id,
-        event_type="admin_day_closure_edit",
-        description=f"Admin edited day closure {closure_id} (visit {visit_id})",
-        context_data={"closure_id": str(closure_id), "visit_id": str(visit_id), "fields": list(payload.keys())},
+        session, user_id=current_user.user_id, event_type="admin_day_closure_restore",
+        description=f"Admin restored day closure {closure_id}",
+        context_data={"closure_id": str(closure_id), "officer_id": str(row.officer_id), "date": row.date.isoformat()},
     )
     await session.commit()
+    return {"restored": True}
 
-    detail = await _assemble_visit_detail(visit_id, session)
-    return {"visit_id": str(visit_id), "visit_detail": detail}
+
+@router.delete("/day-closures/{closure_id}/permanent", response_model=dict)
+async def admin_permanently_delete_day_closure(
+    closure_id: uuid.UUID,
+    current_user: _AdminOnly,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Remove a deleted closure for good, with its photos and stock rows.
+
+    Only a closure that was already deleted can be removed this way, the
+    same two-step rule as users. For a farmer closure only the closure
+    record goes: the visit it points to is farm history and stays, as with
+    the ordinary delete.
+    """
+    row = (
+        await session.execute(
+            text("SELECT id, officer_id, date, closure_type FROM day_closures WHERE id = :id AND is_deleted = true")
+            .bindparams(id=closure_id)
+        )
+    ).first()
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Delete the closure first, then it can be deleted permanently.",
+        )
+    await session.execute(text("DELETE FROM custom_field_answers WHERE record_id = :id").bindparams(id=closure_id))
+    # sales details, photos and stock rows go with it (ON DELETE CASCADE).
+    await session.execute(text("DELETE FROM day_closures WHERE id = :id").bindparams(id=closure_id))
+    await write_audit_log(
+        session, user_id=current_user.user_id, event_type="admin_day_closure_purge",
+        description=f"Admin permanently deleted day closure {closure_id}",
+        context_data={
+            "closure_id": str(closure_id), "officer_id": str(row.officer_id),
+            "date": row.date.isoformat(), "closure_type": row.closure_type,
+        },
+    )
+    await session.commit()
+    return {"deleted": True}
 
 
 @router.post("/day-closures", status_code=status.HTTP_201_CREATED)
