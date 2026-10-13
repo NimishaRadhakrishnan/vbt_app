@@ -36,6 +36,8 @@ class CreateUserRequest(BaseModel):
     employee_id: str = Field(..., min_length=1, max_length=50)
     manager_id: Optional[uuid.UUID] = None
     device_id: Optional[str] = None
+    # Omitted = keep the current mode (edit) / start as "both" (create).
+    work_mode: Optional[str] = Field(default=None, pattern="^(field|sales|both)$")
 
     @field_validator("phone", mode="before")
     @classmethod
@@ -57,6 +59,8 @@ class EditUserRequest(BaseModel):
     employee_id: str = Field(..., min_length=1, max_length=50)
     manager_id: Optional[uuid.UUID] = None
     device_id: Optional[str] = None
+    # Omitted = keep the current mode (edit) / start as "both" (create).
+    work_mode: Optional[str] = Field(default=None, pattern="^(field|sales|both)$")
 
     @field_validator("phone", mode="before")
     @classmethod
@@ -82,6 +86,11 @@ class AssignUserDetailsRequest(BaseModel):
     device_id: Optional[str] = None
 
 
+class BulkWorkModeRequest(BaseModel):
+    user_ids: List[uuid.UUID] = Field(..., min_length=1, max_length=500)
+    work_mode: str = Field(..., pattern="^(field|sales|both)$")
+
+
 class UpdateUserStatusRequest(BaseModel):
     is_active: bool
 
@@ -102,6 +111,7 @@ class UserResponse(BaseModel):
     password_changed_by_name: Optional[str] = None
     failed_logins: int = 0
     failed_logins_today: int = 0
+    work_mode: str = "both"
     created_at: datetime
     updated_at: datetime
 

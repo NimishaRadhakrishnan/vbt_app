@@ -1,3 +1,5 @@
+export type WorkMode = "field" | "sales" | "both";
+
 export type Role = "admin" | "manager" | "field_officer" | "dealer" | "farmer";
 
 export interface RegisterRequest {
@@ -39,6 +41,7 @@ export interface CurrentUser {
   is_active: boolean;
   employee_id?: string;
   device_id?: string;
+  work_mode?: WorkMode;
 }
 
 export interface ApiErrorResponse {

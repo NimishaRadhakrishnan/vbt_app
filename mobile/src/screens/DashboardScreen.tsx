@@ -5,6 +5,7 @@ import { apiClient } from '../services/api';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { ErrorState, StaleDataBanner } from '../components/FetchStates';
 import { color, font, fontWeight, spacing, radius } from '../theme';
+import { roleName } from '../utils/roles';
 
 type MomentumMe = {
   monthly_tasks_completed: number;
@@ -55,6 +56,14 @@ const STATE_COLOR: Record<string, string> = {
 
 export default function DashboardScreen({ navigation }: any) {
   const currentUser = apiClient.getCurrentUser();
+  const workMode = currentUser?.workMode ?? 'both';
+  const showFarmWork = workMode !== 'sales';
+  const showDealerWork = workMode !== 'field';
+  // Pick up a work mode the admin changed since sign-in.
+  const [, refreshView] = React.useState(0);
+  React.useEffect(() => {
+    void apiClient.refreshProfile().then(() => refreshView((n) => n + 1));
+  }, []);
   const {
     data: momentum,
     loading: loadingMomentum,
@@ -105,7 +114,8 @@ export default function DashboardScreen({ navigation }: any) {
       <View style={styles.header}>
         <Text style={styles.username}>{currentUser?.fullName ?? 'Officer'}</Text>
         <Text style={styles.role}>
-          {currentUser?.role ?? ''}{currentUser?.employeeId ? ` (${currentUser.employeeId})` : ''}
+          {roleName(currentUser?.role)}{currentUser?.employeeId ? ` (${currentUser.employeeId})` : ''}
+          {workMode === 'field' ? ' · Field mode' : workMode === 'sales' ? ' · Sales mode' : ''}
         </Text>
       </View>
 
@@ -212,6 +222,7 @@ export default function DashboardScreen({ navigation }: any) {
         <>
           {summaryStale && <StaleDataBanner onRetry={retrySummary} />}
 
+          {showFarmWork && (<>
           <Text style={styles.sectionHeading}>Daily Visit Tracker</Text>
           <View style={styles.summaryGrid}>
             <SummaryCard
@@ -241,12 +252,16 @@ export default function DashboardScreen({ navigation }: any) {
             <SummaryCard label="Converted" value={summary.trial_converted_total} color="#fff8e1" />
           </View>
 
+          </>)}
+
+          {showDealerWork && (<>
           <Text style={styles.sectionHeading}>Sales</Text>
           <View style={styles.summaryGrid}>
             <SummaryCard label="Orders" value={summary.sales_orders_total} color="#e0f2f1" />
             <SummaryCard label="Conversions" value={summary.sales_conversions_total} color="#e0f2f1" />
             <SummaryCard label="Order Value" value={`₹${summary.sales_order_value_total.toLocaleString()}`} color="#e0f2f1" wide />
           </View>
+          </>)}
         </>
       ) : null}
     </ScrollView>

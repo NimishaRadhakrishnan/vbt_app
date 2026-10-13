@@ -7,6 +7,7 @@ import { flushSavedPings } from '../services/pingBuffer';
 import { promptBatterySettingsOnce } from '../services/batterySettings';
 import { ConsentService } from '../services/consent';
 import { showSubmitResult } from '../utils/offlineAlert';
+import { openDayClosure } from '../utils/closureRoute';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
 export default function AttendanceScreen({ navigation }: any) {
@@ -214,12 +215,7 @@ export default function AttendanceScreen({ navigation }: any) {
               { text: 'Not now', style: 'cancel' },
               {
                 text: 'Go to Day Closure',
-                onPress: () =>
-                  Alert.alert('Which closure?', 'Pick the kind of visit you did today.', [
-                    { text: 'Farm visit', onPress: () => navigation.navigate('DailyVisitTracker', { dayClosureMode: true }) },
-                    { text: 'Dealer visit', onPress: () => navigation.navigate('SalesDayClosure') },
-                    { text: 'Cancel', style: 'cancel' },
-                  ]),
+                onPress: () => { void openDayClosure(navigation); },
               },
             ]
           );

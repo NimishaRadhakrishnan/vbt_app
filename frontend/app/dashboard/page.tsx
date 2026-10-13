@@ -100,6 +100,12 @@ export default function Dashboard() {
   const [deleteImpact, setDeleteImpact] = useState<any>(null);
   const [isArchivedTab, setIsArchivedTab] = useState(false);
   const [closureKind, setClosureKind] = useState<"visit" | "dealer">("visit");
+  // Admin-set work mode of this officer: field (farm work), sales (dealer
+  // work) or both. Decides the day closure form and the officer home.
+  const workMode: "field" | "sales" | "both" = user?.work_mode ?? "both";
+  const showFarmWork = workMode !== "sales";
+  const showDealerWork = workMode !== "field";
+  const activeClosureKind: "visit" | "dealer" = workMode === "sales" ? "dealer" : workMode === "field" ? "visit" : closureKind;
   const [purgingUser, setPurgingUser] = useState<any>(null);
   const [purgeImpact, setPurgeImpact] = useState<Record<string, number>>({});
   const [purgeConfirmText, setPurgeConfirmText] = useState("");
@@ -376,6 +382,9 @@ export default function Dashboard() {
   const [formPassword, setFormPassword] = useState("");
   const [formFullName, setFormFullName] = useState("");
   const [formRole, setFormRole] = useState("field_officer");
+  const [formWorkMode, setFormWorkMode] = useState<"field" | "sales" | "both">("both");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkWorkMode, setBulkWorkMode] = useState<"field" | "sales" | "both">("both");
   const [formEmployeeId, setFormEmployeeId] = useState("");
   const [formManagerId, setFormManagerId] = useState("");
   const [formDeviceId, setFormDeviceId] = useState("");
@@ -2384,9 +2393,12 @@ export default function Dashboard() {
                   <div className="bg-primary-700 text-white rounded-2xl px-6 py-6">
                     <p className="text-xs font-semibold uppercase tracking-wider text-primary-100">Officer</p>
                     <h2 className="text-2xl font-bold mt-1">Namaste, {(user?.full_name || "").split(" ")[0]}</h2>
+                    {workMode !== "both" && (
+                      <p className="text-xs text-primary-100 mt-1">{workMode === "sales" ? "Sales mode" : "Field mode"}</p>
+                    )}
                   </div>
 
-                  {overdueCollectionsCount > 0 && (
+                  {showDealerWork && overdueCollectionsCount > 0 && (
                     <button
                       onClick={() => router.push("/dashboard/field-network")}
                       className="w-full text-left bg-amber-50 border border-amber-200 rounded-2xl p-5 hover:shadow-sm transition"
@@ -2410,31 +2422,38 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => router.push("/dashboard/field-network")}
-                    className="w-full py-3.5 bg-primary-700 text-white font-bold rounded-xl hover:bg-primary-800 transition"
-                  >
-                    New visit
-                  </button>
+                  {showFarmWork && (
+                    <button
+                      onClick={() => router.push("/dashboard/field-network")}
+                      className="w-full py-3.5 bg-primary-700 text-white font-bold rounded-xl hover:bg-primary-800 transition"
+                    >
+                      New visit
+                    </button>
+                  )}
 
-                  <button
-                    onClick={() => router.push("/dashboard/field-network")}
-                    className="w-full py-3.5 bg-white text-primary-700 border border-primary-700 font-bold rounded-xl hover:bg-primary-50 transition"
-                  >
-                    Register dealer
-                  </button>
+                  {showDealerWork && (
+                    <button
+                      onClick={() => router.push("/dashboard/field-network")}
+                      className={`w-full py-3.5 font-bold rounded-xl transition ${showFarmWork ? "bg-white text-primary-700 border border-primary-700 hover:bg-primary-50" : "bg-primary-700 text-white hover:bg-primary-800"}`}
+                    >
+                      Register dealer
+                    </button>
+                  )}
 
                   <div>
                     <h3 className="text-sm font-bold text-primary-700 mb-3 px-1">Your tools</h3>
                     <div className="grid grid-cols-2 gap-4">
+                      {showFarmWork && (
                       <button onClick={() => router.push("/dashboard/field-network")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
                         <Users className="w-6 h-6 mx-auto text-primary-700" />
                         <p className="text-sm font-semibold text-slate-700 mt-2">Farmers</p>
                       </button>
+                      )}
                       <button onClick={() => setActiveTab("plans")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
                         <ClipboardList className="w-6 h-6 mx-auto text-primary-700" />
                         <p className="text-sm font-semibold text-slate-700 mt-2">Weekly plan</p>
                       </button>
+                      {showDealerWork && (<>
                       <button onClick={() => router.push("/dashboard/field-network")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
                         <Award className="w-6 h-6 mx-auto text-primary-700" />
                         <p className="text-sm font-semibold text-slate-700 mt-2">Dealers</p>
@@ -2447,6 +2466,7 @@ export default function Dashboard() {
                         <ClipboardList className="w-6 h-6 mx-auto text-primary-700" />
                         <p className="text-sm font-semibold text-slate-700 mt-2">My stock</p>
                       </button>
+                      </>)}
                       {renderAttendanceTile()}
                       <button onClick={() => setActiveTab("productivity")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
                         <TrendingUp className="w-6 h-6 mx-auto text-primary-700" />
@@ -4611,6 +4631,7 @@ export default function Dashboard() {
               {/* One Officer role: the day is either a farm visit or a dealer
                   visit (dealers, orders, collection). Same table, same
                   duplicate guard, same logout gate; only the form differs. */}
+              {workMode === "both" && (
               <div className="flex gap-2">
                 <button
                   onClick={() => setClosureKind("visit")}
@@ -4625,7 +4646,8 @@ export default function Dashboard() {
                   Dealer visit
                 </button>
               </div>
-              {closureKind === "dealer" ? (
+              )}
+              {activeClosureKind === "dealer" ? (
                 <SalesDayClosureForm
                   onSubmitted={() => {
                     setClosureMessage({ type: "success", text: "Today's closure submitted successfully!" });
@@ -4719,6 +4741,7 @@ export default function Dashboard() {
                     setFormPassword("");
                     setFormFullName("");
                     setFormRole("field_officer");
+                    setFormWorkMode("both");
                     setFormEmployeeId("");
                     setFormManagerId("");
                     setFormDeviceId("");
@@ -4803,6 +4826,22 @@ export default function Dashboard() {
                         <option value="admin">Administrator</option>
                       </select>
                     </div>
+
+                    {formRole === "field_officer" && (
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Work mode</label>
+                        <select
+                          value={formWorkMode}
+                          onChange={(e) => setFormWorkMode(e.target.value as "field" | "sales" | "both")}
+                          className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-green-700"
+                        >
+                          <option value="both">Both (farm and dealer)</option>
+                          <option value="field">Field mode (farm visits)</option>
+                          <option value="sales">Sales mode (dealer visits)</option>
+                        </select>
+                        <p className="text-[11px] text-slate-400 mt-1">Decides this officer&apos;s day closure and dashboard.</p>
+                      </div>
+                    )}
                   </div>
                   {!isCreatingUser && editingUser && (
                     <div className="pt-2 text-xs text-slate-500">
@@ -4840,6 +4879,7 @@ export default function Dashboard() {
                                 full_name: formFullName,
                                 role: formRole,
                                 employee_id: formEmployeeId.trim(),
+                                work_mode: formRole === "field_officer" ? formWorkMode : undefined,
                               }),
                             });
                             setFormSuccess(`User ${res.full_name} created successfully!`);
@@ -4852,6 +4892,7 @@ export default function Dashboard() {
                                 full_name: formFullName,
                                 role: formRole,
                                 employee_id: formEmployeeId.trim(),
+                                work_mode: formRole === "field_officer" ? formWorkMode : undefined,
                               }),
                             });
                             setFormSuccess(`User ${res.full_name} updated successfully!`);
@@ -5089,13 +5130,56 @@ export default function Dashboard() {
                   <div className="p-8 text-center text-slate-400 text-sm">Loading users from catalog...</div>
                 ) : (
                   <div className="overflow-x-auto">
+                    {!isArchivedTab && selectedUserIds.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-green-50 border-b border-green-100 text-sm">
+                        <span className="font-semibold text-green-900">{selectedUserIds.length} selected</span>
+                        <select
+                          value={bulkWorkMode}
+                          onChange={(e) => setBulkWorkMode(e.target.value as "field" | "sales" | "both")}
+                          className="px-2 py-1.5 text-sm bg-white border border-slate-200 rounded-lg"
+                        >
+                          <option value="both">Both (farm and dealer)</option>
+                          <option value="field">Field mode</option>
+                          <option value="sales">Sales mode</option>
+                        </select>
+                        <button
+                          onClick={async () => {
+                            setFormError(""); setFormSuccess("");
+                            try {
+                              const r: any = await apiFetch("/users/work-mode/bulk", {
+                                method: "POST",
+                                body: JSON.stringify({ user_ids: selectedUserIds, work_mode: bulkWorkMode }),
+                              });
+                              setFormSuccess(`Work mode set for ${r.updated} officer(s)${r.skipped ? ` (${r.skipped} skipped - not officers)` : ""}.`);
+                              setSelectedUserIds([]);
+                              fetchUsers(isArchivedTab);
+                            } catch (err: any) { setFormError(err.message || "Failed to set work mode"); }
+                          }}
+                          className="px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white text-xs font-semibold rounded-lg"
+                        >
+                          Set work mode
+                        </button>
+                        <button onClick={() => setSelectedUserIds([])} className="text-xs text-slate-500 hover:text-slate-800">Clear</button>
+                      </div>
+                    )}
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50 text-slate-500 text-xs font-semibold border-b border-slate-100">
+                          {!isArchivedTab && (
+                            <th className="p-4 w-8">
+                              <input
+                                type="checkbox"
+                                aria-label="Select all officers"
+                                checked={usersList.some((x) => x.role === "field_officer") && usersList.filter((x) => x.role === "field_officer").every((x) => selectedUserIds.includes(x.id))}
+                                onChange={(e) => setSelectedUserIds(e.target.checked ? usersList.filter((x) => x.role === "field_officer").map((x) => x.id) : [])}
+                              />
+                            </th>
+                          )}
                           <th className="p-4">Name</th>
                           <th className="p-4">Employee ID</th>
                           <th className="p-4">Phone</th>
                           <th className="p-4">Role</th>
+                          {!isArchivedTab && <th className="p-4">Work mode</th>}
                           <th className="p-4">Status</th>
                           <th className="p-4 text-right">Actions</th>
                         </tr>
@@ -5103,6 +5187,18 @@ export default function Dashboard() {
                       <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                         {usersList.map((u) => (
                           <tr key={u.id} className="hover:bg-slate-50/50">
+                            {!isArchivedTab && (
+                              <td className="p-4">
+                                {u.role === "field_officer" && (
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Select ${u.full_name}`}
+                                    checked={selectedUserIds.includes(u.id)}
+                                    onChange={(e) => setSelectedUserIds((prev) => e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id))}
+                                  />
+                                )}
+                              </td>
+                            )}
                             <td className="p-4 font-semibold text-slate-800">{u.full_name}</td>
                             <td className="p-4 font-mono text-slate-600">{u.employee_id || "-"}</td>
                             <td className="p-4 text-slate-500">{u.phone || "-"}</td>
@@ -5111,6 +5207,13 @@ export default function Dashboard() {
                                 {roleName(u.role)}
                               </span>
                             </td>
+                            {!isArchivedTab && (
+                              <td className="p-4 text-xs text-slate-600">
+                                {u.role === "field_officer"
+                                  ? ({ field: "Field", sales: "Sales", both: "Both" } as Record<string, string>)[u.work_mode || "both"]
+                                  : "-"}
+                              </td>
+                            )}
                             <td className="p-4">
                               <span className={`inline-flex items-center gap-1 text-xs font-semibold ${u.is_active ? "text-green-600" : "text-red-500"}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${u.is_active ? "bg-green-600" : "bg-red-500"}`} />
@@ -5157,6 +5260,7 @@ export default function Dashboard() {
                                       setFormPhone(u.phone || "");
                                       setFormFullName(u.full_name);
                                       setFormRole(u.role);
+                                      setFormWorkMode(u.work_mode || "both");
                                       setFormEmployeeId(u.employee_id || "");
                                     }}
                                     className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg transition"

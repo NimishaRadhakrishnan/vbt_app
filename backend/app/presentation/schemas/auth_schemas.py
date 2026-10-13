@@ -32,6 +32,7 @@ class LoginRequest(BaseModel):
     email: Optional[str] = None
     employee_id: Optional[str] = None
     device_id: Optional[str] = None
+    work_mode: str = "both"
 
 
 class TokenResponse(BaseModel):

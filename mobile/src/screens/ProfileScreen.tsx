@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { openDayClosure } from '../utils/closureRoute';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Switch, Alert } from 'react-native';
 import { apiClient } from '../services/api';
 import { LocationService } from '../services/LocationService';
@@ -85,15 +86,7 @@ export default function ProfileScreen({ navigation }: any) {
                   { text: 'Cancel', style: 'cancel' },
                   {
                     text: 'Go to Day Closure',
-                    onPress: () => {
-                      // One Officer role: a day is either a farm visit or a
-                      // dealer visit (different screen, different payload).
-                      Alert.alert('Which closure?', 'Pick the kind of visit you did today.', [
-                    { text: 'Farm visit', onPress: () => navigation.navigate('DailyVisitTracker', { dayClosureMode: true }) },
-                    { text: 'Dealer visit', onPress: () => navigation.navigate('SalesDayClosure') },
-                    { text: 'Cancel', style: 'cancel' },
-                  ]);
-                    },
+                    onPress: () => { void openDayClosure(navigation); },
                   },
                 ]
               );

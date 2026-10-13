@@ -17,6 +17,7 @@ class RegisterUserInput:
     role: str = "field_officer"
     employee_id: Optional[str] = None
     device_id: Optional[str] = None
+    work_mode: str = "both"
 
 
 @dataclass(frozen=True)

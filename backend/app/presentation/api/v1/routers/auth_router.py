@@ -254,4 +254,5 @@ async def me(current_user: CurrentUser, response: Response) -> CurrentUserRespon
         is_active=current_user.is_active,
         employee_id=current_user.employee_id,
         device_id=current_user.device_id,
+        work_mode=current_user.work_mode,
     )

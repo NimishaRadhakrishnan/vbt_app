@@ -305,6 +305,14 @@ async def submit_day_closure(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     farmer_use_case: Annotated[FarmerUseCase, Depends(get_farmer_use_case)],
 ) -> DayClosureStatusResponse:
+    # An officer whose admin-set work mode is "sales" files the dealer
+    # closure instead. Enforced here, not only in the app, so an old
+    # app version cannot file the wrong kind.
+    if current_user.role == "field_officer" and current_user.work_mode == "sales":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your day closure is the dealer (sales) closure. Ask your admin if this should change.",
+        )
     today = company_today()
     existing_row = await session.execute(
         text("SELECT id, visit_id FROM day_closures WHERE officer_id = :officer_id AND date = :today")
@@ -562,6 +570,11 @@ async def submit_sales_day_closure(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Dealer (sales) day closure is for Officers.",
+        )
+    if current_user.role == "field_officer" and current_user.work_mode == "field":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your day closure is the farmer (field) closure. Ask your admin if this should change.",
         )
 
     # Server-side enforcement: an option flagged requires_description

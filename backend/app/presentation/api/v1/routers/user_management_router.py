@@ -16,12 +16,14 @@ from app.domain.value_objects.email import Email
 from app.domain.value_objects.role import Role
 from app.core.container import get_user_repository, get_password_hasher
 from app.infrastructure.database.session import get_db_session
+from app.infrastructure.audit.audit_log import write_audit_log
 from app.presentation.api.v1.dependencies import CurrentUser, require_role
 from app.presentation.schemas.user_management_schemas import (
     CreateUserRequest,
     EditUserRequest,
     ResetPasswordRequest,
     AssignUserDetailsRequest,
+    BulkWorkModeRequest,
     UpdateUserStatusRequest,
     UserListResponse,
     UserResponse,
@@ -62,9 +64,43 @@ def _to_response(user: User) -> UserResponse:
         password_changed_by=user.password_changed_by,
         failed_logins=user.failed_logins,
         failed_logins_today=failed_logins_today,
+        work_mode=user.work_mode,
         created_at=user.created_at,
         updated_at=user.updated_at,
     )
+
+
+@router.post("/work-mode/bulk", response_model=dict)
+async def bulk_set_work_mode(
+    payload: BulkWorkModeRequest,
+    current_user: CurrentUser,
+    _admin_access: _AdminAccess,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Set the work mode (field / sales / both) of several officers at once.
+
+    Only officers are changed: an admin or manager has no day closure, so
+    their mode would mean nothing. Anyone in the list who is not an officer
+    (or is deleted) is skipped and counted, never an error, so a mixed
+    selection on the Team page just works.
+    """
+    result = await session.execute(
+        text(
+            "UPDATE users SET work_mode = :mode, updated_at = now() "
+            "WHERE id = ANY(:ids) AND role = 'field_officer' AND is_deleted = false "
+            "RETURNING id"
+        ).bindparams(mode=payload.work_mode, ids=list(payload.user_ids))
+    )
+    changed = [str(r.id) for r in result.all()]
+    await write_audit_log(
+        session,
+        user_id=current_user.user_id,
+        event_type="admin_work_mode_bulk",
+        description=f"Admin set work mode '{payload.work_mode}' for {len(changed)} officer(s)",
+        context_data={"work_mode": payload.work_mode, "user_ids": changed},
+    )
+    await session.commit()
+    return {"updated": len(changed), "skipped": len(payload.user_ids) - len(changed), "work_mode": payload.work_mode}
 
 
 @router.get("", response_model=UserListResponse)
@@ -147,6 +183,7 @@ async def create_user(
         phone=payload.phone,
         manager_id=payload.manager_id,
         device_id=payload.device_id,
+        work_mode=payload.work_mode or "both",
     )
     result = await user_repo.add(user)
     return _to_response(result)
@@ -184,6 +221,8 @@ async def edit_user(
     user.phone = payload.phone
     user.manager_id = payload.manager_id
     user.device_id = payload.device_id
+    if payload.work_mode:
+        user.work_mode = payload.work_mode
     user.updated_by = _current_user.user_id
 
     result = await user_repo.update(user)

@@ -35,4 +35,5 @@ class GetCurrentUserUseCase:
             is_active=user.is_active,
             employee_id=user.employee_id,
             device_id=user.device_id,
+            work_mode=user.work_mode,
         )

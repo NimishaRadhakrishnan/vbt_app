@@ -41,6 +41,7 @@ class SQLAlchemyUserRepository(UserRepository):
             failed_logins=model.failed_logins,
             last_failed_login_at=model.last_failed_login_at,
             is_deleted=model.is_deleted,
+            work_mode=model.work_mode,
             updated_by=model.updated_by,
             created_at=model.created_at,
             updated_at=model.updated_at,
@@ -100,6 +101,7 @@ class SQLAlchemyUserRepository(UserRepository):
             failed_logins=user.failed_logins,
             last_failed_login_at=user.last_failed_login_at,
             is_deleted=user.is_deleted,
+            work_mode=user.work_mode,
         )
         self._session.add(model)
         await self._session.flush()
@@ -118,6 +120,7 @@ class SQLAlchemyUserRepository(UserRepository):
         model.employee_id = user.employee_id
         model.phone = user.phone
         model.device_id = user.device_id
+        model.work_mode = user.work_mode
         model.biometric_token = user.biometric_token
         model.manager_id = user.manager_id
         model.last_login_at = user.last_login_at

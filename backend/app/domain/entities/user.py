@@ -32,6 +32,7 @@ class User:
     failed_logins: int = 0
     last_failed_login_at: Optional[datetime] = None
     is_deleted: bool = False
+    work_mode: str = "both"
     updated_by: Optional[uuid.UUID] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

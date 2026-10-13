@@ -20,6 +20,7 @@ interface PersistedSession {
   userFullName: string;
   userRole: string;
   userEmployeeId: string;
+  userWorkMode?: string;
   deviceId: string;
 }
 
@@ -86,6 +87,7 @@ class FFMAPIClient {
   private userFullName: string | null = null;
   private userRole: string | null = null;
   private userEmployeeId: string | null = null;
+  private userWorkMode: string | null = null;
   private deviceId: string | null = null;
 
   public setOnlineStatus(online: boolean) {
@@ -134,14 +136,32 @@ class FFMAPIClient {
     return this.deviceId;
   }
 
-  public getCurrentUser(): { id: string; fullName: string; role: string; employeeId: string } | null {
+  public getCurrentUser(): { id: string; fullName: string; role: string; employeeId: string; workMode: 'field' | 'sales' | 'both' } | null {
     if (!this.userId || !this.userFullName || !this.userRole) return null;
     return {
       id: this.userId,
       fullName: this.userFullName,
       role: this.userRole,
       employeeId: this.userEmployeeId ?? '',
+      workMode: this.userWorkMode === 'field' || this.userWorkMode === 'sales' ? this.userWorkMode : 'both',
     };
+  }
+
+  /**
+   * Re-reads the profile from the server so a work-mode change made by an
+   * admin takes effect without signing out. Best-effort: offline or a
+   * failed call keeps whatever is already stored.
+   */
+  public async refreshProfile(): Promise<void> {
+    try {
+      const me = await this.sendRequest('/auth/me', 'GET');
+      if (me && me.id === this.userId) {
+        this.userWorkMode = me.work_mode ?? 'both';
+        await this.persistSession();
+      }
+    } catch {
+      // keep the stored value
+    }
   }
 
   public isLoggedIn(): boolean {
@@ -155,6 +175,7 @@ class FFMAPIClient {
     this.userFullName = null;
     this.userRole = null;
     this.userEmployeeId = null;
+    this.userWorkMode = null;
     this.deviceId = null;
     AsyncStorage.removeItem(SESSION_STORAGE_KEY).catch(() => {
       // Best-effort: an officer signing out on a phone about to be wiped
@@ -171,6 +192,7 @@ class FFMAPIClient {
       userFullName: this.userFullName,
       userRole: this.userRole,
       userEmployeeId: this.userEmployeeId ?? '',
+      userWorkMode: this.userWorkMode ?? 'both',
       deviceId: this.deviceId,
     };
     await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
@@ -194,6 +216,7 @@ class FFMAPIClient {
       this.userFullName = session.userFullName;
       this.userRole = session.userRole;
       this.userEmployeeId = session.userEmployeeId;
+      this.userWorkMode = session.userWorkMode ?? 'both';
       this.deviceId = session.deviceId;
       return true;
     } catch {
@@ -227,6 +250,7 @@ class FFMAPIClient {
     this.userFullName = me.full_name;
     this.userRole = me.role;
     this.userEmployeeId = me.employee_id ?? employeeId;
+    this.userWorkMode = me.work_mode ?? 'both';
     await this.persistSession();
     return { id: me.id, fullName: me.full_name, role: me.role };
   }
