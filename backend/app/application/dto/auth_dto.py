@@ -59,3 +59,4 @@ class CurrentUserOutput:
     is_active: bool
     employee_id: Optional[str] = None
     device_id: Optional[str] = None
+    work_mode: str = "both"
