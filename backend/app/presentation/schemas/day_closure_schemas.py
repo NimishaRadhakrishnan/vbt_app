@@ -52,6 +52,21 @@ class SalesClosureImageInput(BaseModel):
     image_type: Optional[str] = None  # dealer_shop | competitor | other
 
 
+class StockLineInput(BaseModel):
+    """Stock still in the dealer's shop for one product pack."""
+    product_id: uuid.UUID
+    quantity_left: int = Field(ge=0, le=1_000_000)
+    remarks: Optional[str] = Field(default=None, max_length=300)
+
+
+class StockLineResponse(BaseModel):
+    product_id: Optional[uuid.UUID] = None
+    category: Optional[str] = None
+    product_name: str
+    quantity_left: int
+    remarks: Optional[str] = None
+
+
 class SalesClosureSubmitRequest(BaseModel):
     """A Sales Officer's end-of-day record: dealers, orders, collection,
     stock and market intelligence.
@@ -86,6 +101,7 @@ class SalesClosureSubmitRequest(BaseModel):
     day_rating: Optional[int] = Field(default=None, ge=1, le=5)
     remarks: Optional[str] = None
     images: list[SalesClosureImageInput] = Field(default_factory=list)
+    stock_lines: list[StockLineInput] = Field(default_factory=list, max_length=300)
     config_version: Optional[int] = None
     custom_field_answers: Optional[dict[str, Any]] = None
 
@@ -113,4 +129,5 @@ class SalesClosureResponse(BaseModel):
     remarks: Optional[str] = None
     created_at: datetime
     images: list[str] = Field(default_factory=list)
+    stock_lines: list[StockLineResponse] = Field(default_factory=list)
     custom_field_answers: Optional[dict[str, Any]] = None

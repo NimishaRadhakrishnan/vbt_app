@@ -10,6 +10,7 @@ import { showSubmitResult } from '../utils/offlineAlert';
 import { FieldRow, TextInputLike, ChipPicker } from './dailyVisitTracker/FormFields';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 import DynamicFieldRenderer from '../components/DynamicFieldRenderer';
+import DealerStockSheet, { StockLine } from '../components/DealerStockSheet';
 
 // Mobile Sales Officer day closure - the counterpart to the web
 // SalesDayClosureForm.tsx, hitting the same POST /day-closure/sales
@@ -87,6 +88,8 @@ export default function SalesDayClosureScreen({ navigation }: any) {
   const [reviewedFoVisit, setReviewedFoVisit] = useState<boolean | null>(null);
   const [competitorActivity, setCompetitorActivity] = useState('');
   const [stockStatus, setStockStatus] = useState<string | null>(null);
+  const [stockLines, setStockLines] = useState<StockLine[]>([]);
+  const [stockProblem, setStockProblem] = useState<string | null>(null);
   const [dayRating, setDayRating] = useState<number | null>(null);
   const [remarks, setRemarks] = useState('');
   const [dealerPhotos, setDealerPhotos] = useState<string[]>([]);
@@ -221,6 +224,10 @@ export default function SalesDayClosureScreen({ navigation }: any) {
       Alert.alert('Description Needed', OTHER_DESCRIPTION_MESSAGE);
       return;
     }
+    if (stockProblem) {
+      Alert.alert('Stock Sheet', stockProblem);
+      return;
+    }
     if (missing.length) {
       Alert.alert('Missing Information', `${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} required.`);
       return;
@@ -262,6 +269,7 @@ export default function SalesDayClosureScreen({ navigation }: any) {
         day_rating: dayRating,
         remarks: remarks.trim() || null,
         images,
+        stock_lines: stockLines,
         config_version: configVersion,
         custom_field_answers: customFieldAnswers,
       });
@@ -375,6 +383,9 @@ export default function SalesDayClosureScreen({ navigation }: any) {
             <ChipPicker options={STOCK_STATUSES} value={stockStatus} onChange={setStockStatus} />
           </FieldRow>
         )}
+        <FieldRow label="Stock Left in Dealer's Shop (by product pack)">
+          <DealerStockSheet onChange={(lines, problem) => { setStockLines(lines); setStockProblem(problem); }} />
+        </FieldRow>
 
         <Text style={styles.sectionHeader}>Rating &amp; Follow-up</Text>
 

@@ -14,11 +14,13 @@ export default function PickerField({
   value,
   options,
   onChange,
+  anyLabel = 'Any',
 }: {
   label: string;
   value: string;
   options: PickerOption[];
   onChange: (value: string) => void;
+  anyLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -35,7 +37,7 @@ export default function PickerField({
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity style={styles.field} onPress={() => setOpen(true)} activeOpacity={0.7}>
         <Text style={[styles.value, !current && styles.placeholder]} numberOfLines={1}>
-          {current?.label ?? 'Any'}
+          {current?.label ?? anyLabel}
         </Text>
         <Ionicons name="chevron-down" size={16} color={color.textMuted} />
       </TouchableOpacity>
@@ -53,7 +55,7 @@ export default function PickerField({
               <TextInput style={styles.search} placeholder="Search" value={search} onChangeText={setSearch} />
             )}
             <FlatList
-              data={[{ value: '', label: 'Any' }, ...shown]}
+              data={[{ value: '', label: anyLabel }, ...shown]}
               keyExtractor={(o) => o.value || 'any'}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (

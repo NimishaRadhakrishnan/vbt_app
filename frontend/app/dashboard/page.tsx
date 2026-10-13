@@ -1231,6 +1231,39 @@ export default function Dashboard() {
     }
   };
 
+  // Admin fixes to the stock-left rows of one dealer closure: change a
+  // quantity or remove a row. Sends the full remaining list, which is
+  // what the PUT endpoint replaces.
+  const saveStockLines = async (closureId: string, lines: any[]) => {
+    try {
+      await apiFetch(`/day-closure/sales/${closureId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          stock_lines: lines
+            .filter((l) => l.product_id)
+            .map((l) => ({ product_id: l.product_id, quantity_left: Math.max(0, Math.floor(Number(l.quantity_left) || 0)), remarks: l.remarks ?? null })),
+        }),
+      });
+      await openSalesClosureDetail(closureId);
+    } catch (err: any) {
+      alert(err.message || "Couldn't update the stock sheet.");
+    }
+  };
+
+  const handleDeleteSalesClosure = async (s: any) => {
+    const confirmed = window.confirm(
+      `Delete the dealer day closure of ${s.officer_name || "this officer"} for ${s.dealer_name} (${s.date})?\n\nIt disappears from the lists and reports.`
+    );
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/admin/day-closures/${s.closure_id}`, { method: "DELETE" });
+      setSalesClosureDetail(null);
+      await fetchSalesClosures();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete the closure.");
+    }
+  };
+
   const handleDeleteDayClosure = async (closure: any) => {    // Per the visits table having no is_deleted column, and no other
     // part of this app ever deleting a submitted visit (only drafts) -
     // this removes the closure bookkeeping only. Said explicitly here
@@ -4210,6 +4243,7 @@ export default function Dashboard() {
                                 >
                                   Edit
                                 </button>
+                                <button onClick={() => handleDeleteSalesClosure(s)} className="text-red-600 hover:text-red-800 text-xs font-semibold">Delete</button>
                               </div>
                             </td>
                           </tr>
@@ -4256,6 +4290,45 @@ export default function Dashboard() {
                             <span className="text-slate-800 font-medium text-right">{String(v)}</span>
                           </div>
                         ))}
+                      {salesClosureDetail.stock_lines?.length > 0 && (
+                        <div className="pt-3">
+                          <p className="text-xs font-bold text-slate-500 uppercase mb-2">Stock left in dealer&apos;s shop</p>
+                          <table className="w-full text-sm">
+                            <thead className="text-xs text-slate-500 text-left">
+                              <tr><th className="py-1 font-semibold">Product</th><th className="py-1 font-semibold w-24">Qty left</th><th className="w-16"></th></tr>
+                            </thead>
+                            <tbody>
+                              {salesClosureDetail.stock_lines.map((l: any, i: number) => (
+                                <tr key={`${l.product_id}-${i}`} className="border-t border-slate-100">
+                                  <td className="py-1 text-slate-800">
+                                    {l.product_name}
+                                    {l.category && <span className="block text-xs text-slate-400">{l.category}</span>}
+                                  </td>
+                                  <td className="py-1">
+                                    <input
+                                      type="number" min={0} defaultValue={l.quantity_left}
+                                      className="w-20 px-2 py-1 text-sm border border-slate-200 rounded"
+                                      onBlur={(e) => {
+                                        const v = Math.max(0, Math.floor(Number(e.target.value) || 0));
+                                        if (v === l.quantity_left) return;
+                                        saveStockLines(salesClosureDetail.closure_id,
+                                          salesClosureDetail.stock_lines.map((x: any, j: number) => (j === i ? { ...x, quantity_left: v } : x)));
+                                      }}
+                                    />
+                                  </td>
+                                  <td className="py-1 text-right">
+                                    <button
+                                      className="text-xs font-semibold text-red-600 hover:text-red-800"
+                                      onClick={() => saveStockLines(salesClosureDetail.closure_id,
+                                        salesClosureDetail.stock_lines.filter((_: any, j: number) => j !== i))}
+                                    >Remove</button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                       {salesClosureDetail.images?.length > 0 && (
                         <div className="pt-3">
                           <p className="text-xs font-bold text-slate-500 uppercase mb-2">Photos</p>

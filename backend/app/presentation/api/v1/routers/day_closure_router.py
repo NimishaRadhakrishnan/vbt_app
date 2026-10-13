@@ -58,6 +58,8 @@ from app.presentation.schemas.day_closure_schemas import (
     MissingClosureOfficer,
     SalesClosureSubmitRequest,
     SalesClosureResponse,
+    StockLineInput,
+    StockLineResponse,
 )
 
 router = APIRouter(prefix="/day-closure", tags=["day-closure"])
@@ -493,7 +495,54 @@ async def _sales_row_to_response(session: AsyncSession, row) -> SalesClosureResp
     for money in ("order_value", "amount_collected"):
         if data.get(money) is not None:
             data[money] = float(data[money])
-    return SalesClosureResponse(**data, images=[r.image_url for r in imgs.all()])
+    lines = await session.execute(
+        text(
+            "SELECT product_id, category, product_name, quantity_left, remarks "
+            "FROM sales_closure_stock_lines WHERE closure_id = :cid "
+            "ORDER BY category NULLS LAST, product_name"
+        ).bindparams(cid=row.closure_id)
+    )
+    return SalesClosureResponse(
+        **data,
+        images=[r.image_url for r in imgs.all()],
+        stock_lines=[StockLineResponse(**dict(r._mapping)) for r in lines.all()],
+    )
+
+
+async def _save_stock_lines(session: AsyncSession, closure_id: uuid.UUID, lines) -> None:
+    """Replace the stock-left rows of a closure.
+
+    Name and category are looked up from the products table here, not
+    trusted from the client, and copied onto the row so later product
+    edits never rewrite history. The same product listed twice is
+    refused rather than silently summed.
+    """
+    seen: set[uuid.UUID] = set()
+    for line in lines:
+        if line.product_id in seen:
+            raise HTTPException(status_code=400, detail="A product pack is listed twice in the stock sheet.")
+        seen.add(line.product_id)
+    await session.execute(
+        text("DELETE FROM sales_closure_stock_lines WHERE closure_id = :cid").bindparams(cid=closure_id)
+    )
+    for line in lines:
+        product = (
+            await session.execute(
+                text("SELECT name, category FROM products WHERE id = :pid").bindparams(pid=line.product_id)
+            )
+        ).first()
+        if not product:
+            raise HTTPException(status_code=400, detail="A product in the stock sheet no longer exists.")
+        await session.execute(
+            text(
+                "INSERT INTO sales_closure_stock_lines "
+                "(closure_id, product_id, category, product_name, quantity_left, remarks) "
+                "VALUES (:cid, :pid, :cat, :name, :qty, :remarks)"
+            ).bindparams(
+                cid=closure_id, pid=line.product_id, cat=product.category,
+                name=product.name, qty=line.quantity_left, remarks=line.remarks,
+            )
+        )
 
 
 @router.post("/sales", response_model=SalesClosureResponse, status_code=status.HTTP_201_CREATED)
@@ -578,6 +627,8 @@ async def submit_sales_day_closure(
                 VALUES (gen_random_uuid(), :cid, :url, :itype)
             """).bindparams(cid=closure_id, url=img.image_url, itype=img.image_type)
         )
+
+    await _save_stock_lines(session, closure_id, payload.stock_lines)
 
     # --- Custom Fields (transactional save) ---
     from app.application.services.custom_field_service import validate_and_save_custom_answers
@@ -710,14 +761,24 @@ async def admin_update_sales_closure(
         "reviewed_fo_visit", "competitor_activity", "stock_status", "day_rating", "remarks",
     }
     fields = {k: v for k, v in payload.items() if k in editable}
-    if not fields:
+    stock_lines = None
+    if "stock_lines" in payload:
+        try:
+            stock_lines = [StockLineInput(**ln) for ln in (payload.get("stock_lines") or [])]
+        except Exception:
+            raise HTTPException(status_code=400, detail="Check the stock sheet rows (product and quantity).")
+    if not fields and stock_lines is None:
         raise HTTPException(status_code=400, detail="No editable fields were provided.")
 
-    set_clause = ", ".join(f"{k} = :{k}" for k in fields)
-    await session.execute(
-        text(f"UPDATE sales_closure_details SET {set_clause}, updated_at = now() WHERE closure_id = :cid")
-        .bindparams(**fields, cid=closure_id)
-    )
+    if fields:
+        set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+        await session.execute(
+            text(f"UPDATE sales_closure_details SET {set_clause}, updated_at = now() WHERE closure_id = :cid")
+            .bindparams(**fields, cid=closure_id)
+        )
+    if stock_lines is not None:
+        await _save_stock_lines(session, closure_id, stock_lines)
+        fields["stock_lines"] = True
     await write_audit_log(
         session, user_id=current_user.user_id, event_type="admin_sales_closure_edit",
         description=f"Admin edited sales day closure {closure_id}",

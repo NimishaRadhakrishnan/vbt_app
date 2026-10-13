@@ -8,6 +8,7 @@ import {
   OTHER_DESCRIPTION_MESSAGE,
 } from "@/components/OtherDescriptionInput";
 import DynamicFieldRenderer from "@/components/DynamicFieldRenderer";
+import DealerStockSheet, { StockLine } from "@/components/DealerStockSheet";
 
 // Sales Officer's end-of-day record. Separate from DayClosureForm.tsx
 // (the field-officer farm-visit closure) because the two capture
@@ -108,6 +109,8 @@ export default function SalesDayClosureForm({
   const [reviewedFoVisit, setReviewedFoVisit] = useState<boolean | null>(null);
   const [competitorActivity, setCompetitorActivity] = useState("");
   const [stockStatus, setStockStatus] = useState("");
+  const [stockLines, setStockLines] = useState<StockLine[]>([]);
+  const [stockProblem, setStockProblem] = useState<string | null>(null);
   const [dayRating, setDayRating] = useState<number | null>(null);
   const [remarks, setRemarks] = useState("");
   const [dealerPhotos, setDealerPhotos] = useState<File[]>([]);
@@ -184,6 +187,10 @@ export default function SalesDayClosureForm({
       setFormError(OTHER_DESCRIPTION_MESSAGE);
       return;
     }
+    if (stockProblem) {
+      setFormError(stockProblem);
+      return;
+    }
     if (missing.length) {
       setFormError(`${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} required.`);
       return;
@@ -215,6 +222,7 @@ export default function SalesDayClosureForm({
           day_rating: dayRating,
           remarks: remarks.trim() || null,
           images,
+          stock_lines: stockLines,
           config_version: configVersion,
           custom_field_answers: customFieldAnswers,
         }),
@@ -335,6 +343,9 @@ export default function SalesDayClosureForm({
             </select>
           </Field>
         )}
+        <Field label="Stock Left in Dealer's Shop (by product pack)">
+          <DealerStockSheet onChange={(lines, problem) => { setStockLines(lines); setStockProblem(problem); }} />
+        </Field>
       </Section>
 
       <Section title="4. Rating & Follow-up">
