@@ -28,7 +28,7 @@ export interface DisclosureContent {
 }
 
 /**
- * RETENTION PERIOD — 90 days (3 months).
+ * RETENTION PERIOD — 60 days (2 months).
  *
  * This number is not cosmetic: it appears in the disclosure screen, the
  * privacy policy and the Play declaration, and it must be enforced by a
@@ -36,11 +36,11 @@ export interface DisclosureContent {
  * "GPS retention"). Stating a period the system does not actually honour
  * is worse than stating a longer one honestly.
  *
- * 90 days is the company's decision: long enough to review a quarter of
+ * 60 days is the company's decision: long enough to review two months of
  * field visits, short enough not to keep movement history indefinitely.
  * The backend setting gps_retention_days is the single source of truth.
  */
-export const DEFAULT_RETENTION_MONTHS = 3;
+export const DEFAULT_RETENTION_MONTHS = 2;
 
 export const BUNDLED_DISCLOSURE: DisclosureContent = {
   version: 1,
@@ -67,7 +67,7 @@ export const BUNDLED_DISCLOSURE: DisclosureContent = {
     },
     {
       label: 'How long it is kept',
-      text: 'Location history is kept for 90 days, then deleted automatically.',
+      text: 'Location history is kept for 60 days, then deleted automatically.',
     },
   ],
   retentionMonths: DEFAULT_RETENTION_MONTHS,

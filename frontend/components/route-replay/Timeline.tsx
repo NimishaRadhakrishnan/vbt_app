@@ -11,6 +11,8 @@ interface Props {
   names: Record<string, string>;
   selectedId: string | null;
   onSelect: (e: TimelineEvent) => void;
+  /** Officer, date, stops and distance: printed above the list. */
+  printHeading?: string;
 }
 
 /** Same rounding the server uses for its place-name cache (about 11 m). */
@@ -23,16 +25,18 @@ const coords = (lat: number, lng: number) => `${lat.toFixed(4)}, ${lng.toFixed(4
 // The day as a list of stations, the way "where is my train" shows a journey:
 // arrival time on the left, departure on the right, the place in the middle,
 // and the distance and time travelled between one place and the next.
-export default function Timeline({ analysis, loading, names, selectedId, onSelect }: Props) {
+export default function Timeline({ analysis, loading, names, selectedId, onSelect, printHeading }: Props) {
   const nameAt = (lat: number, lng: number) => names[placeKey(lat, lng)] ?? coords(lat, lng);
 
   return (
     <section
+      id="route-timeline-print"
       aria-label="Places visited"
       className="flex h-[540px] flex-col rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
     >
       <header className="border-b border-slate-100 px-4 py-3">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Places visited</h3>
+        {printHeading && <p className="route-print-only mt-1 text-sm font-semibold text-slate-800">{printHeading}</p>}
       </header>
 
       {loading || !analysis ? (

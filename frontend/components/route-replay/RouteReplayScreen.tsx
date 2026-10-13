@@ -249,6 +249,14 @@ export default function RouteReplayScreen({
   const onExport = (kind: "csv" | "print") => {
     if (!analysis) return;
     if (kind === "print") {
+      // Print only the Places visited list: the class is what the print
+      // stylesheet keys on, and it is removed again when printing ends.
+      const done = () => {
+        document.body.classList.remove("print-timeline-only");
+        window.removeEventListener("afterprint", done);
+      };
+      document.body.classList.add("print-timeline-only");
+      window.addEventListener("afterprint", done);
       window.print();
       return;
     }
@@ -341,7 +349,7 @@ export default function RouteReplayScreen({
                 onStopClick={goToStop}
               />
             )}
-            <Timeline analysis={analysis} loading={loading || !analysis} names={names} selectedId={selectedId} onSelect={onSelectEvent} />
+            <Timeline analysis={analysis} loading={loading || !analysis} names={names} selectedId={selectedId} onSelect={onSelectEvent} printHeading={summaryLine ?? undefined} />
           </div>
         </>
       )}

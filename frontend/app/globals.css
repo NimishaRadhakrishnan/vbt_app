@@ -143,8 +143,42 @@ body {
   display: none;
 }
 
+.route-print-only {
+  display: none;
+}
+
 @media print {
   .route-print-hide {
     display: none !important;
+  }
+
+  /* Map history print: only the "Places visited" list goes on paper. */
+  body.print-timeline-only * {
+    visibility: hidden !important;
+  }
+  body.print-timeline-only #route-timeline-print,
+  body.print-timeline-only #route-timeline-print * {
+    visibility: visible !important;
+  }
+  body.print-timeline-only #route-timeline-print {
+    position: absolute !important;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  body.print-timeline-only #route-timeline-print ol {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  body.print-timeline-only #route-timeline-print .route-print-only {
+    display: block !important;
+  }
+  body.print-timeline-only #route-timeline-print li {
+    break-inside: avoid;
   }
 }

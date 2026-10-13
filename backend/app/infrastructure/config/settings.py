@@ -95,7 +95,11 @@ class Settings(BaseSettings):
     # GPS history older than this is deleted by the daily retention job
     # (app/application/services/gps_retention.py). Must match what the
     # location disclosure tells officers.
-    gps_retention_days: int = Field(default=90)
+    gps_retention_days: int = Field(default=60)
+
+    # Submitted day closures (and their photos) older than this are deleted
+    # by the same daily job.
+    closure_retention_days: int = Field(default=60)
 
     # --- Place names for the route timeline ---
     # Any OpenStreetMap-compatible reverse-geocoding URL. The public

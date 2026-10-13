@@ -120,7 +120,7 @@ export function VisitDetailPanel({ visitId, onClose }: { visitId: string; onClos
               {detail.photos?.length > 0 && (
                 <div>
                   <h3 className="text-sm font-bold text-green-700 mb-2">Photos</h3>
-                  <PhotoGallery urls={detail.photos.map((p: any) => p.photo_url)} />
+                  <PhotoGallery urls={detail.photos.map((p: any) => p.photo_url)} name="visit-photo" />
                 </div>
               )}
             </>

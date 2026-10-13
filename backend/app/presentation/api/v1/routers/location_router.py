@@ -322,6 +322,55 @@ def usable_backfill_points(points, now: datetime, retention_days: int) -> list:
     return [p for _, p in kept]
 
 
+
+async def _checked_in_now(officer_id: uuid.UUID, redis) -> bool:
+    """True while the officer has checked in today and not yet checked out.
+
+    Positions are only recorded between check-in and check-out. A positive
+    answer is remembered for a minute so a ping every 15 seconds does not
+    query the database every time.
+    """
+    key = f"checked_in:{officer_id}"
+    try:
+        if await redis.get(key):
+            return True
+    except Exception:
+        pass
+    day_start, day_end = tracking_window_bounds(company_today())
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(
+            text("""
+                SELECT 1 FROM attendance
+                WHERE user_id = :uid AND check_in_time >= :s AND check_in_time < :e
+                  AND check_out_time IS NULL
+                LIMIT 1
+            """).bindparams(uid=officer_id, s=day_start - timedelta(hours=9), e=day_end + timedelta(hours=6))
+        )
+        ok = res.first() is not None
+    if ok:
+        try:
+            await redis.set(key, "1", ex=60)
+        except Exception:
+            pass
+    return ok
+
+
+async def _attendance_spans(officer_id: uuid.UUID, points_ts: list[datetime]) -> list[tuple[datetime, datetime]]:
+    """Check-in to check-out spans covering the given times (open span ends now)."""
+    if not points_ts:
+        return []
+    lo, hi = min(points_ts) - timedelta(hours=24), max(points_ts) + timedelta(hours=24)
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(
+            text("""
+                SELECT check_in_time, check_out_time FROM attendance
+                WHERE user_id = :uid AND check_in_time >= :lo AND check_in_time <= :hi
+            """).bindparams(uid=officer_id, lo=lo, hi=hi)
+        )
+        far = datetime.now(UTC) + timedelta(days=1)
+        return [(r.check_in_time, r.check_out_time or far) for r in res.all()]
+
+
 @router.post(
     "/ping/batch",
     status_code=status.HTTP_200_OK,
@@ -349,7 +398,15 @@ async def ping_location_batch(payload: LocationBackfillRequest, current_user: Cu
             leave_by_day[day] = await _on_leave_today(current_user.user_id, day, redis)
         if not leave_by_day[day]:
             allowed.append(p)
-    points = allowed
+    # Only positions recorded between check-in and check-out are kept.
+    spans = await _attendance_spans(
+        current_user.user_id,
+        [(p.timestamp if p.timestamp.tzinfo else p.timestamp.replace(tzinfo=UTC)) for p in allowed],
+    )
+    points = [
+        p for p in allowed
+        if any(a <= (p.timestamp if p.timestamp.tzinfo else p.timestamp.replace(tzinfo=UTC)) <= b for a, b in spans)
+    ]
     stored = 0
     async with AsyncSessionLocal() as session:
         for p in points:
@@ -427,6 +484,11 @@ async def ping_location(
     # not told to stop, so tracking carries on by itself at the next 09:00.
     if not in_tracking_window(now) or await _on_leave_today(officer_id, company_today(), redis):
         return {"status": "paused"}
+
+    # Not checked in yet: nothing is recorded and the officer is not shown on
+    # the map. The phone keeps trying, so tracking starts after check-in.
+    if not await _checked_in_now(officer_id, redis):
+        return {"status": "not_checked_in"}
 
     # 1. Save live state to Redis
     location_data = {

@@ -41,14 +41,14 @@ def test_purge_deletes_in_batches_until_a_short_batch(monkeypatch):
     assert sum(1 for c in _Session.calls if c[0] == "gps_tracks") == 3
 
 
-def test_cutoff_is_ninety_days_by_default(monkeypatch):
+def test_cutoff_is_sixty_days_by_default(monkeypatch):
     from datetime import UTC, datetime, timedelta
     _Session.calls = []
     _Session.script = {"gps_tracks": [], "officer_locations": [], "location_alerts": []}
     monkeypatch.setattr(gr, "AsyncSessionLocal", _Session)
     asyncio.run(gr.purge_old_gps())
     cutoff = _Session.calls[0][1]
-    expected = datetime.now(UTC) - timedelta(days=90)
+    expected = datetime.now(UTC) - timedelta(days=60)
     assert abs((cutoff - expected).total_seconds()) < 5
 
 

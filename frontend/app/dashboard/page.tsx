@@ -4274,7 +4274,7 @@ export default function Dashboard() {
                       {salesClosureDetail.images?.length > 0 && (
                         <div className="pt-3">
                           <p className="text-xs font-bold text-slate-500 uppercase mb-2">Photos</p>
-                          <PhotoGallery urls={salesClosureDetail.images} />
+                          <PhotoGallery urls={salesClosureDetail.images} name="dealer-closure-photo" />
                         </div>
                       )}
                     </div>
