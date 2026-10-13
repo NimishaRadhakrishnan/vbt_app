@@ -710,6 +710,115 @@ async def admin_list_sales_closures(
     return [await _sales_row_to_response(session, r) for r in result.all()]
 
 
+@router.get("/sales/stock-report")
+async def download_dealer_stock_report(
+    _current_user: Annotated[CurrentUserOutput, Depends(require_role(Role.ADMIN, Role.MANAGER))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    fmt: str = "xlsx",
+    month: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    officer_id: Optional[uuid.UUID] = None,
+    district: Optional[str] = None,
+    dealer: Optional[str] = None,
+    latest_only: bool = True,
+):
+    """Stock left in dealers' shops, printable as PDF or Excel.
+
+    Laid out like the company stock sheet (Category, Product, Properties,
+    one column per pack size, Remarks) with one block per dealer. By
+    default a dealer shows the LATEST quantity reported for each product
+    pack inside the chosen period, so a dealer visited three times in a
+    month appears once with current figures; latest_only=false lists
+    every visit separately.
+    """
+    from fastapi.responses import Response
+    from app.application.services.stock_report_service import StockRow, render_pdf, render_xlsx
+
+    if fmt not in ("xlsx", "pdf"):
+        raise HTTPException(status_code=400, detail="fmt must be xlsx or pdf.")
+
+    clauses = ["c.is_deleted = false"]
+    params: dict = {}
+    label = "All dates"
+    if month:
+        try:
+            year_s, month_s = month.split("-")
+            start = date(int(year_s), int(month_s), 1)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="month must be in YYYY-MM format.")
+        end = date(start.year + 1, 1, 1) if start.month == 12 else date(start.year, start.month + 1, 1)
+        clauses.append("c.date >= :mstart AND c.date < :mend")
+        params["mstart"] = start; params["mend"] = end
+        label = start.strftime("%B %Y")
+    else:
+        if date_from:
+            clauses.append("c.date >= :dfrom"); params["dfrom"] = date_from
+        if date_to:
+            clauses.append("c.date <= :dto"); params["dto"] = date_to
+        if date_from or date_to:
+            label = f"{date_from or '...'} to {date_to or '...'}"
+    if officer_id:
+        clauses.append("c.officer_id = :oid"); params["oid"] = officer_id
+    if district:
+        clauses.append("d.district ILIKE :district"); params["district"] = f"%{district}%"
+    if dealer:
+        clauses.append("d.dealer_name ILIKE :dealer"); params["dealer"] = f"%{dealer}%"
+
+    result = await session.execute(
+        text(f"""
+            SELECT d.dealer_name, d.district, u.full_name AS officer_name, c.date AS visit_date,
+                   COALESCE(l.category, 'Other') AS category, l.product_name,
+                   l.quantity_left, l.remarks
+            FROM sales_closure_stock_lines l
+            JOIN day_closures c ON c.id = l.closure_id
+            JOIN sales_closure_details d ON d.closure_id = c.id
+            LEFT JOIN users u ON u.id = c.officer_id
+            WHERE {" AND ".join(clauses)}
+            ORDER BY c.date DESC, c.created_at DESC
+            LIMIT 20000
+        """).bindparams(**params)
+    )
+    records = result.all()
+
+    if latest_only:
+        seen: set[tuple[str, str]] = set()
+        newest: dict[str, date] = {}
+        kept = []
+        for r in records:  # newest first, so the first sight of a pack is the latest
+            key = (r.dealer_name.strip().lower(), r.product_name)
+            if key in seen:
+                continue
+            seen.add(key)
+            kept.append(r)
+            newest.setdefault(r.dealer_name.strip().lower(), r.visit_date)
+        rows = [
+            StockRow(r.dealer_name, r.district, r.officer_name,
+                     str(newest[r.dealer_name.strip().lower()]), r.category, r.product_name,
+                     r.quantity_left, r.remarks)
+            for r in kept
+        ]
+    else:
+        rows = [
+            StockRow(r.dealer_name, r.district, r.officer_name, str(r.visit_date),
+                     r.category, r.product_name, r.quantity_left, r.remarks)
+            for r in records
+        ]
+
+    title = f"Stock left in dealers' shops - {label}"
+    stamp = date.today().isoformat()
+    if fmt == "pdf":
+        return Response(
+            content=render_pdf(rows, title), media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="dealer-stock-left-{stamp}.pdf"'},
+        )
+    return Response(
+        content=render_xlsx(rows, title),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="dealer-stock-left-{stamp}.xlsx"'},
+    )
+
+
 @router.get("/sales/{closure_id}", response_model=SalesClosureResponse)
 async def get_sales_closure_detail(
     closure_id: uuid.UUID,

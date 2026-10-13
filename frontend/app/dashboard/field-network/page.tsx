@@ -1,5 +1,6 @@
 "use client";
 
+import SearchableSelect from "@/components/SearchableSelect";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -901,12 +902,13 @@ export default function FieldNetworkPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Select Product</label>
-                    <select value={orderProductId} onChange={(e) => setOrderProductId(e.target.value)} className="w-full text-sm p-2.5 rounded-lg border border-slate-200 bg-slate-50 font-medium focus:outline-none focus:ring-2 focus:ring-green-600 text-slate-900" required>
-                      <option value="">-- Choose Product --</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name} (₹{p.price}/unit - {p.sku_code})</option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      value={orderProductId}
+                      onChange={setOrderProductId}
+                      placeholder="Type to search products..."
+                      required
+                      options={products.map((p) => ({ value: p.id, label: `${p.name} (₹${p.price}/unit - ${p.sku_code})` }))}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Quantity (Units)</label>
@@ -976,20 +978,22 @@ export default function FieldNetworkPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Target Product</label>
-                    <select value={stockProductId} onChange={(e) => setStockProductId(e.target.value)} className="w-full text-sm p-2.5 rounded-lg border border-slate-200 bg-slate-50 font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 text-slate-900" required>
-                      <option value="">-- Choose Product --</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name} (SKU: {p.sku_code})</option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      value={stockProductId}
+                      onChange={setStockProductId}
+                      placeholder="Type to search products..."
+                      focusRing="focus:ring-blue-600"
+                      required
+                      options={products.map((p) => ({ value: p.id, label: `${p.name} (SKU: ${p.sku_code})` }))}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Audited Physical Quantity</label>
                     <input type="number" min="0" value={stockQty} onChange={(e) => setStockQty(e.target.value)} className="w-full text-sm p-2.5 rounded-lg border border-slate-200 bg-slate-50 font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 text-slate-900" required />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Audit Remarks / Justification</label>
-                    <input type="text" placeholder="Reason for adjustment or inspector notes..." value={stockNotes} onChange={(e) => setStockNotes(e.target.value)} className="w-full text-sm p-2.5 rounded-lg border border-slate-200 bg-slate-50 font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 text-slate-900" />
+                    <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Audit Remarks / Justification <span className="font-normal normal-case text-slate-400">(optional)</span></label>
+                    <input type="text" placeholder="Optional - reason for adjustment or inspector notes..." value={stockNotes} onChange={(e) => setStockNotes(e.target.value)} className="w-full text-sm p-2.5 rounded-lg border border-slate-200 bg-slate-50 font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 text-slate-900" />
                   </div>
                   <button type="submit" disabled={stockSubmitting} className="w-full mt-2 py-3 bg-primary-700 hover:bg-primary-800 disabled:bg-slate-300 text-white font-bold rounded-lg transition text-sm flex items-center justify-center gap-2 shadow-sm">
                     <CheckCircle className="w-4 h-4" />

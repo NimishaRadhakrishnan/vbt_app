@@ -1205,6 +1205,25 @@ export default function Dashboard() {
     }
   };
 
+  // Stock-left report for the dealers in the current filters, as the
+  // company sheet (Category / Product / Properties / pack sizes / Remarks).
+  const downloadStockReport = async (fmt: "xlsx" | "pdf") => {
+    const params = new URLSearchParams({ fmt });
+    if (salesClosureOfficerId) params.set("officer_id", salesClosureOfficerId);
+    if (salesClosureDateFrom) params.set("date_from", salesClosureDateFrom);
+    if (salesClosureDateTo) params.set("date_to", salesClosureDateTo);
+    if (salesClosureMonth) params.set("month", salesClosureMonth);
+    if (salesClosureDistrict) params.set("district", salesClosureDistrict);
+    try {
+      await downloadAuthenticatedFile(
+        `${API_BASE_URL}/day-closure/sales/stock-report?${params.toString()}`,
+        datedFilename("dealer-stock-left", fmt),
+      );
+    } catch (err: any) {
+      alert(err.message || "Couldn't download the stock report.");
+    }
+  };
+
   const openSalesClosureDetail = async (closureId: string) => {
     try {
       const d: any = await apiFetch(`/day-closure/sales/${closureId}`);
@@ -4195,6 +4214,18 @@ export default function Dashboard() {
                       className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold"
                     >
                       Filter
+                    </button>
+                    <button
+                      onClick={() => downloadStockReport("xlsx")}
+                      className="px-3 py-1 text-xs bg-green-700 hover:bg-green-800 text-white rounded-lg font-semibold"
+                    >
+                      Stock report (Excel)
+                    </button>
+                    <button
+                      onClick={() => downloadStockReport("pdf")}
+                      className="px-3 py-1 text-xs bg-green-700 hover:bg-green-800 text-white rounded-lg font-semibold"
+                    >
+                      Stock report (PDF)
                     </button>
                   </div>
                 </div>
