@@ -1,5 +1,6 @@
 "use client";
 
+import { roleName } from "@/lib/roles";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { todayIST, weekStartIST } from "@/lib/dates";
 import { useRouter } from "next/navigation";
@@ -2673,7 +2674,7 @@ export default function Dashboard() {
                       >
                         <td className="px-6 py-4 font-bold text-slate-800">
                           {o.name}
-                          <div className="text-[10px] font-normal text-slate-400">{o.role}</div>
+                          <div className="text-[10px] font-normal text-slate-400">{roleName(o.role)}</div>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -3040,7 +3041,7 @@ export default function Dashboard() {
                           {usersList
                             .filter((u: any) => ["field_officer", "manager"].includes(u.role))
                             .map((u: any) => (
-                              <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
+                              <option key={u.id} value={u.id}>{u.full_name} ({roleName(u.role)})</option>
                             ))}
                         </select>
                       </div>
@@ -3659,7 +3660,7 @@ export default function Dashboard() {
                 ) : (
                   issues.map(i => {
                     const farmerName = i.farmerName || farmers.find(f => f.id === i.farmer_id)?.name || "Registered Farmer";
-                    const officerName = i.officerName || usersList.find(u => u.id === i.user_id)?.full_name || "Field Officer";
+                    const officerName = i.officerName || usersList.find(u => u.id === i.user_id)?.full_name || "Officer";
                     const expertName = i.expertName || (i.district === "Salem" ? "Dr. Sundar (Salem Specialist)" : "Agri Hotline Specialist");
 
                     return (
@@ -4521,7 +4522,7 @@ export default function Dashboard() {
                         {usersList
                           .filter((u: any) => u.role === "field_officer")
                           .map((u: any) => (
-                            <option key={u.id} value={u.id}>{u.full_name} ({u.role.replace("_", " ")})</option>
+                            <option key={u.id} value={u.id}>{u.full_name} ({roleName(u.role)})</option>
                           ))}
                       </select>
                     </div>
@@ -4929,7 +4930,7 @@ export default function Dashboard() {
                         {usersList
                           .filter(u => u.role === "manager" || u.role === "admin")
                           .map(u => (
-                            <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
+                            <option key={u.id} value={u.id}>{u.full_name} ({roleName(u.role)})</option>
                           ))}
                       </select>
                     </div>
@@ -5107,7 +5108,7 @@ export default function Dashboard() {
                             <td className="p-4 text-slate-500">{u.phone || "-"}</td>
                             <td className="p-4">
                               <span className="px-2.5 py-0.5 text-xs font-medium bg-slate-100 rounded-full text-slate-800 capitalize">
-                                {u.role.replace("_", " ")}
+                                {roleName(u.role)}
                               </span>
                             </td>
                             <td className="p-4">

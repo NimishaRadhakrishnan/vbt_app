@@ -256,7 +256,7 @@ export default function AdminVisitReportsScreen({ navigation }: any) {
           <View style={styles.grid}>
             <TextBox label="From (YYYY-MM-DD)" value={draft.date_from} onChange={set('date_from')} />
             <TextBox label="To (YYYY-MM-DD)" value={draft.date_to} onChange={set('date_to')} />
-            <PickerField label="Field officer" value={draft.officer_id} options={lists.officers} onChange={set('officer_id')} />
+            <PickerField label="Officer" value={draft.officer_id} options={lists.officers} onChange={set('officer_id')} />
             <PickerField label="Manager" value={draft.manager_id} options={lists.managers} onChange={set('manager_id')} />
             <TextBox label="Employee ID" value={draft.employee_id} onChange={set('employee_id')} />
             <TextBox label="District / Region" value={draft.district} onChange={set('district')} />

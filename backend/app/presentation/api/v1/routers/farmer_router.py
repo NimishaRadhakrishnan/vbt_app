@@ -160,7 +160,7 @@ async def update_farmer_trial(
     # covers the moment of registration; a trial started later (or one
     # whose quantities need correcting) had no way back in until now.
     if current_user.role != "field_officer":
-        raise HTTPException(status_code=403, detail="Only Field Officers can update trial information.")
+        raise HTTPException(status_code=403, detail="Only Officers can update trial information.")
 
     farmer = await use_case.get_farmer_profile(farmer_id)
     if not farmer:

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { roleName } from "@/lib/roles";
 import { Users, Award, TrendingUp, ChevronDown, ChevronUp, Send, Loader2 } from "lucide-react";
 import MomentumWidget from "./MomentumWidget";
 import { apiFetch } from "@/lib/api/client";
@@ -141,7 +142,7 @@ export default function TeamMomentumCard({ teamData, officersList }: TeamMomentu
         
         <div className="space-y-3">
           {validOfficers.length === 0 ? (
-            <p className="text-sm text-slate-500 italic">No field officers in your territory.</p>
+            <p className="text-sm text-slate-500 italic">No officers in your territory.</p>
           ) : (
             validOfficers.map((officer) => (
               <div key={officer.id} className="border border-slate-200 rounded-xl overflow-hidden">
@@ -155,7 +156,7 @@ export default function TeamMomentumCard({ teamData, officersList }: TeamMomentu
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-800">{officer.full_name}</p>
-                      <p className="text-xs font-medium text-slate-500">{officer.role.replace('_', ' ')}</p>
+                      <p className="text-xs font-medium text-slate-500">{roleName(officer.role)}</p>
                     </div>
                   </div>
                   {selectedOfficerId === officer.id ? (

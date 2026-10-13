@@ -121,7 +121,7 @@ export default function ProfileScreen({ navigation }: any) {
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials || 'FO'}</Text>
         </View>
-        <Text style={styles.name}>{currentUser?.fullName ?? 'Field Officer'}</Text>
+        <Text style={styles.name}>{currentUser?.fullName ?? 'Officer'}</Text>
         <Text style={styles.meta}>
           {currentUser?.employeeId ? `ID: ${currentUser.employeeId}` : ''}
         </Text>

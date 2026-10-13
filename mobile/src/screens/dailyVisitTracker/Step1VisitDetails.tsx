@@ -50,7 +50,7 @@ export default function Step1VisitDetails({
 }: Props) {
   return (
     <View>
-      <FieldRow label="Field Officer">
+      <FieldRow label="Officer">
         <Text style={styles.readonlyValue}>{officerName}</Text>
       </FieldRow>
       <FieldRow label="Employee ID">

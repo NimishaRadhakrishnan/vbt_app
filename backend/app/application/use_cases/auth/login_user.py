@@ -153,7 +153,7 @@ class LoginUserUseCase:
                         notif = Notification(
                             user_id=u.id,
                             title="Officer Logged In & Activity Updated",
-                            message=f"Field Officer {user.full_name} ({user.employee_id or user.email}) logged in. Activity has been updated.",
+                            message=f"Officer {user.full_name} ({user.employee_id or user.email}) logged in. Activity has been updated.",
                             type="broadcast",
                         )
                         await self._notification_repository.add(notif)

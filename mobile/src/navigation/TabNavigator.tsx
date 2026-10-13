@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { roleName } from '../utils/roles';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -70,10 +71,7 @@ function HeaderUserBadge() {
   }, []);
 
   if (!user) return null;
-  const roleLabel = (user.role ?? '')
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+  const roleLabel = roleName(user.role);
 
   const syncLabel = pendingCount > 0
     ? `Saved on device (${pendingCount})`

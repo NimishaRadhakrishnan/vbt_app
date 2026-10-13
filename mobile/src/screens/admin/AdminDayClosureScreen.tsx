@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { roleName } from '../../utils/roles';
 import { StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, Alert, ActivityIndicator, ScrollView, Switch } from 'react-native';
 import { apiClient } from '../../services/api';
 import { useDataFetch } from '../../hooks/useDataFetch';
@@ -145,7 +146,7 @@ export default function AdminDayClosureScreen() {
             renderItem={({ item }) => (
               <View style={styles.card}>
                 <Text style={styles.name}>{item.officer_name}</Text>
-                <Text style={styles.meta}>{item.role.replace('_', ' ')} · no closure submitted yet</Text>
+                <Text style={styles.meta}>{roleName(item.role)} · no closure submitted yet</Text>
               </View>
             )}
           />

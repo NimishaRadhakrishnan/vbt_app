@@ -27,11 +27,11 @@ export default function ManagerProductivity({
   const [selectedOfficer, setSelectedOfficer] = useState<TeamMember | null>(null);
 
   const mockTeamData: TeamMember[] = [
-    { id: '1', name: 'Karthik Raja', role: 'Field Officer', tasksCompleted: 12, tasksTotal: 15, visitsLogged: 8, hoursLogged: 36, status: 'On Track' },
-    { id: '2', name: 'Suresh Kumar', role: 'Field Officer', tasksCompleted: 5, tasksTotal: 12, visitsLogged: 4, hoursLogged: 28, status: 'Behind' },
+    { id: '1', name: 'Karthik Raja', role: 'Officer', tasksCompleted: 12, tasksTotal: 15, visitsLogged: 8, hoursLogged: 36, status: 'On Track' },
+    { id: '2', name: 'Suresh Kumar', role: 'Officer', tasksCompleted: 5, tasksTotal: 12, visitsLogged: 4, hoursLogged: 28, status: 'Behind' },
     { id: '3', name: 'Dinesh Prabhu', role: 'Senior Officer', tasksCompleted: 0, tasksTotal: 0, visitsLogged: 2, hoursLogged: 40, status: 'On Track' },
-    { id: '4', name: 'Palani G', role: 'Field Officer', tasksCompleted: 14, tasksTotal: 14, visitsLogged: 10, hoursLogged: 42, status: 'On Track' },
-    { id: '5', name: 'Vigneshwaran M', role: 'Field Officer', tasksCompleted: 7, tasksTotal: 10, visitsLogged: 5, hoursLogged: 31, status: 'At Risk' },
+    { id: '4', name: 'Palani G', role: 'Officer', tasksCompleted: 14, tasksTotal: 14, visitsLogged: 10, hoursLogged: 42, status: 'On Track' },
+    { id: '5', name: 'Vigneshwaran M', role: 'Officer', tasksCompleted: 7, tasksTotal: 10, visitsLogged: 5, hoursLogged: 31, status: 'At Risk' },
   ];
 
   const data = teamData || mockTeamData;

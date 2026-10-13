@@ -338,7 +338,7 @@ export default function DailyVisitReportsPage() {
                 value={filters.village} onChange={(e) => setFilters((f) => ({ ...f, village: e.target.value }))} />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500">Field Officer</label>
+              <label className="text-xs font-semibold text-slate-500">Officer</label>
               <select className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded text-sm bg-slate-50 text-slate-900"
                 value={filters.officer_id} onChange={(e) => setFilters((f) => ({ ...f, officer_id: e.target.value }))}>
                 <option value="">Any</option>

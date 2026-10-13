@@ -1,5 +1,6 @@
 "use client";
 
+import { roleName } from "@/lib/roles";
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -164,7 +165,7 @@ export default function OfficerProfilePage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <StatusPill tone="slate">{(officer?.role || "").replace("_", " ")}</StatusPill>
+                <StatusPill tone="slate">{roleName(officer?.role)}</StatusPill>
                 {officer?.employee_id && <StatusPill tone="slate">ID: {officer.employee_id}</StatusPill>}
                 <StatusPill tone={officer?.is_active ? "green" : "red"}>
                   {officer?.is_active ? "Active" : "Disabled"}

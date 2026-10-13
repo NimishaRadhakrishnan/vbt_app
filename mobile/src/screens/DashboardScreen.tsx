@@ -103,7 +103,7 @@ export default function DashboardScreen({ navigation }: any) {
     <ScrollView style={styles.container}>
       {/* Greeting header - online/offline toggle and sign out now live on Profile */}
       <View style={styles.header}>
-        <Text style={styles.username}>{currentUser?.fullName ?? 'Field Officer'}</Text>
+        <Text style={styles.username}>{currentUser?.fullName ?? 'Officer'}</Text>
         <Text style={styles.role}>
           {currentUser?.role ?? ''}{currentUser?.employeeId ? ` (${currentUser.employeeId})` : ''}
         </Text>

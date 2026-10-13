@@ -71,7 +71,7 @@ export default function Step8PhotosRemarks({
       </View>
 
       <Text style={styles.sectionHeading}>Remarks & Follow-up</Text>
-      <FieldRow label="Field Officer Remarks (optional)">
+      <FieldRow label="Officer Remarks (optional)">
         <TextInputLike value={officerRemarks} onChangeText={setOfficerRemarks} placeholder="Any observations or notes" />
       </FieldRow>
       <FieldRow label="Next Follow-up Date (optional)">

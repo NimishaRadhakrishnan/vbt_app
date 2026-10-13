@@ -1,4 +1,5 @@
 import React from 'react';
+import { roleName } from '../../utils/roles';
 import { StyleSheet, Text, View, TouchableOpacity, FlatList, Linking } from 'react-native';
 import { apiClient } from '../../services/api';
 import { useDataFetch } from '../../hooks/useDataFetch';
@@ -94,7 +95,7 @@ export default function AdminLiveMapScreen() {
                   <Text style={styles.badgeText}>{STATUS_LABEL[item.status] || item.status}</Text>
                 </View>
               </View>
-              <Text style={styles.meta}>{item.officer_role.replace('_', ' ')} · {formatLastSeen(item.updated_at)}</Text>
+              <Text style={styles.meta}>{roleName(item.officer_role)} · {formatLastSeen(item.updated_at)}</Text>
               {item.latitude != null && item.longitude != null ? (
                 <>
                   <Text style={styles.meta}>{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</Text>
