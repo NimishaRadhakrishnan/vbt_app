@@ -50,9 +50,7 @@ async def validate_and_save_custom_answers(
         # Check visibility
         is_visible = False
         if role == "field_officer":
-            is_visible = df["visible_to_field_officer"]
-        elif role == "sales_officer":
-            is_visible = df["visible_to_sales_officer"]
+            is_visible = df["visible_to_field_officer"] or df["visible_to_sales_officer"]
         elif role in ("admin", "manager"):
             is_visible = df["visible_to_manager"]
             
@@ -92,9 +90,7 @@ async def validate_and_save_custom_answers(
                 continue
             is_visible = False
             if role == "field_officer":
-                is_visible = df["visible_to_field_officer"]
-            elif role == "sales_officer":
-                is_visible = df["visible_to_sales_officer"]
+                is_visible = df["visible_to_field_officer"] or df["visible_to_sales_officer"]
             elif role in ("admin", "manager"):
                 is_visible = df["visible_to_manager"]
                 

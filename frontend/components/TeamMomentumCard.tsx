@@ -90,7 +90,7 @@ export default function TeamMomentumCard({ teamData, officersList }: TeamMomentu
     personal_bests_beaten_this_week
   } = teamData;
 
-  const validOfficers = officersList.filter(o => o.role === 'field_officer' || o.role === 'sales_officer');
+  const validOfficers = officersList.filter(o => o.role === 'field_officer');
 
   return (
     <div className="w-full bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">

@@ -449,7 +449,7 @@ export default function ManagementDashboard() {
           label: o.name,
           value: o.sales_value,
           display: o.sales_display,
-          sublabel: o.role === "sales_officer" ? "Sales officer" : "Field officer",
+          sublabel: "Officer",
         })),
     [data]
   );

@@ -35,7 +35,7 @@ router = APIRouter(prefix="/dealers", tags=["dealers"])
 
 @router.get("/check-duplicate", response_model=DuplicateCheckResponse)
 async def check_duplicate_dealer(
-    current_user: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.SALES_OFFICER))],
+    current_user: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.FIELD_OFFICER))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     name: Optional[str] = None,
     phone: Optional[str] = None,
@@ -83,7 +83,7 @@ async def check_duplicate_dealer(
 @router.post("/", response_model=DealerResponse, status_code=status.HTTP_201_CREATED)
 async def register_dealer(
     payload: RegisterDealerRequest,
-    current_user: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.SALES_OFFICER))],
+    current_user: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.FIELD_OFFICER))],
     use_case: Annotated[DealerUseCase, Depends(get_dealer_use_case)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DealerResponse:
@@ -218,7 +218,7 @@ async def place_order(
     current_user: CurrentUser,
     use_case: Annotated[DealerUseCase, Depends(get_dealer_use_case)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    _access: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.SALES_OFFICER))],
+    _access: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.FIELD_OFFICER))],
 ) -> DealerOrderResponse:
     items_list = [{"product_id": str(item.product_id), "quantity": item.quantity} for item in payload.items]
     result = await use_case.place_order(
@@ -258,7 +258,7 @@ async def list_orders(
     # (section 5) - this was a real pre-existing gap, not a change the
     # spec asked for directly, but the dealer profile it's building
     # toward can't work without it.
-    _access: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.SALES_OFFICER))],
+    _access: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.FIELD_OFFICER))],
     status_filter: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,

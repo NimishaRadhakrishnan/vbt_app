@@ -169,7 +169,7 @@ function AssignTab() {
   }>(() => apiClient.request('/users?limit=200', 'GET', 'admin_action'), [], { refetchOnFocus: false });
 
   const assignableOfficers = (officers?.items ?? []).filter(
-    (u) => u.role === 'field_officer' || u.role === 'sales_officer'
+    (u) => u.role === 'field_officer'
   );
 
   const submit = async () => {
@@ -237,7 +237,7 @@ function AssignTab() {
             </TouchableOpacity>
           ))}
           {assignableOfficers.length === 0 && (
-            <Text style={styles.cardMeta}>No field or sales officers found.</Text>
+            <Text style={styles.cardMeta}>No officers found.</Text>
           )}
         </View>
       )}

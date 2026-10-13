@@ -60,7 +60,7 @@ export default function AdminStockPage() {
       
       const uData: any = await apiFetch("/users");
       const list = uData.items || uData;
-      setOfficers(list.filter((u: any) => u.role === "field_officer" || u.role === "sales_officer"));
+      setOfficers(list.filter((u: any) => u.role === "field_officer"));
     } catch (e) {
       console.error(e);
     }

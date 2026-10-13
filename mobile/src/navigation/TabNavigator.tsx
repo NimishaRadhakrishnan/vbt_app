@@ -135,7 +135,8 @@ function usePushedScreens() {
 
 function renderPushedScreens(Stack: ReturnType<typeof createStackNavigator>, access: ReturnType<typeof usePushedScreens>) {
   const { isOversight, isFieldOrOversight, role } = access;
-  const isSalesOrOversight = role === 'sales_officer' || isOversight;
+  // One Officer role: officers get the dealer screens as well as the farm ones.
+  const isSalesOrOversight = role === 'field_officer' || isOversight;
   return (
     <>
       <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ title: 'Shift Check-In' }} />
@@ -243,7 +244,7 @@ const TAB_LABELS: Record<string, string> = {
 export default function TabNavigator() {
   const [sheetVisible, setSheetVisible] = useState(false);
   const role = apiClient.getCurrentUser()?.role;
-  useTrackingWatchdog(role === 'field_officer' || role === 'sales_officer');
+  useTrackingWatchdog(role === 'field_officer');
 
   return (
     <>

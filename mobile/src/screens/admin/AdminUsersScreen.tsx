@@ -18,7 +18,7 @@ type UserRow = {
   email: string;
 };
 
-const ROLES = ['field_officer', 'sales_officer', 'manager', 'admin'] as const;
+const ROLES = ['field_officer', 'manager', 'admin'] as const;
 
 type ProfileForm = { phone: string; password: string; full_name: string; role: string; employee_id: string };
 const emptyProfileForm: ProfileForm = { phone: '', password: '', full_name: '', role: 'field_officer', employee_id: '' };
@@ -295,7 +295,7 @@ export default function AdminUsersScreen() {
               <View style={styles.roleRow}>
                 {ROLES.map((r) => (
                   <TouchableOpacity key={r} style={[styles.roleChip, profileForm.role === r && styles.roleChipActive]} onPress={() => setProfileForm((f) => ({ ...f, role: r }))}>
-                    <Text style={[styles.roleChipText, profileForm.role === r && styles.roleChipTextActive]}>{r.replace('_', ' ')}</Text>
+                    <Text style={[styles.roleChipText, profileForm.role === r && styles.roleChipTextActive]}>{r === 'field_officer' ? 'officer' : r.replace('_', ' ')}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

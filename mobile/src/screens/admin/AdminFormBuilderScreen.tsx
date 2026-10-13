@@ -133,7 +133,7 @@ type Editor =
 
 type SendFn = (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', body?: unknown) => Promise<boolean>;
 
-type PreviewRole = 'field_officer' | 'sales_officer';
+type PreviewRole = 'field_officer';
 
 const EMPTY_ANSWERS: Record<string, unknown> = {};
 const noop = () => undefined;
@@ -150,9 +150,7 @@ const slugify = (text: string): string =>
     .replace(/^_+|_+$/g, '') || 'option';
 
 const visibilityText = (fieldOfficer: boolean, salesOfficer: boolean): string => {
-  if (fieldOfficer && salesOfficer) return 'Field and sales officers';
-  if (fieldOfficer) return 'Field officers only';
-  if (salesOfficer) return 'Sales officers only';
+  if (fieldOfficer || salesOfficer) return 'Visible to officers';
   return 'Hidden from everyone';
 };
 
@@ -463,8 +461,12 @@ function FieldEditorModal({
       <TextField label="Help text" value={helpText} onChangeText={setHelpText} multiline editable={!saving} />
       <ToggleRow label="Required" value={isRequired} onChange={setIsRequired} disabled={saving || field.backend_required} />
       <ToggleRow label="Shown on the form" value={isEnabled} onChange={setIsEnabled} disabled={saving || field.backend_required} />
-      <ToggleRow label="Visible to field officers" value={forFieldOfficer} onChange={setForFieldOfficer} disabled={saving} />
-      <ToggleRow label="Visible to sales officers" value={forSalesOfficer} onChange={setForSalesOfficer} disabled={saving} />
+      <ToggleRow
+        label="Visible to officers"
+        value={forFieldOfficer || forSalesOfficer}
+        onChange={(v: boolean) => { setForFieldOfficer(v); setForSalesOfficer(v); }}
+        disabled={saving}
+      />
     </Sheet>
   );
 }
@@ -686,8 +688,12 @@ function CustomFieldEditorModal({
       <TextField label="Help text (optional)" value={helpText} onChangeText={setHelpText} multiline editable={!saving} />
       <ToggleRow label="Required" value={isRequired} onChange={setIsRequired} disabled={saving} />
       {!isNew ? <ToggleRow label="Shown on the form" value={isEnabled} onChange={setIsEnabled} disabled={saving} /> : null}
-      <ToggleRow label="Visible to field officers" value={forFieldOfficer} onChange={setForFieldOfficer} disabled={saving} />
-      <ToggleRow label="Visible to sales officers" value={forSalesOfficer} onChange={setForSalesOfficer} disabled={saving} />
+      <ToggleRow
+        label="Visible to officers"
+        value={forFieldOfficer || forSalesOfficer}
+        onChange={(v: boolean) => { setForFieldOfficer(v); setForSalesOfficer(v); }}
+        disabled={saving}
+      />
     </Sheet>
   );
 }
@@ -1262,7 +1268,7 @@ export default function AdminFormBuilderScreen() {
 
   const renderPreview = () => {
     const sees = (f: { is_enabled: boolean; visible_to_field_officer: boolean; visible_to_sales_officer: boolean }) =>
-      f.is_enabled && (previewRole === 'field_officer' ? f.visible_to_field_officer : f.visible_to_sales_officer);
+      f.is_enabled && (f.visible_to_field_officer || f.visible_to_sales_officer);
 
     const blocks = groups
       .map((group) => {
@@ -1277,9 +1283,9 @@ export default function AdminFormBuilderScreen() {
     return (
       <View>
         <View style={styles.tabs} accessibilityRole="tablist">
-          {(['field_officer', 'sales_officer'] as const).map((role) => {
+          {(['field_officer'] as const).map((role) => {
             const selected = previewRole === role;
-            const text = role === 'field_officer' ? 'Field Officer' : 'Sales Officer';
+            const text = 'Officer';
             return (
               <TouchableOpacity
                 key={role}

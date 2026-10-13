@@ -80,7 +80,7 @@ export default function AdminLiveMapScreen() {
       ) : error ? (
         <ErrorState message={error} onRetry={retry} />
       ) : !data || data.length === 0 ? (
-        <EmptyState message="No field or sales officers to show." />
+        <EmptyState message="No officers to show." />
       ) : (
         <FlatList
           data={data}

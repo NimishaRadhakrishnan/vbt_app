@@ -26,13 +26,9 @@ export default function FieldNetworkPage() {
     if (pageTab === "farmers" || pageTab === "dealers") setSubTab(pageTab);
   }, [pageTab]);
 
-  // Role boundary (Section 5): Field Officers register farmers but never
-  // touch dealer/stock/order data; Sales Officers do the opposite and
-  // explicitly don't get Farmer Enquiry. Admin/Manager get both tabs for
-  // oversight, matching every other dual-purpose page in this app. This
-  // was previously unguarded - both tabs rendered for every role.
-  const canSeeFarmersTab = user?.role !== "sales_officer";
-  const canSeeDealersTab = user?.role !== "field_officer";
+  // One Officer role: every role sees both the Farmers and the Dealers tabs.
+  const canSeeFarmersTab = true;
+  const canSeeDealersTab = true;
   // Section 5 of the Trial Conducted spec: only Field Officers get that
   // section on the Register Farmer form - Admin/Manager/Sales Officer
   // see the form exactly as it was before.
@@ -275,7 +271,7 @@ export default function FieldNetworkPage() {
         }),
       });
       setDealerFormSuccess(
-        user?.role === "sales_officer"
+        user?.role === "field_officer"
           ? "Dealer submitted — pending admin/manager approval."
           : "Dealer added successfully."
       );
@@ -781,7 +777,7 @@ export default function FieldNetworkPage() {
                 previously three full forms rendered simultaneously,
                 side-by-side, every time this tab opened. */}
             <div className="flex flex-wrap gap-3">
-              {(user?.role === "admin" || user?.role === "manager" || user?.role === "sales_officer") && (
+              {(user?.role === "admin" || user?.role === "manager" || user?.role === "field_officer") && (
                 <button
                   onClick={() => setShowAddDealerForm((v) => !v)}
                   className="flex items-center gap-2 px-5 py-3 bg-green-700 hover:bg-green-800 text-white font-bold rounded-xl text-sm shadow-sm transition"
@@ -789,7 +785,7 @@ export default function FieldNetworkPage() {
                   <Plus className="w-4 h-4" /> {showAddDealerForm ? "Cancel" : "Add Dealer"}
                 </button>
               )}
-              {(user?.role === "admin" || user?.role === "manager" || user?.role === "sales_officer") && (
+              {(user?.role === "admin" || user?.role === "manager" || user?.role === "field_officer") && (
                 <button
                   onClick={() => setShowPurchaseOrderForm((v) => !v)}
                   className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-sm transition"
@@ -813,7 +809,7 @@ export default function FieldNetworkPage() {
                   <Plus className="text-green-700 w-5 h-5" /> Add Dealer
                 </h3>
                 <p className="text-xs text-slate-400">
-                  {user?.role === "sales_officer"
+                  {user?.role === "field_officer"
                     ? "New dealers you add go to an admin/manager for approval before appearing in the network."
                     : "New dealers you add are active immediately."}
                 </p>
@@ -845,7 +841,7 @@ export default function FieldNetworkPage() {
                   </div>
                   <button type="submit" className="w-full py-3 bg-green-700 hover:bg-green-800 text-white font-bold rounded-lg transition text-sm flex items-center justify-center gap-2 shadow-sm">
                     <Plus className="w-4 h-4" />
-                    {user?.role === "sales_officer" ? "Submit for Approval" : "Add Dealer"}
+                    {user?.role === "field_officer" ? "Submit for Approval" : "Add Dealer"}
                   </button>
                 </form>
               </div>
@@ -1008,7 +1004,7 @@ export default function FieldNetworkPage() {
                 <h3 className="text-md font-bold text-slate-800 mb-1 flex items-center gap-2">
                   <AlertTriangle className="text-amber-600 w-5 h-5" /> Pending Dealer Approvals
                 </h3>
-                <p className="text-xs text-slate-400 mb-4">Dealers submitted by Sales Officers, awaiting approval before they appear in the active network.</p>
+                <p className="text-xs text-slate-400 mb-4">Dealers submitted by Officers, awaiting approval before they appear in the active network.</p>
                 <div className="divide-y divide-slate-100">
                   {pendingDealers.map((d: any) => (
                     <div key={d.id} className="py-3 flex items-center justify-between gap-3">
@@ -1121,10 +1117,10 @@ export default function FieldNetworkPage() {
             {/* Section 3: "features that belong only to another role" -
                 /dealers/orders/all is admin/manager-only server-side (see
                 dealer_router.py's require_role), so this section was
-                previously rendering for Sales Officers too, always showing
+                previously rendering for Officers too, always showing
                 a false "No purchase orders yet" - not an honest empty
                 state, since their orders simply were never being fetched.
-                Sales Officers can still raise a purchase order above; they
+                Officers can still raise a purchase order above; they
                 just don't have an order-history view on web yet (matches
                 Daily Visit Tracker's mobile-only pattern - not built here
                 since that's a new feature, not a UI reorganization). */}

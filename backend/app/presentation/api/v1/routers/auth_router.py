@@ -197,7 +197,7 @@ async def logout(
 
 
 async def _enforce_day_closure_before_logout(session: AsyncSession, current_user) -> None:
-    if current_user.role not in ("field_officer", "sales_officer"):
+    if current_user.role not in ("field_officer",):
         return  # admin/manager exempt (approved)
 
     try:

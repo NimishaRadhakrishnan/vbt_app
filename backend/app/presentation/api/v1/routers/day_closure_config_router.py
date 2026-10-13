@@ -77,10 +77,12 @@ async def get_my_day_closure_config(
     Manager see everything enabled (both role-visibility flags checked
     is redundant for them but harmless) so previewing/testing the form
     as either role stays possible without a separate preview mode."""
-    role_column = "visible_to_field_officer" if current_user.role == "field_officer" else (
-        "visible_to_sales_officer" if current_user.role == "sales_officer" else None
+    # One Officer role now: a field shows if it was ever made visible to
+    # either of the two former roles.
+    where_role = (
+        "AND (visible_to_field_officer = true OR visible_to_sales_officer = true)"
+        if current_user.role == "field_officer" else ""
     )
-    where_role = f"AND {role_column} = true" if role_column else ""
     result = await session.execute(
         text(f"SELECT {_SELECT_COLUMNS} FROM day_closure_field_configs WHERE is_enabled = true {where_role} ORDER BY display_order")
     )

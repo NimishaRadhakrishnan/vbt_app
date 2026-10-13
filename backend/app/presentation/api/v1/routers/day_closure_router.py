@@ -162,10 +162,10 @@ async def submit_no_activity_closure(
     which endpoint writes the row - this check exists to return a clear
     message rather than a raw constraint violation.
     """
-    if current_user.role not in ("field_officer", "sales_officer"):
+    if current_user.role not in ("field_officer",):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Day closure applies to Field and Sales Officers.",
+            detail="Day closure applies to Officers.",
         )
 
     reason = (payload.get("reason") or "").strip()
@@ -229,7 +229,7 @@ async def get_day_closure_warning_status(
     at the wrong moment or not at all. The client's only job is to
     render `warning_due`.
 
-    Scope is field_officer and sales_officer only; admin and manager are
+    Scope is field_officer only; admin and manager are
     excluded, and the separate manager daily-report gate is untouched.
 
     NOTE: this endpoint only REPORTS. It does not block logout - the
@@ -240,7 +240,7 @@ async def get_day_closure_warning_status(
     today = company_today()
     role = current_user.role
 
-    required = role in ("field_officer", "sales_officer")
+    required = role in ("field_officer",)
 
     # Sunday is non-working; company holidays come from holiday_calendar
     # (admin-maintained), not a hardcoded national-holiday list.
@@ -445,7 +445,7 @@ async def officers_missing_closure_today(
             SELECT u.id AS officer_id, u.full_name AS officer_name, u.role
             FROM users u
             LEFT JOIN day_closures dc ON dc.officer_id = u.id AND dc.date = :today
-            WHERE dc.id IS NULL AND u.role IN ('field_officer', 'sales_officer') AND u.is_active = true AND u.is_deleted = false
+            WHERE dc.id IS NULL AND u.role IN ('field_officer') AND u.is_active = true AND u.is_deleted = false
             ORDER BY u.full_name
         """).bindparams(today=today)
     )
@@ -509,10 +509,10 @@ async def submit_sales_day_closure(
     role to post either shape would let the two closure types drift into
     meaning whatever the client decided.
     """
-    if current_user.role not in ("sales_officer", "admin"):
+    if current_user.role not in ("field_officer", "admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Sales day closure is for Sales Officers. Field Officers submit a visit closure instead.",
+            detail="Dealer (sales) day closure is for Officers.",
         )
 
     # Server-side enforcement: an option flagged requires_description
@@ -758,8 +758,8 @@ async def admin_create_emergency_override(
         raise HTTPException(status_code=400, detail="Both a start and an end time are required.")
 
     scope_role = payload.get("scope_role") or None
-    if scope_role and scope_role not in ("field_officer", "sales_officer"):
-        raise HTTPException(status_code=400, detail="scope_role must be field_officer or sales_officer.")
+    if scope_role and scope_role not in ("field_officer",):
+        raise HTTPException(status_code=400, detail="scope_role must be field_officer.")
 
     new_id = uuid.uuid4()
     try:

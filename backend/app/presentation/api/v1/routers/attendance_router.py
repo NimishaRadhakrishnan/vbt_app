@@ -233,7 +233,7 @@ async def get_roster_status(
             LEFT JOIN attendance a ON a.user_id = u.id 
                 AND a.check_in_time >= :day_start 
                 AND a.check_in_time < :day_end
-            WHERE u.role IN ('field_officer', 'sales_officer') AND u.is_active = true AND u.is_deleted = false
+            WHERE u.role IN ('field_officer') AND u.is_active = true AND u.is_deleted = false
             ORDER BY u.full_name
         """).bindparams(day_start=day_start, day_end=day_end)
     )

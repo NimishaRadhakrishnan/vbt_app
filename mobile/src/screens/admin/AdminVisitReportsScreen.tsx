@@ -192,7 +192,7 @@ export default function AdminVisitReportsScreen({ navigation }: any) {
     ]).then(([users, categories, crops, pests, diseases, products]) => {
       setLists({
         officers: users
-          .filter((u) => u.role === 'field_officer' || u.role === 'sales_officer')
+          .filter((u) => u.role === 'field_officer')
           .map((u) => ({ value: String(u.id), label: `${u.full_name}${u.employee_id ? ` (${u.employee_id})` : ''}` })),
         managers: users.filter((u) => u.role === 'manager').map((u) => ({ value: String(u.id), label: String(u.full_name) })),
         categories: toOptions(categories),

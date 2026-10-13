@@ -134,15 +134,20 @@ function TabBody({ tabId, role, navigation, onDone }: { tabId: string; role: str
     }
     case 'closure': {
       if (!isOversight) {
-        const isSales = role === 'sales_officer';
         return (
           <ActionList
             items={[
               {
                 icon: 'document-text-outline',
-                title: "Close today's work",
-                subtitle: isSales ? 'Dealer visits and orders for the day' : 'Visits, farmers and results for the day',
-                onPress: () => (isSales ? go('SalesDayClosure') : go('DailyVisitTracker', { dayClosureMode: true })),
+                title: "Close today's work: farm visit",
+                subtitle: 'Visits, farmers and results for the day',
+                onPress: () => go('DailyVisitTracker', { dayClosureMode: true }),
+              },
+              {
+                icon: 'storefront-outline',
+                title: "Close today's work: dealer visit",
+                subtitle: 'Dealer visits and orders for the day',
+                onPress: () => go('SalesDayClosure'),
               },
             ]}
           />

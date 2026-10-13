@@ -51,8 +51,7 @@ const SORTS: { id: SortKey; label: string }[] = [
 ];
 
 const ROLE_LABELS: Record<string, string> = {
-  field_officer: 'Field officer',
-  sales_officer: 'Sales officer',
+  field_officer: 'Officer',
   regional_officer: 'Regional officer',
   manager: 'Manager',
   admin: 'Admin',

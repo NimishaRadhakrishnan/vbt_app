@@ -10,7 +10,7 @@
  * dead entry. Old names stay in `aliases` for one release (search + hints).
  */
 
-export type NavRole = 'admin' | 'manager' | 'field_officer' | 'sales_officer';
+export type NavRole = 'admin' | 'manager' | 'field_officer';
 
 export interface NavTab {
   id: string;
@@ -27,9 +27,9 @@ export interface NavSection {
   tabs: NavTab[];
 }
 
-const ALL: NavRole[] = ['admin', 'manager', 'field_officer', 'sales_officer'];
+const ALL: NavRole[] = ['admin', 'manager', 'field_officer'];
 const OVERSIGHT: NavRole[] = ['admin', 'manager'];
-const OFFICERS: NavRole[] = ['field_officer', 'sales_officer'];
+const OFFICERS: NavRole[] = ['field_officer'];
 
 export const NAV_SECTIONS: NavSection[] = [
   {
@@ -60,7 +60,7 @@ export const NAV_SECTIONS: NavSection[] = [
     tabs: [
       { id: 'visits', label: 'Visits', aliases: ['Daily Visit Tracker', 'Field Visit Log', 'My Visits', 'Draft Visits', 'Daily Visit Reports'], roles: ALL, ready: true },
       { id: 'farmers', label: 'Farmers', aliases: ['Register Farmer'], roles: ['admin', 'manager', 'field_officer'], ready: true },
-      { id: 'dealers', label: 'Dealers', aliases: ['Dealer Audit'], roles: ['admin', 'manager', 'sales_officer'], ready: true },
+      { id: 'dealers', label: 'Dealers', aliases: ['Dealer Audit'], roles: ['admin', 'manager', 'field_officer'], ready: true },
       { id: 'issues', label: 'Issues', aliases: ['Crop Disease Issues', 'Report Crop Issue'], roles: ['admin', 'manager', 'field_officer'], ready: true },
       { id: 'enquiries', label: 'Enquiries', aliases: ['Farmer Enquiry'], roles: ['admin', 'manager', 'field_officer'], ready: true },
       { id: 'my-stock', label: 'My Stock', aliases: ['Stock in hand'], roles: OFFICERS, ready: true },

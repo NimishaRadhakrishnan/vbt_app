@@ -16,7 +16,7 @@
  * tab; if the API says no, the tab is hidden.
  */
 
-export type NavRole = "admin" | "manager" | "field_officer" | "sales_officer";
+export type NavRole = "admin" | "manager" | "field_officer";
 
 export type NavTarget =
   /** A tab inside /dashboard (state, not URL). */
@@ -41,9 +41,9 @@ export interface NavSection {
   tabs: NavTab[];
 }
 
-const ALL: NavRole[] = ["admin", "manager", "field_officer", "sales_officer"];
+const ALL: NavRole[] = ["admin", "manager", "field_officer"];
 const OVERSIGHT: NavRole[] = ["admin", "manager"];
-const OFFICERS: NavRole[] = ["field_officer", "sales_officer"];
+const OFFICERS: NavRole[] = ["field_officer"];
 
 export const NAV_SECTIONS: NavSection[] = [
   {
@@ -100,7 +100,7 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "dealers",
         label: "Dealers",
         aliases: ["Dealer Audit", "Dealer orders", "Field Network"],
-        roles: ["admin", "manager", "sales_officer"],
+        roles: ["admin", "manager", "field_officer"],
         target: { kind: "route", path: "/dashboard/field-network", tab: "dealers" },
       },
       {

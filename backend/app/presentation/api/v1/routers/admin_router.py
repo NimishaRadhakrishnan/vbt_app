@@ -1229,7 +1229,7 @@ async def admin_create_day_closure(
     officer = officer_row.first()
     if not officer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Officer not found or inactive.")
-    if officer.role not in ("field_officer", "sales_officer"):
+    if officer.role not in ("field_officer",):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Day closures can only be filed for a Field or Sales Officer.")
 
     existing = await session.execute(

@@ -17,9 +17,7 @@ export function avatarColor(seed: string): string {
 export function roleLabel(role: string): string {
   switch (role) {
     case "field_officer":
-      return "Field Officer";
-    case "sales_officer":
-      return "Sales Officer";
+      return "Officer";
     case "manager":
       return "Manager";
     default:

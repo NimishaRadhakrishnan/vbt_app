@@ -5,7 +5,7 @@ const NOW = new Date("2026-07-29T12:00:00Z").getTime();
 
 const users: RawUser[] = [
   { id: "u1", full_name: "Dinesh Prabhu", role: "field_officer" },
-  { id: "u2", full_name: "Karthik Raja", role: "sales_officer" },
+  { id: "u2", full_name: "Karthik Raja", role: "field_officer" },
   { id: "u3", full_name: "Suresh Kumar", role: "field_officer" },
   { id: "u4", full_name: "Nimisha R", role: "admin" }, // must be excluded
 ];
@@ -124,7 +124,7 @@ describe("formatLastAction (Last logged action column)", () => {
 describe("Active Officers count (Overview regression)", () => {
   const users = [
     { id: "u1", full_name: "A", role: "field_officer" },
-    { id: "u2", full_name: "B", role: "sales_officer" },
+    { id: "u2", full_name: "B", role: "field_officer" },
     { id: "u3", full_name: "C", role: "field_officer" },
     { id: "u4", full_name: "Boss", role: "admin" },
   ] as any[];

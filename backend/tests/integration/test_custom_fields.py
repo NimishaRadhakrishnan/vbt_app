@@ -31,7 +31,7 @@ def get_token(user_id: uuid.UUID) -> str:
 
 def get_so_token(user_id: uuid.UUID) -> str:
     now = datetime.now(timezone.utc)
-    payload = {"sub": str(user_id), "role": "sales_officer", "type": "access", "iat": now, "exp": now + timedelta(days=1)}
+    payload = {"sub": str(user_id), "role": "field_officer", "type": "access", "iat": now, "exp": now + timedelta(days=1)}
     return jwt.encode(payload, Settings().jwt_secret_key, algorithm="HS256")
 
 def get_admin_token(user_id: uuid.UUID) -> str:
@@ -110,7 +110,7 @@ def clean(engine):
         
         for uid, role, email in (
             (FO_ID, "field_officer", "fo@test.local"),
-            (SO_ID, "sales_officer", "so@test.local"),
+            (SO_ID, "field_officer", "so@test.local"),
             (ADMIN_ID, "admin", "admin@test.local"),
         ):
             c.execute(
@@ -264,7 +264,7 @@ def test_reject_invisible_field_for_role(engine, client):
         "is_required": False,
         "is_enabled": True,
         "visible_to_field_officer": False,
-        "visible_to_sales_officer": True
+        "visible_to_sales_officer": False
     }, headers={"Authorization": f"Bearer {admin_token}"})
     assert res_create.status_code == 201
     invisible_key = res_create.json()["field_key"]

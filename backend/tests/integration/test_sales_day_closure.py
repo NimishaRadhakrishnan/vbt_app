@@ -65,8 +65,8 @@ def clean(engine):
             c.execute(text("DELETE FROM users WHERE id = :uid").bindparams(uid=uid))
         for uid, role, email in (
             (FO_ID, "field_officer", "fo@test.local"),
-            (SO_ID, "sales_officer", "so@test.local"),
-            (SO2_ID, "sales_officer", "so2@test.local"),
+            (SO_ID, "field_officer", "so@test.local"),
+            (SO2_ID, "field_officer", "so2@test.local"),
         ):
             c.execute(
                 text("""INSERT INTO users (id,email,full_name,role,hashed_password,is_active)

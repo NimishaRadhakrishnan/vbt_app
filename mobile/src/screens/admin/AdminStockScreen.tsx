@@ -71,7 +71,7 @@ function IssueStockTab() {
     [],
     { refetchOnFocus: false }
   );
-  const trackableOfficers = (officers ?? []).filter((u) => u.role === 'field_officer' || u.role === 'sales_officer');
+  const trackableOfficers = (officers ?? []).filter((u) => u.role === 'field_officer');
 
   const { data: products } = useDataFetch<Product[]>(
     () => apiClient.request('/admin/products', 'GET', 'admin_action'),

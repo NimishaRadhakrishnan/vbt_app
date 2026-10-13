@@ -219,7 +219,7 @@ async def sweep_stale_locations() -> None:
                        ) AS has_track
                 FROM users u
                 JOIN attendance att ON att.user_id = u.id AND att.check_in_time >= :day_start AND att.check_in_time < :day_end
-                WHERE u.role IN ('field_officer', 'sales_officer')
+                WHERE u.role IN ('field_officer')
                   AND u.is_active = true AND u.is_deleted = false
                   AND att.check_out_time IS NULL
                   AND NOT EXISTS (
@@ -487,7 +487,7 @@ async def get_active_locations(
                    ST_X(att.check_in_location::geometry) AS login_longitude
             FROM users u
             LEFT JOIN attendance att ON att.user_id = u.id AND att.check_in_time >= :day_start AND att.check_in_time < :day_end
-            WHERE u.role IN ('field_officer', 'sales_officer') AND u.is_active = true AND u.is_deleted = false
+            WHERE u.role IN ('field_officer') AND u.is_active = true AND u.is_deleted = false
         """).bindparams(day_start=day_start, day_end=day_end)
     )
     rows = res.all()

@@ -26,11 +26,11 @@ export default function AdminFileClosureScreen({ navigation }: any) {
     async () => asList<SimpleUser>(await apiClient.request('/users?limit=200', 'GET', 'admin_action')),
     []
   );
-  const officers = (data ?? []).filter((u) => u.role === 'field_officer' || u.role === 'sales_officer');
+  const officers = (data ?? []).filter((u) => u.role === 'field_officer');
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} onRetry={retry} />;
-  if (officers.length === 0) return <EmptyState message="No field or sales officers found." />;
+  if (officers.length === 0) return <EmptyState message="No officers found." />;
 
   return (
     <View style={styles.container}>

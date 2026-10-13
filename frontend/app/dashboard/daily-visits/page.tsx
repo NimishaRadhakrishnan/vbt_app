@@ -138,7 +138,7 @@ export default function DailyVisitReportsPage() {
     apiFetch<{ items: any[] }>("/users?limit=200")
       .then((res) => {
         const items = res.items || [];
-        setOfficers(items.filter((u) => u.role === "field_officer" || u.role === "sales_officer").map((u) => ({ id: u.id, name: `${u.full_name}${u.employee_id ? ` (${u.employee_id})` : ""}` })));
+        setOfficers(items.filter((u) => u.role === "field_officer").map((u) => ({ id: u.id, name: `${u.full_name}${u.employee_id ? ` (${u.employee_id})` : ""}` })));
         setManagers(items.filter((u) => u.role === "manager").map((u) => ({ id: u.id, name: u.full_name })));
       })
       .catch(() => {});

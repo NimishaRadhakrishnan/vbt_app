@@ -195,7 +195,7 @@ export default function AttendanceScreen({ navigation }: any) {
       // day. Only an explicit "not closed" blocks; if the status can't be
       // read (no signal) the officer is not trapped on duty.
       const role = apiClient.getCurrentUser()?.role ?? '';
-      if (role === 'field_officer' || role === 'sales_officer') {
+      if (role === 'field_officer') {
         let closed: boolean | undefined;
         try {
           // A quick look only: if the answer is slow, check out anyway.
@@ -215,9 +215,11 @@ export default function AttendanceScreen({ navigation }: any) {
               {
                 text: 'Go to Day Closure',
                 onPress: () =>
-                  role === 'sales_officer'
-                    ? navigation.navigate('SalesDayClosure')
-                    : navigation.navigate('DailyVisitTracker', { dayClosureMode: true }),
+                  Alert.alert('Which closure?', 'Pick the kind of visit you did today.', [
+                    { text: 'Farm visit', onPress: () => navigation.navigate('DailyVisitTracker', { dayClosureMode: true }) },
+                    { text: 'Dealer visit', onPress: () => navigation.navigate('SalesDayClosure') },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]),
               },
             ]
           );

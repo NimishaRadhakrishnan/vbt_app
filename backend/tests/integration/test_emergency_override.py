@@ -68,7 +68,7 @@ def setup(engine):
         c.execute(text("""INSERT INTO users (id,email,full_name,role,hashed_password,is_active)
                           VALUES (:i,'eo_fo@t.local','EO FO','field_officer','x',true)""").bindparams(i=FO))
         c.execute(text("""INSERT INTO users (id,email,full_name,role,hashed_password,is_active)
-                          VALUES (:i,'eo_so@t.local','EO SO','sales_officer','x',true)""").bindparams(i=SO))
+                          VALUES (:i,'eo_so@t.local','EO SO','field_officer','x',true)""").bindparams(i=SO))
     yield
     with engine.begin() as c:
         c.execute(text("DELETE FROM emergency_overrides WHERE reason LIKE 'TEST %'"))
@@ -113,7 +113,7 @@ def test_no_override_returns_none(engine):
 def test_active_override_covers_all_officers_by_default(engine):
     _declare(engine, "TEST cyclone")
     assert _check(FO, "field_officer") is not None
-    assert _check(SO, "sales_officer") is not None
+    assert _check(SO, "field_officer") is not None
 
 
 def test_future_override_is_not_yet_active(engine):
@@ -138,7 +138,7 @@ def test_manually_cancelled_override_stops_immediately(engine):
 def test_role_scoped_override_applies_only_to_that_role(engine):
     _declare(engine, "TEST field only", role="field_officer")
     assert _check(FO, "field_officer") is not None
-    assert _check(SO, "sales_officer") is None, "a role-scoped override must not leak to other roles"
+    assert _check(SO, "manager") is None, "a role-scoped override must not leak to other roles"
 
 
 def test_district_scoped_override_applies_only_to_that_district(engine):
@@ -154,7 +154,7 @@ def test_district_scoped_override_applies_only_to_that_district(engine):
     _declare(engine, "TEST dindigul flood", district="Dindigul")
     try:
         assert _check(FO, "field_officer") is not None, "officer in the district must be covered"
-        assert _check(SO, "sales_officer") is None, "officer with no matching territory must not be"
+        assert _check(SO, "field_officer") is None, "officer with no matching territory must not be"
     finally:
         with engine.begin() as c:
             c.execute(text("DELETE FROM user_territories WHERE territory_id=:t").bindparams(t=tid))

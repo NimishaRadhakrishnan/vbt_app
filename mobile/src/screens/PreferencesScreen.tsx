@@ -33,7 +33,7 @@ export default function PreferencesScreen({ navigation }: any) {
   const currentUser = apiClient.getCurrentUser();
   const role = currentUser?.role ?? '';
   const isFieldOfficer = role === 'field_officer';
-  const isSalesOfficer = role === 'sales_officer';
+  const isSalesOfficer = role === 'field_officer';
 
   const [locationStatus, setLocationStatus] = useState<'granted' | 'denied' | 'undetermined' | null>(null);
 
@@ -57,7 +57,7 @@ export default function PreferencesScreen({ navigation }: any) {
     .map((part) => part[0]?.toUpperCase())
     .join('');
 
-  const roleLabel = role
+  const roleLabel = role === 'field_officer' ? 'Officer' : role
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');

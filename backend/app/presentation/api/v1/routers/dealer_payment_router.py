@@ -94,7 +94,7 @@ def _payment_status(total_amount: float, amount_paid: float, deadline) -> str:
 async def record_collection(
     order_id: uuid.UUID,
     payload: RecordCollectionRequest,
-    current_user: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.SALES_OFFICER))],
+    current_user: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.FIELD_OFFICER))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PaymentHistoryItem:
     order = await _get_order_totals(session, order_id)
@@ -241,7 +241,7 @@ class DeadlineExtensionResponse(BaseModel):
 async def request_deadline_extension(
     order_id: uuid.UUID,
     payload: DeadlineExtensionRequest,
-    current_user: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.SALES_OFFICER))],
+    current_user: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.FIELD_OFFICER))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DeadlineExtensionResponse:
     order_row = await session.execute(text("SELECT payment_deadline FROM dealer_orders WHERE id = :id").bindparams(id=order_id))

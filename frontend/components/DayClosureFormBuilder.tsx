@@ -85,7 +85,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
-  const [previewMode, setPreviewMode] = useState<"field_officer" | "sales_officer" | null>(null);
+  const [previewMode, setPreviewMode] = useState<"field_officer" | null>(null);
 
   // --- Custom fields (form_key="day_closure") - reuses the generic
   // custom_field_definitions/answers system built for this exact
@@ -609,12 +609,12 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
 
   const previewFields = previewMode
     ? draft
-        .filter((f) => f.is_enabled && (previewMode === "field_officer" ? f.visible_to_field_officer : f.visible_to_sales_officer))
+        .filter((f) => f.is_enabled && (f.visible_to_field_officer || f.visible_to_sales_officer))
         .sort((a, b) => a.display_order - b.display_order)
     : [];
 
   const previewCustomFields = previewMode
-    ? customFields.filter((f) => f.is_enabled && (previewMode === "field_officer" ? f.visible_to_field_officer : f.visible_to_sales_officer))
+    ? customFields.filter((f) => f.is_enabled && (f.visible_to_field_officer || f.visible_to_sales_officer))
     : [];
 
   return (
@@ -634,13 +634,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
             onClick={() => setPreviewMode(previewMode === "field_officer" ? null : "field_officer")}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold ${previewMode === "field_officer" ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}
           >
-            <Eye className="w-3.5 h-3.5" /> Field Officer
-          </button>
-          <button
-            onClick={() => setPreviewMode(previewMode === "sales_officer" ? null : "sales_officer")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold ${previewMode === "sales_officer" ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}
-          >
-            <Eye className="w-3.5 h-3.5" /> Sales Officer
+            <Eye className="w-3.5 h-3.5" /> Officer
           </button>
 
           {/* Explicit way out of preview. Clicking the active role button
@@ -684,7 +678,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
             </div>
           ) : previewMode ? (
             <div className="space-y-4">
-              <p className="text-xs text-slate-400 italic">Preview of unsaved changes — fields a {previewMode === "field_officer" ? "Field" : "Sales"} Officer would see, in order.</p>
+              <p className="text-xs text-slate-400 italic">Preview of unsaved changes — fields an Officer would see, in order.</p>
               {previewFields.length === 0 && previewCustomFields.length === 0 ? (
                 <p className="text-sm text-slate-400">No fields visible to this role.</p>
               ) : (
@@ -832,18 +826,10 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
                               <label className="flex items-center gap-1.5 text-xs text-slate-600">
                                 <input
                                   type="checkbox"
-                                  checked={field.visible_to_field_officer}
-                                  onChange={(e) => updateField(field.field_key, { visible_to_field_officer: e.target.checked })}
+                                  checked={field.visible_to_field_officer || field.visible_to_sales_officer}
+                                  onChange={(e) => updateField(field.field_key, { visible_to_field_officer: e.target.checked, visible_to_sales_officer: e.target.checked })}
                                 />
-                                Field Officer
-                              </label>
-                              <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                                <input
-                                  type="checkbox"
-                                  checked={field.visible_to_sales_officer}
-                                  onChange={(e) => updateField(field.field_key, { visible_to_sales_officer: e.target.checked })}
-                                />
-                                Sales Officer
+                                Officers
                               </label>
                             </div>
                             {field.backend_required && (
@@ -901,10 +887,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
                                 <input type="checkbox" checked={cf.is_enabled} onChange={(e) => updateCustomField(cf.field_key, { is_enabled: e.target.checked })} /> Enabled
                               </label>
                               <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                                <input type="checkbox" checked={cf.visible_to_field_officer} onChange={(e) => updateCustomField(cf.field_key, { visible_to_field_officer: e.target.checked })} /> Field Officer
-                              </label>
-                              <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                                <input type="checkbox" checked={cf.visible_to_sales_officer} onChange={(e) => updateCustomField(cf.field_key, { visible_to_sales_officer: e.target.checked })} /> Sales Officer
+                                <input type="checkbox" checked={cf.visible_to_field_officer || cf.visible_to_sales_officer} onChange={(e) => updateCustomField(cf.field_key, { visible_to_field_officer: e.target.checked, visible_to_sales_officer: e.target.checked })} /> Officers
                               </label>
                             </div>
                           </div>
@@ -949,10 +932,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
                             <input type="checkbox" checked={!!newFieldDraft.is_required} onChange={(e) => setNewFieldDraft({ ...newFieldDraft, is_required: e.target.checked })} /> Required
                           </label>
                           <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                            <input type="checkbox" checked={newFieldDraft.visible_to_field_officer ?? true} onChange={(e) => setNewFieldDraft({ ...newFieldDraft, visible_to_field_officer: e.target.checked })} /> Field Officer
-                          </label>
-                          <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                            <input type="checkbox" checked={newFieldDraft.visible_to_sales_officer ?? true} onChange={(e) => setNewFieldDraft({ ...newFieldDraft, visible_to_sales_officer: e.target.checked })} /> Sales Officer
+                            <input type="checkbox" checked={newFieldDraft.visible_to_field_officer ?? true} onChange={(e) => setNewFieldDraft({ ...newFieldDraft, visible_to_field_officer: e.target.checked, visible_to_sales_officer: e.target.checked })} /> Officers
                           </label>
                         </div>
                         <div className="flex justify-end gap-2">

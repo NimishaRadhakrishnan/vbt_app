@@ -56,7 +56,7 @@ const STATUS_LABEL: Record<RowStatus, string> = {
   absent: 'Absent',
 };
 const STATUS_RANK: Record<RowStatus, number> = { present: 0, checked_out: 1, on_leave: 2, absent: 3 };
-const TRACKED_ROLES = ['field_officer', 'sales_officer'];
+const TRACKED_ROLES = ['field_officer'];
 const LATE_AFTER_MINUTES = 9 * 60; // 9:00 AM IST, same cut-off as the web roster
 const IST_OFFSET_MS = 330 * 60 * 1000;
 const RECORD_LIMIT = 100; // the server returns at most this many check-ins per day

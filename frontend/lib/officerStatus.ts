@@ -116,7 +116,7 @@ export function computeLiveOfficers(
   activeLocations: RawActiveLocation[],
   now: number = Date.now()
 ): LiveOfficer[] {
-  const fieldUsers = users.filter((u) => u.role === "field_officer" || u.role === "sales_officer");
+  const fieldUsers = users.filter((u) => u.role === "field_officer");
 
   return fieldUsers.map((u) => {
     const loc = activeLocations.find((l) => l.officer_id === u.id);
@@ -126,7 +126,7 @@ export function computeLiveOfficers(
     return {
       id: u.id,
       name: u.full_name,
-      role: u.role === "field_officer" ? "Field Officer" : "Sales Officer",
+      role: "Officer",
       status: statusLabelFrom(loc?.status),
       district: "-",
       lat: hasLocation ? (loc as RawActiveLocation).latitude : null,

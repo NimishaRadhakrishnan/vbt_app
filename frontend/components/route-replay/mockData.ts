@@ -23,7 +23,7 @@ export interface MockOfficer {
 export const MOCK_OFFICERS: MockOfficer[] = [
   { id: "demo-normal", name: "Vignesh (full day)", role: "field_officer", employeeId: "VB-1002", territory: "Coimbatore" },
   { id: "demo-gaps", name: "Kailash (signal gaps)", role: "field_officer", employeeId: "VB-1003", territory: "Coimbatore" },
-  { id: "demo-short", name: "Sathesh (2 minutes)", role: "sales_officer", employeeId: "VB-1004", territory: "Tiruppur" },
+  { id: "demo-short", name: "Sathesh (2 minutes)", role: "field_officer", employeeId: "VB-1004", territory: "Tiruppur" },
   { id: "demo-single", name: "Ayyasami (1 point)", role: "field_officer", employeeId: "VB-1005", territory: "Erode" },
   { id: "demo-empty", name: "Sathish (no data)", role: "field_officer", employeeId: "VB-1006", territory: "Salem" },
   { id: "demo-error", name: "Broken (API error)", role: "field_officer", employeeId: "VB-1007", territory: "Salem" },

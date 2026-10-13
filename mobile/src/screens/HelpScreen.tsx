@@ -19,7 +19,8 @@ import { color, font, fontWeight, spacing, radius } from '../theme';
 export default function HelpScreen() {
   const role = apiClient.getCurrentUser()?.role ?? '';
   const isFieldOfficer = role === 'field_officer';
-  const isSalesOfficer = role === 'sales_officer';
+  // One Officer role: officers see the dealer help as well as the farm help.
+  const isSalesOfficer = role === 'field_officer';
   const isOversight = role === 'admin' || role === 'manager';
 
   return (

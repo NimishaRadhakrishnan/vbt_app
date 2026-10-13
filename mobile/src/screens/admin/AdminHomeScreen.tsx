@@ -37,7 +37,7 @@ type Overview = {
   alerts: AlertRow[];
 };
 
-const ROLE_LABEL: Record<string, string> = { field_officer: 'Field officer', sales_officer: 'Sales officer' };
+const ROLE_LABEL: Record<string, string> = { field_officer: 'Officer' };
 
 const todayLabel = () =>
   new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' });
@@ -169,7 +169,7 @@ export default function AdminHomeScreen({ navigation }: any) {
 
       <Text style={styles.sectionHeading}>Team today</Text>
       {rows.length === 0 ? (
-        <Text style={styles.note}>No field or sales officers are set up yet.</Text>
+        <Text style={styles.note}>No officers are set up yet.</Text>
       ) : (
         rows.map((r) => {
           const st = status(r);

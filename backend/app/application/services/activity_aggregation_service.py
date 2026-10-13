@@ -103,7 +103,7 @@ _OFFICER_ACTIVITY_SUMMARY_SQL = """
         GROUP BY user_id
     ) visit_stats ON visit_stats.user_id = u.id
 
-    WHERE u.role IN ('field_officer', 'sales_officer', 'manager')
+    WHERE u.role IN ('field_officer', 'manager')
 """
 
 # ---------------------------------------------------------------------------

@@ -495,7 +495,7 @@ class ManagementAnalyticsService:
                     LEFT JOIN officer_visits vi      ON vi.officer_id = u.id
                     LEFT JOIN officer_new_contacts nc ON nc.officer_id = u.id
                     LEFT JOIN officer_target t       ON t.officer_id = u.id
-                    WHERE u.role IN ('field_officer', 'sales_officer')
+                    WHERE u.role IN ('field_officer')
                       AND u.is_active = true AND u.is_deleted = false
                     ORDER BY COALESCE(s.sales_value, 0) DESC, u.full_name ASC
                     """

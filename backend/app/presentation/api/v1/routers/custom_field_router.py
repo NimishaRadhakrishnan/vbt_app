@@ -89,12 +89,12 @@ async def get_my_custom_fields(
     """What an officer's form actually renders its custom fields from -
     enabled, visible to their role, in order. Mirrors
     day_closure_config_router.py's GET /day-closure-config exactly."""
-    role_column = {
-        "field_officer": "visible_to_field_officer",
-        "sales_officer": "visible_to_sales_officer",
-        "manager": "visible_to_manager",
-    }.get(current_user.role)
-    where_role = f"AND {role_column} = true" if role_column else ""
+    if current_user.role == "field_officer":
+        where_role = "AND (visible_to_field_officer = true OR visible_to_sales_officer = true)"
+    elif current_user.role == "manager":
+        where_role = "AND visible_to_manager = true"
+    else:
+        where_role = ""
     result = await session.execute(
         text(f"""
             SELECT {_SELECT_COLUMNS} FROM custom_field_definitions

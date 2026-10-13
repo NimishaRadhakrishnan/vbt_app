@@ -72,8 +72,7 @@ const SECTION_ICONS: Record<string, React.ComponentType<{ className?: string }>>
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrator",
-  field_officer: "Field Officer",
-  sales_officer: "Sales Officer",
+  field_officer: "Officer",
   manager: "Regional Manager",
 };
 
@@ -99,6 +98,7 @@ export default function Dashboard() {
   const [deletingUser, setDeletingUser] = useState<any>(null);
   const [deleteImpact, setDeleteImpact] = useState<any>(null);
   const [isArchivedTab, setIsArchivedTab] = useState(false);
+  const [closureKind, setClosureKind] = useState<"visit" | "dealer">("visit");
   const [purgingUser, setPurgingUser] = useState<any>(null);
   const [purgeImpact, setPurgeImpact] = useState<Record<string, number>>({});
   const [purgeConfirmText, setPurgeConfirmText] = useState("");
@@ -550,7 +550,7 @@ export default function Dashboard() {
       setEnquiries([]);
     }
 
-    if (user?.role === "field_officer" || user?.role === "sales_officer") {
+    if (user?.role === "field_officer") {
       try {
         const closureData: any = await apiFetch("/day-closure/status");
         setDayClosureStatus(closureData);
@@ -580,7 +580,7 @@ export default function Dashboard() {
       }
     }
 
-    if (user?.role === "field_officer" || user?.role === "sales_officer") {
+    if (user?.role === "field_officer") {
       try {
         const momentum: any = await apiFetch("/momentum/me");
         setMomentumData(momentum || null);
@@ -682,11 +682,11 @@ export default function Dashboard() {
   // document before they're allowed to sign out. Admin/manager/dealer
   // roles aren't gated — this only applies to officers whose day has a
   // "done for the day" concept.
-  const requiresDayClosure = user?.role === "field_officer" || user?.role === "sales_officer";
+  const requiresDayClosure = user?.role === "field_officer";
 
   
   const handleSignOutClick = async () => {
-    const gatedRoles = ["field_officer", "sales_officer", "manager"];
+    const gatedRoles = ["field_officer", "manager"];
     if (user?.role && gatedRoles.includes(user.role)) {
       try {
         const res: any = await apiFetch("/reports/daily/today-status");
@@ -808,7 +808,7 @@ export default function Dashboard() {
   const routeReplayOfficers = useMemo(
     () =>
       usersList
-        .filter((u: any) => ["field_officer", "sales_officer", "manager"].includes(u.role))
+        .filter((u: any) => ["field_officer", "manager"].includes(u.role))
         .map((u: any) => ({
           id: u.id as string,
           name: (u.full_name || "Officer") as string,
@@ -1139,7 +1139,7 @@ export default function Dashboard() {
 
       // Admins are exempt server-side (require_location_consent returns
       // early for Role.ADMIN) - only field/sales officers ever need this.
-      if (user.role === "field_officer" || user.role === "sales_officer") {
+      if (user.role === "field_officer") {
         apiFetch("/consent/location")
           .then((status: any) => setLocationConsent(status))
           .catch((err: any) => console.error("Failed to load location consent status", err));
@@ -1387,7 +1387,7 @@ export default function Dashboard() {
     //     that still held the OLD consent state, so it re-opened the modal
     //     instead of checking in. skipConsentGate is passed after a
     //     successful accept; the server still enforces consent either way.
-    if ((user?.role === "field_officer" || user?.role === "sales_officer") && !skipConsentGate) {
+    if ((user?.role === "field_officer") && !skipConsentGate) {
       let consent = locationConsent;
       if (!consent) {
         try {
@@ -1630,7 +1630,7 @@ export default function Dashboard() {
     }
     if (sectionId === "field") {
       return {
-        count: (user?.role === "admin" ? pendingIssuesCount : 0) + (user?.role !== "sales_officer" ? openEnquiriesCount : 0),
+        count: (user?.role === "admin" ? pendingIssuesCount : 0) + openEnquiriesCount,
         alert: user?.role === "admin" && pendingIssuesCount > 0,
       };
     }
@@ -1926,8 +1926,7 @@ export default function Dashboard() {
             <h1 className="text-lg font-bold tracking-wide leading-none truncate">Vishakan Biotech</h1>
             <p className="text-[10px] text-green-200 mt-1 font-semibold uppercase tracking-wider truncate">
               {user?.role === "admin" && "Admin Portal"}
-              {user?.role === "field_officer" && "Field Officer Portal"}
-              {user?.role === "sales_officer" && "Sales Officer Portal"}
+              {user?.role === "field_officer" && "Officer Portal"}
               {user?.role === "manager" && "Regional Manager Portal"}
             </p>
           </div>
@@ -2162,7 +2161,7 @@ export default function Dashboard() {
         <main className="flex-1 p-4 sm:p-6 bg-slate-50 overflow-y-auto overflow-x-hidden min-h-0 w-full min-w-0">
           <SectionTabs dashboardTab={activeTab} onSelectDashboardTab={selectNavTab} />
           {/* 9AM check-in / 6PM monitoring window reminders */}
-          {(user?.role === "field_officer" || user?.role === "sales_officer") && !myTodayAttendance && nowTick > new Date(new Date().setHours(9, 0, 0, 0)).getTime() && (
+          {(user?.role === "field_officer") && !myTodayAttendance && nowTick > new Date(new Date().setHours(9, 0, 0, 0)).getTime() && (
             <div className="mb-6 flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-xl">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               <div className="flex-1">
@@ -2327,10 +2326,10 @@ export default function Dashboard() {
                     </div>
                   )}
                 </>
-              ) : user?.role === "sales_officer" ? (
+              ) : (
                 <>
                   <div className="bg-primary-700 text-white rounded-2xl px-6 py-6">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-primary-100">Sales officer</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-primary-100">Officer</p>
                     <h2 className="text-2xl font-bold mt-1">Namaste, {(user?.full_name || "").split(" ")[0]}</h2>
                   </div>
 
@@ -2346,68 +2345,6 @@ export default function Dashboard() {
                       <p className="text-xs text-amber-800 mt-1">{overdueDealerCount} dealer{overdueDealerCount === 1 ? "" : "s"} · tap to collect</p>
                     </button>
                   )}
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                      <p className="text-xs text-slate-500 font-medium">Dealers</p>
-                      <p className="text-2xl font-bold text-primary-700 mt-1">{dealers.length}</p>
-                    </div>
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                      <p className="text-xs text-slate-500 font-medium">Low stock items</p>
-                      <p className="text-2xl font-bold text-red-600 mt-1">{lowStockDealersCount}</p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => router.push("/dashboard/field-network")}
-                    className="w-full py-3.5 bg-primary-700 text-white font-bold rounded-xl hover:bg-primary-800 transition"
-                  >
-                    Register dealer
-                  </button>
-
-                  <div>
-                    <h3 className="text-sm font-bold text-primary-700 mb-3 px-1">Your tools</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <button onClick={() => router.push("/dashboard/field-network")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
-                        <Award className="w-6 h-6 mx-auto text-primary-700" />
-                        <p className="text-sm font-semibold text-slate-700 mt-2">Dealers</p>
-                      </button>
-                      {/* Collections legitimately lives on the dealer page -
-                          outstanding balances are per-dealer. Left pointing
-                          there deliberately rather than inventing a route:
-                          there is no separate collections tab, and a tile
-                          that goes nowhere is worse than one that shares a
-                          destination for a real reason. */}
-                      <button onClick={() => router.push("/dashboard/field-network?view=collections")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
-                        <FileText className="w-6 h-6 mx-auto text-primary-700" />
-                        <p className="text-sm font-semibold text-slate-700 mt-2">Collections</p>
-                      </button>
-                      {/* Was pushing to /dashboard/field-network, the same
-                          destination as Dealers, Collections and the
-                          Register-dealer button - four different tiles
-                          all landing on one page. Stock is its own
-                          concern and now has its own route. */}
-                      <button onClick={() => router.push("/dashboard/my-stock")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
-                        <ClipboardList className="w-6 h-6 mx-auto text-primary-700" />
-                        <p className="text-sm font-semibold text-slate-700 mt-2">My stock</p>
-                      </button>
-                      {/* Sales Officers had NO check-in control at all: the
-                          tile below existed only in the Field Officer
-                          branch, and the amber banner only appears after
-                          09:00. Without checking in, an SO never sends
-                          location pings, so they can never appear under
-                          "Active Officers" - which is the direct cause of
-                          that count reading 0. */}
-                      {renderAttendanceTile()}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="bg-primary-700 text-white rounded-2xl px-6 py-6">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-primary-100">Field officer</p>
-                    <h2 className="text-2xl font-bold mt-1">Namaste, {(user?.full_name || "").split(" ")[0]}</h2>
-                  </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
@@ -2427,6 +2364,13 @@ export default function Dashboard() {
                     New visit
                   </button>
 
+                  <button
+                    onClick={() => router.push("/dashboard/field-network")}
+                    className="w-full py-3.5 bg-white text-primary-700 border border-primary-700 font-bold rounded-xl hover:bg-primary-50 transition"
+                  >
+                    Register dealer
+                  </button>
+
                   <div>
                     <h3 className="text-sm font-bold text-primary-700 mb-3 px-1">Your tools</h3>
                     <div className="grid grid-cols-2 gap-4">
@@ -2437,6 +2381,18 @@ export default function Dashboard() {
                       <button onClick={() => setActiveTab("plans")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
                         <ClipboardList className="w-6 h-6 mx-auto text-primary-700" />
                         <p className="text-sm font-semibold text-slate-700 mt-2">Weekly plan</p>
+                      </button>
+                      <button onClick={() => router.push("/dashboard/field-network")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
+                        <Award className="w-6 h-6 mx-auto text-primary-700" />
+                        <p className="text-sm font-semibold text-slate-700 mt-2">Dealers</p>
+                      </button>
+                      <button onClick={() => router.push("/dashboard/field-network?view=collections")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
+                        <FileText className="w-6 h-6 mx-auto text-primary-700" />
+                        <p className="text-sm font-semibold text-slate-700 mt-2">Collections</p>
+                      </button>
+                      <button onClick={() => router.push("/dashboard/my-stock")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
+                        <ClipboardList className="w-6 h-6 mx-auto text-primary-700" />
+                        <p className="text-sm font-semibold text-slate-700 mt-2">My stock</p>
                       </button>
                       {renderAttendanceTile()}
                       <button onClick={() => setActiveTab("productivity")} className="bg-white rounded-xl border border-slate-100 p-5 text-center hover:shadow-md transition">
@@ -2653,7 +2609,7 @@ export default function Dashboard() {
                     {!isLoadingActiveLocations && liveOfficers.length === 0 && (
                       <tr>
                         <td colSpan={7} className="px-6 py-10 text-center text-slate-400 text-sm">
-                          No field or sales officers found.
+                          No officers found.
                         </td>
                       </tr>
                     )}
@@ -3030,7 +2986,7 @@ export default function Dashboard() {
                         >
                           <option value="">-- Select Officer --</option>
                           {usersList
-                            .filter((u: any) => ["field_officer", "sales_officer", "manager"].includes(u.role))
+                            .filter((u: any) => ["field_officer", "manager"].includes(u.role))
                             .map((u: any) => (
                               <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
                             ))}
@@ -3197,7 +3153,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {(user?.role === "field_officer" || user?.role === "sales_officer") ? (
+              {(user?.role === "field_officer") ? (
                 <MomentumWidget momentumData={momentumData} />
               ) : (user?.role === "admin" || user?.role === "manager") ? (
                 // Admin and manager get the business view: money, products,
@@ -3483,7 +3439,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeTab === "issues" && user?.role !== "sales_officer" && (
+          {activeTab === "issues" && (
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
@@ -3748,7 +3704,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeTab === "enquiry" && user?.role !== "sales_officer" && (
+          {activeTab === "enquiry" && (
             <div className="space-y-6">
               <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><HelpCircle className="text-green-700" /> Farmer Enquiry</h2>
@@ -3861,12 +3817,12 @@ export default function Dashboard() {
             <div className="space-y-6">
               <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><CalendarOff className="text-green-700" /> {(user?.role === "admin" || user?.role === "manager") ? "Leave Approvals" : "My Leave"}</h2>
-                {(user?.role === "field_officer" || user?.role === "sales_officer") && (
+                {(user?.role === "field_officer") && (
                   <p className="text-xs text-slate-500 mt-1">Planned leave needs at least 2 days&apos; notice; emergency leave needs at least 2 hours&apos; notice.</p>
                 )}
               </div>
 
-              {(user?.role === "field_officer" || user?.role === "sales_officer") && (
+              {(user?.role === "field_officer") && (
                 <form onSubmit={handleSubmitLeaveRequest} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
@@ -4006,7 +3962,7 @@ export default function Dashboard() {
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
                 <div>
                   <h2 className="text-lg font-bold text-slate-800">Day Closure Reports</h2>
-                  <p className="text-xs text-slate-400 mt-1">Review end-of-day submissions from field and sales officers.</p>
+                  <p className="text-xs text-slate-400 mt-1">Review end-of-day submissions from officers.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Was a plain <a href>. A browser navigation sends no
@@ -4161,7 +4117,7 @@ export default function Dashboard() {
                 <div className="p-4 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <ShoppingCart className="w-5 h-5 text-green-600" />
-                    <h3 className="font-bold text-slate-800">Sales Officer Closures</h3>
+                    <h3 className="font-bold text-slate-800">Dealer Visit Closures</h3>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <select
@@ -4170,7 +4126,7 @@ export default function Dashboard() {
                       className="px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg text-slate-700"
                     >
                       <option value="">All officers</option>
-                      {usersList.filter((u: any) => u.role === "sales_officer").map((u: any) => (
+                      {usersList.filter((u: any) => u.role === "field_officer").map((u: any) => (
                         <option key={u.id} value={u.id}>{u.full_name}</option>
                       ))}
                     </select>
@@ -4459,7 +4415,7 @@ export default function Dashboard() {
                       >
                         <option value="">— Select officer —</option>
                         {usersList
-                          .filter((u: any) => u.role === "field_officer" || u.role === "sales_officer")
+                          .filter((u: any) => u.role === "field_officer")
                           .map((u: any) => (
                             <option key={u.id} value={u.id}>{u.full_name} ({u.role.replace("_", " ")})</option>
                           ))}
@@ -4492,9 +4448,7 @@ export default function Dashboard() {
                   <FileText className="text-green-700" /> Submit Today&apos;s Day Closure
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  {user?.role === "sales_officer"
-                    ? "Record today's dealer visit. Required before you can log out."
-                    : "Fill in today's visit details. Required before you can log out."}
+                  Choose the farm visit or the dealer visit you did today. Required before you can log out.
                 </p>
               </div>
 
@@ -4549,11 +4503,24 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* A Sales Officer's day is dealers, orders and collection;
-                  a Field Officer's is a farm agronomy visit. Same table,
-                  same duplicate guard, same logout gate - only the form
-                  content differs, which is what closure_type records. */}
-              {user?.role === "sales_officer" ? (
+              {/* One Officer role: the day is either a farm visit or a dealer
+                  visit (dealers, orders, collection). Same table, same
+                  duplicate guard, same logout gate; only the form differs. */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setClosureKind("visit")}
+                  className={`px-4 py-1.5 text-sm font-semibold rounded-lg border ${closureKind === "visit" ? "bg-primary-700 text-white border-primary-700" : "bg-white text-slate-600 border-slate-200"}`}
+                >
+                  Farm visit
+                </button>
+                <button
+                  onClick={() => setClosureKind("dealer")}
+                  className={`px-4 py-1.5 text-sm font-semibold rounded-lg border ${closureKind === "dealer" ? "bg-primary-700 text-white border-primary-700" : "bg-white text-slate-600 border-slate-200"}`}
+                >
+                  Dealer visit
+                </button>
+              </div>
+              {closureKind === "dealer" ? (
                 <SalesDayClosureForm
                   onSubmitted={() => {
                     setClosureMessage({ type: "success", text: "Today's closure submitted successfully!" });
@@ -4726,8 +4693,7 @@ export default function Dashboard() {
                         onChange={(e) => setFormRole(e.target.value)}
                         className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-green-700"
                       >
-                        <option value="field_officer">Field Officer</option>
-                        <option value="sales_officer">Sales Officer</option>
+                        <option value="field_officer">Officer</option>
                         <option value="manager">Regional Manager</option>
                         <option value="admin">Administrator</option>
                       </select>

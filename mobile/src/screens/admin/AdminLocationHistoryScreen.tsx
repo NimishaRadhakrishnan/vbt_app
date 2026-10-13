@@ -59,7 +59,7 @@ export default function AdminLocationHistoryScreen() {
     [],
     { refetchOnFocus: false },
   );
-  const trackable = (officers ?? []).filter((u) => u.role === 'field_officer' || u.role === 'sales_officer');
+  const trackable = (officers ?? []).filter((u) => u.role === 'field_officer');
 
   // The result is tagged with the officer and day it was fetched for, so a
   // slow answer for a previous pick, or data left over after a failed

@@ -10,7 +10,6 @@ from enum import Enum
 class Role(str, Enum):
     ADMIN = "admin"
     MANAGER = "manager"
-    SALES_OFFICER = "sales_officer"
     FIELD_OFFICER = "field_officer"
     DEALER = "dealer"
     FARMER = "farmer"

@@ -32,7 +32,7 @@ class CreateUserRequest(BaseModel):
     phone: Optional[str] = None
     password: str = Field(..., min_length=8)
     full_name: str = Field(..., min_length=1)
-    role: str = Field(..., pattern="^(admin|manager|sales_officer|field_officer|dealer|farmer)$")
+    role: str = Field(..., pattern="^(admin|manager|field_officer|dealer|farmer)$")
     employee_id: str = Field(..., min_length=1, max_length=50)
     manager_id: Optional[uuid.UUID] = None
     device_id: Optional[str] = None
@@ -53,7 +53,7 @@ class EditUserRequest(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     full_name: str = Field(..., min_length=1)
-    role: str = Field(..., pattern="^(admin|manager|sales_officer|field_officer|dealer|farmer)$")
+    role: str = Field(..., pattern="^(admin|manager|field_officer|dealer|farmer)$")
     employee_id: str = Field(..., min_length=1, max_length=50)
     manager_id: Optional[uuid.UUID] = None
     device_id: Optional[str] = None

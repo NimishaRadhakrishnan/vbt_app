@@ -9,7 +9,7 @@ import { MORE_SECTION_IDS, sectionsForRole } from '../navigation/navConfig';
 // `requiresDayClosure` check exactly (app/dashboard/page.tsx). Admin and
 // manager accounts don't submit field closure documents, so they're not
 // gated.
-const DAY_CLOSURE_ROLES = ['field_officer', 'sales_officer'];
+const DAY_CLOSURE_ROLES = ['field_officer'];
 
 // Card-style Profile tab: avatar, name, employee ID, role/designation, and
 // an online/offline status badge - moved here from DashboardScreen's header
@@ -86,15 +86,13 @@ export default function ProfileScreen({ navigation }: any) {
                   {
                     text: 'Go to Day Closure',
                     onPress: () => {
-                      // Sales Officers submit a DEALER closure, not a
-                      // farm visit - different screen, different
-                      // payload. Both live in FieldNetworkTab's stack,
-                      // each registered behind its own role gate.
-                      if (role === 'sales_officer') {
-                        navigation.navigate('SalesDayClosure');
-                        return;
-                      }
-                      navigation.navigate('DailyVisitTracker', { dayClosureMode: true });
+                      // One Officer role: a day is either a farm visit or a
+                      // dealer visit (different screen, different payload).
+                      Alert.alert('Which closure?', 'Pick the kind of visit you did today.', [
+                    { text: 'Farm visit', onPress: () => navigation.navigate('DailyVisitTracker', { dayClosureMode: true }) },
+                    { text: 'Dealer visit', onPress: () => navigation.navigate('SalesDayClosure') },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]);
                     },
                   },
                 ]

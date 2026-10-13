@@ -192,7 +192,7 @@ async def test_admin_ledger_without_a_filter_shows_everyone() -> None:
         officer = (
             await session.execute(
                 text(
-                    "SELECT id, email FROM users WHERE role IN ('field_officer','sales_officer') "
+                    "SELECT id, email FROM users WHERE role = 'field_officer' "
                     "AND is_active = true AND is_deleted = false ORDER BY created_at LIMIT 1"
                 )
             )
@@ -252,7 +252,7 @@ async def test_an_officer_cannot_read_another_officers_ledger() -> None:
         rows = (
             await session.execute(
                 text(
-                    "SELECT id, email FROM users WHERE role IN ('field_officer','sales_officer') "
+                    "SELECT id, email FROM users WHERE role = 'field_officer' "
                     "AND is_active = true AND is_deleted = false ORDER BY created_at LIMIT 2"
                 )
             )
