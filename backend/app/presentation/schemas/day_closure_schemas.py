@@ -12,6 +12,10 @@ class DayClosureStatusResponse(BaseModel):
     farmer_name: Optional[str] = None
     village: Optional[str] = None
     crop_name: Optional[str] = None
+    closure_type: Optional[str] = None
+    # Which parts of today's closure are filed (matters in "both" mode).
+    farm_done: bool = False
+    sales_done: bool = False
 
 
 class DayClosureAdminResponse(BaseModel):

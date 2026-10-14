@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { downloadAuthenticatedFile } from "@/lib/api/download";
 import PhotoGallery from "@/components/PhotoViewer";
+import { printReport } from "@/lib/printReport";
 
 // Extracted from app/dashboard/daily-visits/page.tsx (where it was
 // previously a page-local, non-exported component) so the Day Closure
@@ -55,6 +56,32 @@ export function VisitDetailPanel({ visitId, onClose }: { visitId: string; onClos
               className="text-sm font-medium text-green-700 hover:underline disabled:opacity-50"
             >
               {exporting ? "Exporting…" : "Export PDF"}
+            </button>
+            <button
+              onClick={() => {
+                if (!detail) return;
+                const d = detail;
+                printReport({
+                  title: "Farmer Visit Report",
+                  subtitle: "Field officer visit record",
+                  meta: [["Officer", d.officer?.name], ["Employee ID", d.officer?.employee_id], ["Visit date", d.visit?.date], ["Visit time", d.visit?.time], ["Visit ID", d.visit?.visit_id]],
+                  sections: [
+                    { title: "Officer", rows: [["Name", d.officer?.name], ["Employee ID", d.officer?.employee_id], ["Manager", d.officer?.manager], ["District", d.officer?.district]] },
+                    { title: "Visit", rows: [["Date", d.visit?.date], ["Time", d.visit?.time], ["Village/Block", d.visit?.village_block], ["GPS", d.visit?.gps ? `${d.visit.gps.lat}, ${d.visit.gps.lng}` : null]] },
+                    { title: "Farmer", rows: [["Name", d.farmer?.name], ["Contact", d.farmer?.phone], ["Farm size", d.farmer?.farm_size]] },
+                    { title: "Crop", rows: [["Category", d.crop?.crop_category], ["Crop", d.crop?.crop_name], ["Variety", d.crop?.variety_name ?? d.crop?.variety_text], ["Age", d.crop?.crop_age_value ? `${d.crop.crop_age_value} ${d.crop.crop_age_unit}` : null], ["Sowing date", d.crop?.sowing_date], ["Previous crop", d.crop?.previous_crop_text]] },
+                    { title: "Crop health", rows: [["Status", d.health?.status], ["Severity", d.health?.severity], ["Pests", (d.health?.pests ?? []).join(", ")], ["Diseases", (d.health?.diseases ?? []).join(", ")]] },
+                    { title: "Trial / demo", rows: [["Trial", d.trial?.is_trial ? "Yes" : null], ["Purpose", d.trial?.purpose], ["Demo status", d.trial?.demo_status], ["Plot size", d.trial?.plot_size_cents ? `${d.trial.plot_size_cents} cents` : null]], table: (d.trial?.products ?? []).length ? { head: ["Product", "Given", "Left over"], body: d.trial.products.map((p: any) => [p.product_name, p.quantity_given, p.quantity_leftover]) } : undefined },
+                    { title: "Sales", rows: [["Purchased", d.sales?.purchased ? "Yes" : "No"], ["Order value", d.sales?.order_value ? `Rs ${d.sales.order_value}` : null], ["Conversion", d.sales?.conversion_status]], table: (d.sale_items ?? []).length ? { head: ["Product", "Qty"], body: d.sale_items.map((i: any) => [i.product_name, i.quantity]) } : undefined },
+                    { title: "Remarks", rows: [["Officer remarks", d.remarks?.officer_remarks], ["Follow-up date", d.remarks?.follow_up_date], ["Follow-up remarks", d.remarks?.follow_up_remarks]] },
+                    { title: "Photos", rows: [["Photos attached", d.photos?.length || null]] },
+                  ],
+                });
+              }}
+              disabled={!detail}
+              className="text-sm font-medium text-slate-600 hover:underline disabled:opacity-50"
+            >
+              Print
             </button>
             <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
           </div>

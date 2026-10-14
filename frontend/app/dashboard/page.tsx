@@ -49,6 +49,7 @@ import { downloadAuthenticatedFile, datedFilename } from "@/lib/api/download";
 import { OtherDescriptionInput, descriptionMissing, OTHER_DESCRIPTION_MESSAGE } from "@/components/OtherDescriptionInput";
 import PhoneSimulator from "@/components/PhoneSimulator";
 import { VisitDetailPanel } from "@/components/VisitDetailPanel";
+import { printReport, formatDateTime, formatTime } from "@/lib/printReport";
 import OfficerProductivity from "@/components/OfficerProductivity";
 import ManagerProductivity from "@/components/ManagerProductivity";
 import AdminProductivity from "@/components/AdminProductivity";
@@ -101,6 +102,20 @@ export default function Dashboard() {
   const [deleteImpact, setDeleteImpact] = useState<any>(null);
   const [isArchivedTab, setIsArchivedTab] = useState(false);
   const [closureKind, setClosureKind] = useState<"visit" | "dealer">("visit");
+  // Which parts of today's closure are already filed (both-mode officers).
+  const [closureParts, setClosureParts] = useState<{ farm: boolean; sales: boolean }>({ farm: false, sales: false });
+  const refreshClosureParts = async () => {
+    try {
+      const st: any = await apiFetch("/day-closure/status");
+      setClosureParts({
+        farm: !!st?.farm_done,
+        sales: !!st?.sales_done || st?.closure_type === "sales_activity",
+      });
+      if (st?.closed_today) setDayClosureStatus({ closed_today: true });
+    } catch {
+      /* the form still works without the badges */
+    }
+  };
   // Admin-set work mode of this officer: field (farm work), sales (dealer
   // work) or both. Decides the day closure form and the officer home.
   const workMode: "field" | "sales" | "both" = user?.work_mode ?? "both";
@@ -186,6 +201,7 @@ export default function Dashboard() {
   const [salesClosureOfficerId, setSalesClosureOfficerId] = useState("");
   const [salesClosureDistrict, setSalesClosureDistrict] = useState("");
   const [salesClosureDetail, setSalesClosureDetail] = useState<any | null>(null);
+  const [closureFolder, setClosureFolder] = useState<"farmer" | "dealer">("farmer");
   const [showPhonePreview, setShowPhonePreview] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [createClosureOfficerId, setCreateClosureOfficerId] = useState("");
@@ -1660,6 +1676,11 @@ export default function Dashboard() {
       setHasSetLandingTab(true);
     }
   }, [user, hasSetLandingTab]);
+
+  useEffect(() => {
+    if (user?.role === "field_officer" && activeTab === "work-doc") void refreshClosureParts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, user?.role]);
 
   // Keep the open tab in the address bar so a refresh stays on it.
   useEffect(() => {
@@ -4026,12 +4047,40 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              <div className="flex gap-2">
+                {([["farmer", "Farmer visits", adminDayClosures.length], ["dealer", "Dealer visits", salesClosures.length]] as const).map(([k, label, n]) => (
+                  <button
+                    key={k}
+                    onClick={() => setClosureFolder(k)}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold border transition ${closureFolder === k ? "bg-green-700 text-white border-green-700" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+                  >
+                    📁 {label} <span className="ml-1 text-xs opacity-80">({n})</span>
+                  </button>
+                ))}
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Submitted Reports (Left, 2 columns wide) */}
-                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                <div className="lg:col-span-2 space-y-6">
+                {closureFolder === "farmer" && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                   <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
                     <CheckCircle className="w-5 h-5 text-green-600" />
-                    <h3 className="font-bold text-slate-800">Submitted Reports</h3>
+                    <h3 className="font-bold text-slate-800">Farmer Visit Closures</h3>
+                    <button
+                      onClick={() => printReport({
+                        title: "Farmer Visit Closures",
+                        subtitle: "Field officer end-of-day reports",
+                        meta: [["Records", adminDayClosures.length]],
+                        sections: [{ title: "Closures", table: {
+                          head: ["Date", "Time", "Officer", "Farmer", "Village / District", "Crop", "Status", "Demo", "Purchase"],
+                          body: adminDayClosures.map((c: any) => [c.date, formatTime(c.created_at), c.officer_name, c.farmer_name || "", [c.village, c.district].filter(Boolean).join(", "), c.crop_name || "", (c.crop_status || "").replace(/_/g, " "), (c.demo_status || "").replace(/_/g, " "), c.purchased ? `Rs ${c.order_value ?? ""}` : "No"]),
+                        } }],
+                      })}
+                      className="ml-auto px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold"
+                    >
+                      Print list
+                    </button>
                   </div>
                   
                   {loadingDayClosures && adminDayClosures.length === 0 ? (
@@ -4044,6 +4093,7 @@ export default function Dashboard() {
                         <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
                           <tr>
                             <th className="px-4 py-3 font-semibold">Date</th>
+                            <th className="px-4 py-3 font-semibold">Time</th>
                             <th className="px-4 py-3 font-semibold">Officer</th>
                             <th className="px-4 py-3 font-semibold">Farmer</th>
                             <th className="px-4 py-3 font-semibold">District / Village</th>
@@ -4058,6 +4108,7 @@ export default function Dashboard() {
                           {adminDayClosures.map((closure) => (
                             <tr key={closure.id} className="hover:bg-slate-50">
                               <td className="px-4 py-3 font-medium text-slate-800">{closure.date}</td>
+                              <td className="px-4 py-3 text-slate-600">{formatTime(closure.created_at) || "—"}</td>
                               <td className="px-4 py-3 text-slate-600">{closure.officer_name}</td>
                               <td className="px-4 py-3 text-slate-600">{closure.farmer_name || "—"}</td>
                               <td className="px-4 py-3 text-slate-600">{[closure.village, closure.district].filter(Boolean).join(", ") || "—"}</td>
@@ -4088,49 +4139,9 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
-
-                {/* Missing Today (Right, 1 column wide) */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-full">
-                  <div className="p-4 border-b border-slate-100 bg-red-50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-5 h-5 text-red-600" />
-                      <h3 className="font-bold text-red-900">Missing Today</h3>
-                    </div>
-                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-bold">
-                      {missingDayClosures.length}
-                    </span>
-                  </div>
-                  
-                  <div className="p-4 flex-1 overflow-y-auto">
-                    {loadingDayClosures && missingDayClosures.length === 0 ? (
-                      <div className="text-center text-slate-400 text-sm py-4">Checking missing officers...</div>
-                    ) : missingDayClosures.length === 0 ? (
-                      <div className="text-center py-8">
-                        <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
-                        <p className="text-slate-500 text-sm font-medium">All active officers have submitted their reports today!</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <p className="text-xs text-slate-500 mb-2">The following officers have not submitted a day closure report for {new Date().toLocaleDateString()}:</p>
-                        {missingDayClosures.map((officer) => (
-                          <div key={officer.officer_id} className="flex items-center justify-between p-3 border border-slate-100 rounded-lg hover:border-slate-200 hover:bg-slate-50 transition">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
-                                <User className="w-4 h-4" />
-                              </div>
-                              <div>
-                                <div className="font-semibold text-sm text-slate-800">{officer.officer_name}</div>
-                                <div className="text-xs text-slate-500">{ROLE_LABELS[officer.role] || officer.role}</div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
+                )}
+                {closureFolder === "dealer" && (
+              <>
               {/* Sales Officer closures. Separate table rather than mixed
                   into the one above because the two closure types share
                   no meaningful columns - farmer/crop/demo vs.
@@ -4187,6 +4198,20 @@ export default function Dashboard() {
                       Filter
                     </button>
                     <button
+                      onClick={() => printReport({
+                        title: "Dealer Visit Closures",
+                        subtitle: "Sales officer end-of-day reports",
+                        meta: [["Records", salesClosures.length]],
+                        sections: [{ title: "Closures", table: {
+                          head: ["Date", "Time", "Officer", "Dealer", "District", "Purpose", "Order", "Collected", "Stock"],
+                          body: salesClosures.map((x: any) => [x.date, formatTime(x.created_at), x.officer_name || "", x.dealer_name, x.district, (x.visit_purpose || "").replace(/_/g, " "), x.order_booked ? `Rs ${x.order_value ?? ""}` : "No", x.amount_collected != null ? `Rs ${x.amount_collected}` : "", (x.stock_status || "").replace(/_/g, " ")]),
+                        } }],
+                      })}
+                      className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold"
+                    >
+                      Print list
+                    </button>
+                    <button
                       onClick={() => downloadStockReport("xlsx")}
                       className="px-3 py-1 text-xs bg-green-700 hover:bg-green-800 text-white rounded-lg font-semibold"
                     >
@@ -4209,6 +4234,7 @@ export default function Dashboard() {
                       <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
                         <tr>
                           <th className="px-4 py-3 font-semibold">Date</th>
+                          <th className="px-4 py-3 font-semibold">Time</th>
                           <th className="px-4 py-3 font-semibold">Officer</th>
                           <th className="px-4 py-3 font-semibold">Dealer</th>
                           <th className="px-4 py-3 font-semibold">District</th>
@@ -4223,6 +4249,7 @@ export default function Dashboard() {
                         {salesClosures.map((s: any) => (
                           <tr key={s.id} className="hover:bg-slate-50">
                             <td className="px-4 py-3 font-medium text-slate-800">{s.date}</td>
+                            <td className="px-4 py-3 text-slate-600">{formatTime(s.created_at) || "—"}</td>
                             <td className="px-4 py-3 text-slate-600">{s.officer_name || "—"}</td>
                             <td className="px-4 py-3 text-slate-600">{s.dealer_name}</td>
                             <td className="px-4 py-3 text-slate-600">{s.district}</td>
@@ -4247,6 +4274,51 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+              </>
+                )}
+                </div>
+
+                {/* Missing Today (Right, 1 column wide) */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-full">
+                  <div className="p-4 border-b border-slate-100 bg-red-50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-red-600" />
+                      <h3 className="font-bold text-red-900">Missing Today</h3>
+                    </div>
+                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                      {missingDayClosures.length}
+                    </span>
+                  </div>
+                  
+                  <div className="p-4 flex-1 overflow-y-auto">
+                    {loadingDayClosures && missingDayClosures.length === 0 ? (
+                      <div className="text-center text-slate-400 text-sm py-4">Checking missing officers...</div>
+                    ) : missingDayClosures.length === 0 ? (
+                      <div className="text-center py-8">
+                        <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                        <p className="text-slate-500 text-sm font-medium">All active officers have submitted their reports today!</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-xs text-slate-500 mb-2">The following officers have not submitted a day closure report for {new Date().toLocaleDateString()}:</p>
+                        {missingDayClosures.map((officer) => (
+                          <div key={officer.officer_id} className="flex items-center justify-between p-3 border border-slate-100 rounded-lg hover:border-slate-200 hover:bg-slate-50 transition">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+                                <User className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <div className="font-semibold text-sm text-slate-800">{officer.officer_name}</div>
+                                <div className="text-xs text-slate-500">{ROLE_LABELS[officer.role] || officer.role}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
               <DeletedClosuresPanel onChanged={() => { fetchSalesClosures(); fetchAdminDayClosures(); }} />
 
@@ -4257,9 +4329,27 @@ export default function Dashboard() {
                       <div>
                         <h3 className="text-lg font-bold text-slate-800">Sales Closure Detail</h3>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {salesClosureDetail.officer_name} · submitted {salesClosureDetail.date}
+                          {salesClosureDetail.officer_name} · submitted {formatDateTime(salesClosureDetail.created_at) || salesClosureDetail.date}
                         </p>
                       </div>
+                      <button
+                        onClick={() => { const d = salesClosureDetail; printReport({
+                          title: "Dealer Visit Report",
+                          subtitle: "Sales officer day closure",
+                          meta: [["Officer", d.officer_name], ["Visit date", d.date], ["Submitted at", formatDateTime(d.created_at)]],
+                          sections: [
+                            { title: "Dealer & visit", rows: [["Dealer", d.dealer_name], ["District", d.district], ["Village", d.village], ["Contact", d.dealer_contact], ["Visit purpose", (d.visit_purpose || "").replace(/_/g, " ")], ["Purpose details", d.visit_purpose_other_text], ["New dealer", d.new_dealer_details]] },
+                            { title: "Orders & collection", rows: [["Order booked", d.order_booked == null ? null : d.order_booked ? "Yes" : "No"], ["Order value", d.order_value != null ? `Rs ${d.order_value}` : null], ["Amount collected", d.amount_collected != null ? `Rs ${d.amount_collected}` : null]] },
+                            { title: "Market & remarks", rows: [["Reviewed FO visit", d.reviewed_fo_visit == null ? null : d.reviewed_fo_visit ? "Yes" : "No"], ["Competitor activity", d.competitor_activity], ["Stock status", (d.stock_status || "").replace(/_/g, " ")], ["Day rating", d.day_rating ? `${d.day_rating}/5` : null], ["Remarks", d.remarks]] },
+                            { title: "Stock left in dealer's shop", table: { head: ["Product", "Category", "Qty left"], body: (d.stock_lines || []).map((l: any) => [l.product_name, l.category || "", l.quantity_left]) } },
+                            { title: "Additional answers", rows: Object.entries(d.custom_field_answers || {}).map(([k, v]) => [k.replace(/_/g, " "), typeof v === "object" ? JSON.stringify(v) : v] as [string, any]) },
+                            { title: "Photos", rows: [["Photos attached", d.images?.length || null]] },
+                          ],
+                        }); }}
+                        className="ml-auto mr-3 text-sm font-medium text-green-700 hover:underline"
+                      >
+                        Print
+                      </button>
                       <button onClick={() => setSalesClosureDetail(null)} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
                     </div>
                     <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
@@ -4460,27 +4550,40 @@ export default function Dashboard() {
                   onClick={() => setClosureKind("visit")}
                   className={`px-4 py-1.5 text-sm font-semibold rounded-lg border ${closureKind === "visit" ? "bg-primary-700 text-white border-primary-700" : "bg-white text-slate-600 border-slate-200"}`}
                 >
-                  Farm visit
+                  Farmer visits {closureParts.farm && "✓"}
                 </button>
                 <button
                   onClick={() => setClosureKind("dealer")}
                   className={`px-4 py-1.5 text-sm font-semibold rounded-lg border ${closureKind === "dealer" ? "bg-primary-700 text-white border-primary-700" : "bg-white text-slate-600 border-slate-200"}`}
                 >
-                  Dealer visit
+                  Dealer visits {closureParts.sales && "✓"}
                 </button>
               </div>
               )}
-              {activeClosureKind === "dealer" ? (
+              {workMode === "both" && (
+                <p className="text-xs text-slate-500">
+                  You can file the farmer part, the dealer part, or both. Each part is saved separately and locked once submitted.
+                </p>
+              )}
+              {(activeClosureKind === "dealer" ? closureParts.sales : closureParts.farm) ? (
+                <div className="p-4 rounded-lg text-sm bg-green-50 text-green-800 border border-green-200">
+                  {activeClosureKind === "dealer" ? "Dealer" : "Farmer"} part of today&apos;s closure is already submitted.
+                  {workMode === "both" && !(activeClosureKind === "dealer" ? closureParts.farm : closureParts.sales) &&
+                    ` You can still add the ${activeClosureKind === "dealer" ? "farmer" : "dealer"} part.`}
+                </div>
+              ) : activeClosureKind === "dealer" ? (
                 <SalesDayClosureForm
                   onSubmitted={() => {
-                    setClosureMessage({ type: "success", text: "Today's closure submitted successfully!" });
+                    setClosureMessage({ type: "success", text: "Dealer part of today's closure submitted." });
+                    void refreshClosureParts();
                   }}
                   onError={(msg) => setClosureMessage({ type: "error", text: msg })}
                 />
               ) : (
                 <DayClosureForm
                   onSubmitted={() => {
-                    setClosureMessage({ type: "success", text: "Today's closure submitted successfully!" });
+                    setClosureMessage({ type: "success", text: "Farmer part of today's closure submitted." });
+                    void refreshClosureParts();
                   }}
                   onError={(msg) => setClosureMessage({ type: "error", text: msg })}
                 />

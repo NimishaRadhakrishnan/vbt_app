@@ -1184,7 +1184,7 @@ async def admin_list_deleted_day_closures(
         {
             "id": str(r.id), "date": r.date.isoformat(), "closure_type": r.closure_type,
             "officer_id": str(r.officer_id), "officer_name": r.officer_name,
-            "kind": "dealer" if r.closure_type == "sales_activity" else ("no_activity" if r.closure_type == "no_activity" else "farmer"),
+            "kind": "both" if r.closure_type == "both" else "dealer" if r.closure_type == "sales_activity" else ("no_activity" if r.closure_type == "no_activity" else "farmer"),
             "summary": (
                 f"{r.dealer_name}" + (f" - {r.dealer_district}" if r.dealer_district else "")
                 if r.dealer_name else

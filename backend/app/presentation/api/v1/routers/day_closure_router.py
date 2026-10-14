@@ -109,11 +109,15 @@ async def get_today_closure_status(
     if not row:
         return DayClosureStatusResponse(closed_today=False)
 
+    farm_done = row.visit_id is not None
+    sales_done = row.dealer_name is not None
     if row.closure_type == "sales_activity":
         return DayClosureStatusResponse(
             closed_today=True,
             closure_id=row.id,
             closure_type="sales_activity",
+            farm_done=False,
+            sales_done=True,
             # Reuses the existing response fields rather than adding
             # sales-only ones: farmer_name/village are simply "who and
             # where" for a field visit, and dealer/district are the
@@ -137,6 +141,9 @@ async def get_today_closure_status(
     return DayClosureStatusResponse(
         closed_today=True,
         closure_id=row.id,
+        closure_type=row.closure_type,
+        farm_done=farm_done,
+        sales_done=sales_done,
         visit_id=row.visit_id,
         farmer_name=row.farmer_name,
         village=row.village,
@@ -337,11 +344,17 @@ async def submit_day_closure(
     today = company_today()
     await _clear_deleted_closure(session, current_user.user_id, today)
     existing_row = await session.execute(
-        text("SELECT id, visit_id FROM day_closures WHERE officer_id = :officer_id AND date = :today")
+        text("SELECT id, visit_id, closure_type FROM day_closures WHERE officer_id = :officer_id AND date = :today")
         .bindparams(officer_id=current_user.user_id, today=today)
     )
     existing = existing_row.mappings().first()
-    if existing:
+    # An officer in "both" mode who has filed only the dealer part can still
+    # add the farmer part to the same day's closure.
+    add_to_existing = bool(
+        existing and existing["visit_id"] is None and existing["closure_type"] == "sales_activity"
+        and current_user.work_mode == "both"
+    )
+    if existing and not add_to_existing:
         visit_id = existing["visit_id"]
         detail = await _assemble_visit_detail(visit_id, session) if visit_id else None
         farmer_name = detail.get("farmer_name") if detail else None
@@ -367,16 +380,23 @@ async def submit_day_closure(
         farmer_use_case=farmer_use_case,
     )
 
-    closure_id = uuid.uuid4()
-    await session.execute(
-        text("""
-            INSERT INTO day_closures (id, officer_id, date, visit_id, created_at)
-            VALUES (:id, :officer_id, :today, :visit_id, :now)
-        """).bindparams(
-            id=closure_id, officer_id=current_user.user_id, today=today,
-            visit_id=visit_result.visit_id, now=visit_result.created_at,
+    if add_to_existing:
+        closure_id = existing["id"]
+        await session.execute(
+            text("UPDATE day_closures SET visit_id = :vid, closure_type = 'both' WHERE id = :id")
+            .bindparams(vid=visit_result.visit_id, id=closure_id)
         )
-    )
+    else:
+        closure_id = uuid.uuid4()
+        await session.execute(
+            text("""
+                INSERT INTO day_closures (id, officer_id, date, visit_id, created_at)
+                VALUES (:id, :officer_id, :today, :visit_id, :now)
+            """).bindparams(
+                id=closure_id, officer_id=current_user.user_id, today=today,
+                visit_id=visit_result.visit_id, now=visit_result.created_at,
+            )
+        )
     await session.commit()
 
     detail = await _assemble_visit_detail(visit_result.visit_id, session)
@@ -419,7 +439,7 @@ async def list_day_closures(
         LEFT JOIN visit_health vh ON vh.visit_id = dc.visit_id
         LEFT JOIN visit_trial_details vtd ON vtd.visit_id = dc.visit_id
         LEFT JOIN visit_sales vs ON vs.visit_id = dc.visit_id
-        WHERE dc.is_deleted = false
+        WHERE dc.is_deleted = false AND dc.visit_id IS NOT NULL
     """
     params = {}
     if date_from:
@@ -617,22 +637,32 @@ async def submit_sales_day_closure(
         .bindparams(oid=current_user.user_id, today=today)
     )
     prior = existing.first()
+    add_to_existing = False
     if prior:
-        if prior.closure_type == 'sales_activity':
+        if prior.closure_type in ('sales_activity', 'both'):
             result = await session.execute(
                 text(f"SELECT {_SALES_SELECT} {_SALES_FROM} WHERE d.closure_id = :cid").bindparams(cid=prior.id)
             )
             return await _sales_row_to_response(session, result.first())
+        elif prior.closure_type == 'field_visit' and current_user.work_mode == 'both':
+            # Farmer part already filed; add the dealer part to the same closure.
+            add_to_existing = True
         else:
             raise HTTPException(status_code=400, detail="Today's closure has already been submitted.")
 
-    closure_id = uuid.uuid4()
-    await session.execute(
-        text("""
-            INSERT INTO day_closures (id, officer_id, date, closure_type, created_at)
-            VALUES (:id, :oid, :today, 'sales_activity', :now)
-        """).bindparams(id=closure_id, oid=current_user.user_id, today=today, now=datetime.now(timezone.utc))
-    )
+    if add_to_existing:
+        closure_id = prior.id
+        await session.execute(
+            text("UPDATE day_closures SET closure_type = 'both' WHERE id = :id").bindparams(id=closure_id)
+        )
+    else:
+        closure_id = uuid.uuid4()
+        await session.execute(
+            text("""
+                INSERT INTO day_closures (id, officer_id, date, closure_type, created_at)
+                VALUES (:id, :oid, :today, 'sales_activity', :now)
+            """).bindparams(id=closure_id, oid=current_user.user_id, today=today, now=datetime.now(timezone.utc))
+        )
     await session.execute(
         text("""
             INSERT INTO sales_closure_details (

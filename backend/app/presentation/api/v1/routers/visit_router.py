@@ -73,8 +73,8 @@ async def start_visit(
         )
     for photo_url in payload.photo_urls:
         await session.execute(
-            text("INSERT INTO visit_photos (id, visit_id, url) VALUES (gen_random_uuid(), :vid, :url)")
-            .bindparams(vid=result.id, url=photo_url)
+            text("INSERT INTO visit_photos (id, visit_id, photo_url, photo_type, uploaded_by, created_at) VALUES (gen_random_uuid(), :vid, :url, 'farm_visit', :uid, now())")
+            .bindparams(vid=result.id, url=photo_url, uid=current_user.user_id)
         )
     if trial_products or payload.photo_urls:
         await session.commit()
@@ -251,7 +251,7 @@ async def _to_response(visit, session: AsyncSession) -> VisitResponse:
         ]
 
     photo_rows = await session.execute(
-        text("SELECT url FROM visit_photos WHERE visit_id = :vid ORDER BY created_at, id").bindparams(vid=visit.id)
+        text("SELECT photo_url AS url FROM visit_photos WHERE visit_id = :vid ORDER BY created_at, id").bindparams(vid=visit.id)
     )
     photo_urls = [r.url for r in photo_rows.all()]
     if not photo_urls and visit.photo_url_farm:

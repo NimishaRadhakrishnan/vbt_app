@@ -69,6 +69,7 @@ async def purge_old_closures(days: int | None = None) -> dict[str, int]:
     cutoff_day = (datetime.now(UTC) - timedelta(days=keep_days)).date()
 
     counts = {"day_closures": 0, "photos": 0}
+    cutoff_ts = datetime.now(UTC) - timedelta(days=keep_days)
     while True:
         async with AsyncSessionLocal() as session:
             ids = [r.id for r in (await session.execute(
@@ -81,10 +82,27 @@ async def purge_old_closures(days: int | None = None) -> dict[str, int]:
                 text("SELECT image_url FROM sales_closure_images WHERE closure_id = ANY(:ids)"),
                 {"ids": ids},
             )).all()]
+            # The farmer visit behind each closure goes too, with its photos.
+            visit_ids = [r.visit_id for r in (await session.execute(
+                text("SELECT visit_id FROM day_closures WHERE id = ANY(:ids) AND visit_id IS NOT NULL"),
+                {"ids": ids},
+            )).all()]
+            if visit_ids:
+                urls += [r.photo_url for r in (await session.execute(
+                    text("SELECT photo_url FROM visit_photos WHERE visit_id = ANY(:v)"), {"v": visit_ids},
+                )).all()]
+                urls += [r.photo_url_farm for r in (await session.execute(
+                    text("SELECT photo_url_farm FROM visits WHERE id = ANY(:v) AND photo_url_farm IS NOT NULL"), {"v": visit_ids},
+                )).all()]
+                await session.execute(
+                    text("DELETE FROM custom_field_answers WHERE record_id = ANY(:v)"), {"v": visit_ids}
+                )
             await session.execute(
                 text("DELETE FROM custom_field_answers WHERE record_id = ANY(:ids)"), {"ids": ids}
             )
             await session.execute(text("DELETE FROM day_closures WHERE id = ANY(:ids)"), {"ids": ids})
+            if visit_ids:
+                await session.execute(text("DELETE FROM visits WHERE id = ANY(:v)"), {"v": visit_ids})
             names = []
             for url in urls:
                 name = os.path.basename((url or "").split("?")[0])
@@ -102,5 +120,30 @@ async def purge_old_closures(days: int | None = None) -> dict[str, int]:
             except OSError:
                 pass
         counts["day_closures"] += len(ids)
+    # Field Visit Log entries that never had a day closure, and their photos.
+    while True:
+        async with AsyncSessionLocal() as session:
+            rows = (await session.execute(
+                text("SELECT id, photo_url_farm FROM visits WHERE start_time < :c LIMIT 500"), {"c": cutoff_ts},
+            )).all()
+            if not rows:
+                break
+            vids = [r.id for r in rows]
+            urls = [r.photo_url_farm for r in rows if r.photo_url_farm]
+            urls += [r.photo_url for r in (await session.execute(
+                text("SELECT photo_url FROM visit_photos WHERE visit_id = ANY(:v)"), {"v": vids},
+            )).all()]
+            await session.execute(text("DELETE FROM custom_field_answers WHERE record_id = ANY(:v)"), {"v": vids})
+            await session.execute(text("DELETE FROM visits WHERE id = ANY(:v)"), {"v": vids})
+            await session.commit()
+        for url in urls:
+            name = os.path.basename((url or "").split("?")[0])
+            if name:
+                try:
+                    os.remove(os.path.join(UPLOAD_DIR, name))
+                    counts["photos"] += 1
+                except OSError:
+                    pass
+        counts["visits"] = counts.get("visits", 0) + len(vids)
     logger.info("closure_retention_done", extra={"cutoff": cutoff_day.isoformat(), **counts})
     return counts
