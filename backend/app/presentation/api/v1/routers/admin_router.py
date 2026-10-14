@@ -56,6 +56,7 @@ from app.domain.services.pricing import (
     line_total,
 )
 from app.presentation.api.v1.routers.admin_daily_visit_router import _assemble_visit_detail
+from app.presentation.schemas.day_closure_schemas import SalesClosureSubmitRequest
 from app.presentation.api.v1.routers.daily_visit_tracker_router import submit_daily_visit
 from app.presentation.schemas.daily_visit_tracker_schemas import DailyVisitTrackerSubmitRequest
 from app.presentation.schemas.admin_schemas import (
@@ -1319,6 +1320,38 @@ async def admin_create_day_closure(
 
     detail = await _assemble_visit_detail(visit_result.visit_id, session)
     return {"closure_id": str(closure_id), "visit_id": str(visit_result.visit_id), "visit_detail": detail}
+
+
+@router.post("/day-closures/sales", status_code=status.HTTP_201_CREATED)
+async def admin_create_sales_day_closure(
+    payload: SalesClosureSubmitRequest,
+    officer_id: uuid.UUID,
+    current_user: _AdminOnly,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Admin files the dealer (sales) day closure for an officer, reusing the
+    officer's own submit function so every rule and the stock sheet behave
+    identically."""
+    from app.presentation.api.v1.routers.day_closure_router import submit_sales_day_closure
+
+    row = (await session.execute(
+        text("SELECT id, role, full_name, email, employee_id, work_mode FROM users WHERE id = :id AND is_active = true AND is_deleted = false")
+        .bindparams(id=officer_id)
+    )).first()
+    if not row or row.role != "field_officer":
+        raise HTTPException(status_code=404, detail="Officer not found or inactive.")
+    officer = CurrentUserOutput(
+        user_id=row.id, email=row.email, full_name=row.full_name, role=row.role,
+        is_active=True, employee_id=row.employee_id, work_mode=row.work_mode or "both",
+    )
+    result = await submit_sales_day_closure(payload=payload, current_user=officer, session=session)
+    await write_audit_log(
+        session, user_id=current_user.user_id, event_type="admin_day_closure_create",
+        description=f"Admin filed a dealer day closure for officer {officer_id}",
+        context_data={"closure_id": str(result.id), "officer_id": str(officer_id)},
+    )
+    await session.commit()
+    return result.model_dump(mode="json")
 
 
 @router.delete("/enquiries/{enquiry_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

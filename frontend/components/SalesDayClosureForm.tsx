@@ -91,9 +91,12 @@ function YesNo({ value, onChange }: { value: boolean | null; onChange: (v: boole
 export default function SalesDayClosureForm({
   onSubmitted,
   onError,
+  adminOfficerId,
 }: {
   onSubmitted: () => void;
   onError?: (msg: string) => void;
+  /** Admin filing on behalf of this officer. */
+  adminOfficerId?: string;
 }) {
   const [district, setDistrict] = useState("");
   const [visitDate, setVisitDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -228,7 +231,7 @@ export default function SalesDayClosureForm({
       for (const f of dealerPhotos) images.push({ image_url: await uploadOne(f), image_type: "dealer_shop" });
       for (const f of competitorPhotos) images.push({ image_url: await uploadOne(f), image_type: "competitor" });
 
-      await apiFetch("/day-closure/sales", {
+      await apiFetch(adminOfficerId ? `/admin/day-closures/sales?officer_id=${encodeURIComponent(adminOfficerId)}` : "/day-closure/sales", {
         method: "POST",
         body: JSON.stringify({
           district,

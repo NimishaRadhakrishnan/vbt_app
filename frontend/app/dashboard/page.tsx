@@ -177,6 +177,7 @@ export default function Dashboard() {
   const [dayClosureDetailVisitId, setDayClosureDetailVisitId] = useState<string | null>(null);
   const [showCreateClosure, setShowCreateClosure] = useState(false);
   const [showFormBuilder, setShowFormBuilder] = useState(false);
+  const [createClosureKind, setCreateClosureKind] = useState<"farm" | "sales">("farm");
   // Sales Officer closures (admin view)
   const [salesClosures, setSalesClosures] = useState<any[]>([]);
   const [salesClosureDateFrom, setSalesClosureDateFrom] = useState("");
@@ -2976,7 +2977,9 @@ export default function Dashboard() {
                           {usersList
                             .filter((u: any) => ["field_officer", "manager"].includes(u.role))
                             .map((u: any) => (
-                              <option key={u.id} value={u.id}>{u.full_name} ({roleName(u.role)})</option>
+                              <option key={u.id} value={u.id}>
+                              {u.full_name} ({roleName(u.role)} · {u.work_mode === "sales" ? "Sales" : u.work_mode === "field" ? "Field" : "Field + Sales"})
+                            </option>
                             ))}
                         </select>
                       </div>
@@ -4320,16 +4323,30 @@ export default function Dashboard() {
                       </select>
                     </div>
 
-                    {createClosureOfficerId ? (
-                      <DayClosureForm
-                        adminOfficerId={createClosureOfficerId}
-                        onSubmitted={() => {
-                          setShowCreateClosure(false);
-                          fetchAdminDayClosures();
-                        }}
-                        onError={(msg) => setCreateClosureError(msg)}
-                      />
-                    ) : (
+                    {createClosureOfficerId ? (() => {
+                      const mode = (usersList.find((u: any) => u.id === createClosureOfficerId)?.work_mode as string) || "both";
+                      const kind = mode === "sales" ? "sales" : mode === "field" ? "farm" : createClosureKind;
+                      const done = () => { setShowCreateClosure(false); fetchAdminDayClosures(); };
+                      return (
+                        <>
+                          {mode === "both" && (
+                            <div className="flex gap-2">
+                              {(["farm", "sales"] as const).map((k) => (
+                                <button key={k} onClick={() => setCreateClosureKind(k)}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${createClosureKind === k ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>
+                                  {k === "farm" ? "Farmer visits" : "Dealer visits"}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {kind === "sales" ? (
+                            <SalesDayClosureForm key={`s-${createClosureOfficerId}`} adminOfficerId={createClosureOfficerId} onSubmitted={done} onError={(msg) => setCreateClosureError(msg)} />
+                          ) : (
+                            <DayClosureForm key={`f-${createClosureOfficerId}`} adminOfficerId={createClosureOfficerId} onSubmitted={done} onError={(msg) => setCreateClosureError(msg)} />
+                          )}
+                        </>
+                      );
+                    })() : (
                       <p className="text-sm text-slate-400 italic">Select an officer above to fill in the visit details.</p>
                     )}
                   </div>
