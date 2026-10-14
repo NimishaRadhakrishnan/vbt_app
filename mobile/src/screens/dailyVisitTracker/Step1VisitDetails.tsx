@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text, View, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { useDistricts } from '../../hooks/useDistricts';
 import { color, spacing, radius, fontWeight } from '../../theme';
 import { sharedStyles as styles } from './sharedStyles';
 import { FieldRow, TextInputLike, ChipPicker } from './FormFields';
@@ -48,6 +49,7 @@ export default function Step1VisitDetails({
   gpsLoading,
   onGetLocation,
 }: Props) {
+  const districtNames = useDistricts(DISTRICT_OPTIONS.map((o) => o.value));
   return (
     <View>
       <FieldRow label="Officer">
@@ -64,7 +66,7 @@ export default function Step1VisitDetails({
       </FieldRow>
 
       <FieldRow label="District">
-        <ChipPicker options={DISTRICT_OPTIONS} value={district || null} onChange={setDistrict} />
+        <ChipPicker options={districtNames.map((d) => ({ value: d, label: d }))} value={district || null} onChange={setDistrict} />
       </FieldRow>
       <FieldRow label="Village / Block">
         <TextInputLike value={villageBlock} onChangeText={setVillageBlock} placeholder="Village or block" />

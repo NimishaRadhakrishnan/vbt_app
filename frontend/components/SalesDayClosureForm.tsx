@@ -1,5 +1,6 @@
 "use client";
 
+import { useDistricts } from "@/lib/useDistricts";
 import React, { useEffect, useState } from "react";
 import { apiFetch, API_BASE_URL } from "@/lib/api/client";
 import { tokenStorage } from "@/lib/api/token-storage";
@@ -99,6 +100,7 @@ export default function SalesDayClosureForm({
   /** Admin filing on behalf of this officer. */
   adminOfficerId?: string;
 }) {
+  const districtNames = useDistricts(DISTRICTS_FALLBACK);
   const [district, setDistrict] = useState("");
   const [visitDate, setVisitDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dealerName, setDealerName] = useState("");
@@ -289,7 +291,7 @@ export default function SalesDayClosureForm({
             <Field label={label("sales_district", "District")} required={required("sales_district", true)}>
               <select className={inputCls} value={district} onChange={(e) => setDistrict(e.target.value)}>
                 <option value="">-- Select --</option>
-                {(DISTRICTS_FALLBACK.includes(district) || !district ? DISTRICTS_FALLBACK : [...DISTRICTS_FALLBACK, district]).map((d) => <option key={d} value={d}>{d}</option>)}
+                {(districtNames.includes(district) || !district ? districtNames : [...districtNames, district]).map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </Field>
           )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useDistricts } from "@/lib/useDistricts";
 import React, { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api/client";
 import { tokenStorage } from "@/lib/api/token-storage";
@@ -130,6 +131,7 @@ export default function DayClosureForm({
   // exact component per the "don't build a second form" instruction.
   adminOfficerId?: string;
 }) {
+  const districtNames = useDistricts(DISTRICTS);
   // Master data
   const [cropCategories, setCropCategories] = useState<Option[]>([]);
   const [crops, setCrops] = useState<CropOption[]>([]);
@@ -508,7 +510,7 @@ export default function DayClosureForm({
                 <Field label={fieldLabel("district", "District")} required={isFieldRequired("district", true)}>
                   <select className={inputCls} value={district} onChange={(e) => setDistrict(e.target.value)}>
                     <option value="">-- Select --</option>
-                    {DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    {districtNames.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </Field>
               )}

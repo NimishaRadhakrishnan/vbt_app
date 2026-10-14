@@ -49,6 +49,7 @@ import { downloadAuthenticatedFile, datedFilename } from "@/lib/api/download";
 import { OtherDescriptionInput, descriptionMissing, OTHER_DESCRIPTION_MESSAGE } from "@/components/OtherDescriptionInput";
 import PhoneSimulator from "@/components/PhoneSimulator";
 import { VisitDetailPanel } from "@/components/VisitDetailPanel";
+import DistrictsManager from "@/components/DistrictsManager";
 import { printReport, formatDateTime, formatTime } from "@/lib/printReport";
 import OfficerProductivity from "@/components/OfficerProductivity";
 import ManagerProductivity from "@/components/ManagerProductivity";
@@ -201,6 +202,7 @@ export default function Dashboard() {
   const [salesClosureOfficerId, setSalesClosureOfficerId] = useState("");
   const [salesClosureDistrict, setSalesClosureDistrict] = useState("");
   const [salesClosureDetail, setSalesClosureDetail] = useState<any | null>(null);
+  const [showDistricts, setShowDistricts] = useState(false);
   const [closureFolder, setClosureFolder] = useState<"farmer" | "dealer">("farmer");
   const [showPhonePreview, setShowPhonePreview] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
@@ -4023,6 +4025,12 @@ export default function Dashboard() {
                     {exportingClosures ? "Exporting…" : "Export Excel"}
                   </button>
                   <button
+                    onClick={() => setShowDistricts(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                  >
+                    Districts
+                  </button>
+                  <button
                     onClick={() => setShowFormBuilder(true)}
                     className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-700 hover:bg-green-800 text-white rounded-lg transition"
                   >
@@ -4411,6 +4419,8 @@ export default function Dashboard() {
               {dayClosureDetailVisitId && (
                 <VisitDetailPanel visitId={dayClosureDetailVisitId} onClose={() => setDayClosureDetailVisitId(null)} />
               )}
+
+              {showDistricts && <DistrictsManager onClose={() => setShowDistricts(false)} />}
 
               {showFormBuilder && (
                 <DayClosureFormBuilder onClose={() => setShowFormBuilder(false)} />

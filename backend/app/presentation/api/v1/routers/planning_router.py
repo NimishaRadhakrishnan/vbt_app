@@ -50,9 +50,32 @@ async def get_my_territories(
             ORDER BY t.name
         """).bindparams(user_id=current_user.user_id)
     )
+    rows = result.all()
+    if not rows:
+        # Nothing assigned by an admin: offer one territory per admin-managed
+        # district (created on first use) so officers are never blocked from
+        # planning their week.
+        names = await session.execute(text("SELECT name FROM districts ORDER BY sort_order, name"))
+        for (dname,) in names.all():
+            exists = await session.execute(
+                text("SELECT 1 FROM territories WHERE lower(name) = lower(:n) AND lower(district) = lower(:n)"), {"n": dname}
+            )
+            if not exists.first():
+                await session.execute(
+                    text("INSERT INTO territories (id, name, district) VALUES (:id, :n, :n)"), {"id": uuid.uuid4(), "n": dname}
+                )
+        await session.commit()
+        result = await session.execute(
+            text("""
+                SELECT t.id, t.name, t.district, t.taluk, t.village FROM territories t
+                JOIN districts d ON lower(d.name) = lower(t.district) AND lower(t.name) = lower(t.district)
+                ORDER BY d.sort_order, t.name
+            """)
+        )
+        rows = result.all()
     return [
         {"id": str(row.id), "name": row.name, "district": row.district, "taluk": row.taluk, "village": row.village}
-        for row in result.all()
+        for row in rows
     ]
 
 

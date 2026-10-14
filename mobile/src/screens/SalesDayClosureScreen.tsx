@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { takePhoto } from '../utils/camera';
+import { useDistricts } from '../hooks/useDistricts';
 import { apiClient } from '../services/api';
 import { showSubmitResult } from '../utils/offlineAlert';
 import { FieldRow, TextInputLike, ChipPicker } from './dailyVisitTracker/FormFields';
@@ -28,7 +30,7 @@ import DealerStockSheet, { StockLine } from '../components/DealerStockSheet';
 // farm visit: this form is ~15 fields with no branching depth, and a
 // wizard would add taps without adding clarity.
 
-const DISTRICTS = ['Dindigul', 'Tiruppur', 'Coimbatore', 'Erode', 'Salem'];
+const DEFAULT_DISTRICTS = ['Dindigul', 'Tiruppur', 'Coimbatore', 'Erode', 'Salem'];
 
 // Kept in sync with the backend's VALIDATION_MESSAGE so web, mobile and
 // server all show identical wording.
@@ -72,6 +74,7 @@ function YesNo({ value, onChange }: { value: boolean | null; onChange: (v: boole
 }
 
 export default function SalesDayClosureScreen({ navigation }: any) {
+  const districtNames = useDistricts(DEFAULT_DISTRICTS);
   const insets = useSafeAreaInsets();
 
   const [district, setDistrict] = useState<string | null>(null);
@@ -156,15 +159,8 @@ export default function SalesDayClosureScreen({ navigation }: any) {
   };
 
   const pickPhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Camera Needed', 'Allow camera access to attach a dealer shop photo.');
-      return;
-    }
-    const res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
-    if (!res.canceled && res.assets?.[0]?.uri) {
-      setDealerPhotos((p) => [...p, res.assets[0].uri]);
-    }
+    const uri = await takePhoto(0.6);
+    if (uri) setDealerPhotos((p) => [...p, uri]);
   };
 
   const pickFromGallery = async () => {
@@ -294,7 +290,7 @@ export default function SalesDayClosureScreen({ navigation }: any) {
         {visible('sales_district') && (
           <FieldRow label={label('sales_district', 'District')}>
             <ChipPicker
-              options={DISTRICTS.map((d) => ({ value: d, label: d }))}
+              options={districtNames.map((d) => ({ value: d, label: d }))}
               value={district}
               onChange={setDistrict}
             />

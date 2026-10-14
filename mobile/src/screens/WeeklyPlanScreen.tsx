@@ -42,11 +42,13 @@ export default function WeeklyPlanScreen({ navigation, embedded }: any) {
   // mechanism with no way to read it back).
   const [myTerritoryId, setMyTerritoryId] = useState<string | null>(null);
   const [territoryError, setTerritoryError] = useState(false);
+  const [territories, setTerritories] = useState<any[]>([]);
 
   React.useEffect(() => {
     apiClient.request('/plans/my-territories', 'GET', 'task_action')
       .then((territories: any) => {
         if (territories && territories.length > 0) {
+          setTerritories(territories);
           setMyTerritoryId(territories[0].id);
         } else {
           setTerritoryError(true);
@@ -117,8 +119,28 @@ export default function WeeklyPlanScreen({ navigation, embedded }: any) {
       {territoryError && (
         <View style={styles.pendingBanner}>
           <Text style={styles.pendingBannerText}>
-            No territory assigned yet — contact your admin before submitting a plan.
+            No districts are set up yet — ask your admin to add districts.
           </Text>
+        </View>
+      )}
+
+      {territories.length > 1 && (
+        <View style={{ marginBottom: 12 }}>
+          <Text style={{ color: color.textSecondary, marginBottom: 6 }}>Territory / District</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {territories.map((t) => {
+              const on = t.id === myTerritoryId;
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  onPress={() => setMyTerritoryId(t.id)}
+                  style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: on ? color.primary : color.border, backgroundColor: on ? color.primary : color.white }}
+                >
+                  <Text style={{ color: on ? color.white : color.textSecondary }}>{t.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
       )}
 

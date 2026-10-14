@@ -61,8 +61,11 @@ export default function SectionScreen({ navigation, route }: any) {
   const wanted: string | undefined = route?.params?.tabId;
   const firstId = section?.tabs[0]?.id ?? '';
   const [tabId, setTabId] = useState<string>(wanted ?? firstId);
-  // Bumped when an embedded form finishes, so it comes back empty.
-  const [resetKey, setResetKey] = useState(0);
+  // Bumped (per tab) when an embedded form finishes, so it comes back empty.
+  const [resetKeys, setResetKeys] = useState<Record<string, number>>({});
+  // Tabs already opened stay mounted (just hidden) so a half-filled form or
+  // a scrolled list is exactly as the officer left it when they switch back.
+  const [visited, setVisited] = useState<string[]>([]);
 
   useEffect(() => {
     if (wanted && section?.tabs.some((t) => t.id === wanted)) setTabId(wanted);
@@ -78,18 +81,27 @@ export default function SectionScreen({ navigation, route }: any) {
   }
 
   const activeId = section.tabs.some((t) => t.id === tabId) ? tabId : firstId;
+  const opened = visited.includes(activeId) ? visited : [...visited, activeId];
+  if (opened !== visited) setVisited(opened);
 
   return (
     <View style={styles.container}>
       <TrackingBanner />
       <SegmentedTabs tabs={section.tabs} activeId={activeId} onSelect={setTabId} />
-      <View style={{ flex: 1 }} key={`${activeId}-${resetKey}`}>
-        <TabBody
-          tabId={activeId}
-          role={role}
-          navigation={navigation}
-          onDone={() => setResetKey((k) => k + 1)}
-        />
+      <View style={{ flex: 1 }}>
+        {opened.filter((id) => section.tabs.some((t) => t.id === id)).map((id) => (
+          <View
+            key={`${id}-${resetKeys[id] ?? 0}`}
+            style={id === activeId ? { flex: 1 } : { display: 'none' }}
+          >
+            <TabBody
+              tabId={id}
+              role={role}
+              navigation={navigation}
+              onDone={() => setResetKeys((k) => ({ ...k, [id]: (k[id] ?? 0) + 1 }))}
+            />
+          </View>
+        ))}
       </View>
     </View>
   );

@@ -36,6 +36,7 @@ from app.presentation.api.v1.routers.management_router import router as manageme
 from app.presentation.api.v1.routers.admin_router import router as admin_router
 from app.presentation.api.v1.routers.holiday_router import router as holiday_router
 from app.presentation.api.v1.routers.master_data_router import router as master_data_router
+from app.presentation.api.v1.routers.district_router import router as district_router
 from app.presentation.api.v1.routers.daily_visit_tracker_router import router as daily_visit_tracker_router
 from app.presentation.api.v1.routers.admin_daily_visit_router import router as admin_daily_visit_router
 from app.presentation.api.v1.routers.dealer_payment_router import router as dealer_payment_router
@@ -73,6 +74,7 @@ api_v1_router.include_router(momentum_router)
 api_v1_router.include_router(admin_router)
 api_v1_router.include_router(holiday_router)
 api_v1_router.include_router(master_data_router)
+api_v1_router.include_router(district_router)
 api_v1_router.include_router(daily_visit_tracker_router)
 api_v1_router.include_router(admin_daily_visit_router)
 api_v1_router.include_router(dealer_payment_router)

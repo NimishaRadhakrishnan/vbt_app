@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Alert, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { apiClient } from '../services/api';
 import { showSubmitResult } from '../utils/offlineAlert';
+import { takePhoto, recoverPendingPhotos } from '../utils/camera';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { LoadingState, ErrorState, StaleDataBanner } from '../components/FetchStates';
 import { color, font, fontWeight, spacing, radius } from '../theme';
@@ -30,21 +31,12 @@ export default function CropIssueScreen({ navigation, embedded, onDone }: any) {
   // Real capture + upload. Previously this was a plain UI boolean with no
   // camera and a fabricated image_url ("http://image-bucket/crop_pest_001.jpg")
   // sent to the backend as if a real photo existed.
-  const handleCapture = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Camera Required', 'Camera access is needed to attach a leaf/pest photo.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.5 });
-    if (result.canceled || !result.assets?.[0]) return;
-
-    const asset = result.assets[0];
-    setPhotoUri(asset.uri);
+  const attachPhoto = async (uri: string) => {
+    setPhotoUri(uri);
     setUploadedPhotoUrl(null);
     setUploadingPhoto(true);
     try {
-      const url = await apiClient.uploadFile('/issues/upload', asset.uri, `crop-issue-${Date.now()}.jpg`, 'image/jpeg');
+      const url = await apiClient.uploadFile('/issues/upload', uri, `crop-issue-${Date.now()}.jpg`, 'image/jpeg');
       setUploadedPhotoUrl(url);
     } catch (err: any) {
       Alert.alert('Upload Failed', err.message || 'Could not upload the photo. You can retake it.');
@@ -52,6 +44,17 @@ export default function CropIssueScreen({ navigation, embedded, onDone }: any) {
     } finally {
       setUploadingPhoto(false);
     }
+  };
+
+  // A photo taken just before Android closed the app comes back here.
+  useEffect(() => {
+    void recoverPendingPhotos().then((uris) => { if (uris[0]) void attachPhoto(uris[0]); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCapture = async () => {
+    const uri = await takePhoto();
+    if (uri) void attachPhoto(uri);
   };
 
   const handleReport = async () => {

@@ -16,6 +16,7 @@ import Step7SalesConversion, { type Product, type SaleProductSel } from './daily
 import Step8PhotosRemarks, { type PhotoItem } from './dailyVisitTracker/Step8PhotosRemarks';
 import Step9ReviewSubmit, { type ReviewSection } from './dailyVisitTracker/Step9ReviewSubmit';
 import { showSubmitResult } from '../utils/offlineAlert';
+import { takePhoto, recoverPendingPhotos } from '../utils/camera';
 import type { DailyVisitSubmitPayload } from './dailyVisitTracker/types';
 import DynamicFieldRenderer from '../components/DynamicFieldRenderer';
 
@@ -333,15 +334,15 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
     }
   };
 
+  // A photo taken just before Android closed the app comes back here.
+  useEffect(() => {
+    void recoverPendingPhotos().then((uris) => uris.forEach((u) => void uploadPhoto(u)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleTakePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Camera Required', 'Camera access is needed to attach a photo.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.5 });
-    if (result.canceled || !result.assets?.[0]) return;
-    uploadPhoto(result.assets[0].uri);
+    const uri = await takePhoto();
+    if (uri) void uploadPhoto(uri);
   };
 
   const handlePickFromGallery = async () => {
