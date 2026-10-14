@@ -212,7 +212,7 @@ export default function MyLeaveScreen() {
                       : `${day}${leaveStatus ? `, leave ${leaveStatus}` : ''}, tap to apply for leave`
                   }
                 >
-                  <Text style={[styles.cellText, isHoliday && styles.cellTextHoliday]} numberOfLines={1}>{day}</Text>
+                  <Text style={[styles.cellText, isHoliday && styles.cellTextHoliday]} allowFontScaling={false}>{day}</Text>
                   {holiday && !isSunday && <Text style={styles.holidayLabel} numberOfLines={1}>{holiday.description}</Text>}
                   {markerStyle && <View style={[styles.dot, markerStyle]} />}
                 </TouchableOpacity>
@@ -366,6 +366,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   cellText: {
+    // Fixed to the cell's width so the number is never sized by the phone's
+    // text measurement (which cut "11" down to "…" on some phones).
+    width: '100%',
+    textAlign: 'center',
+    includeFontPadding: false,
     fontSize: font.body,
     color: color.textPrimary,
   },
@@ -373,6 +378,8 @@ const styles = StyleSheet.create({
     color: color.textMuted,
   },
   holidayLabel: {
+    width: '100%',
+    textAlign: 'center',
     fontSize: font.caption,
     color: color.textMuted,
     marginTop: 1,
@@ -393,9 +400,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   legendItem: {
+    width: '50%',
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: spacing.lg,
     marginBottom: spacing.sm,
   },
   legendDot: {
@@ -405,6 +412,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   legendLabel: {
+    flex: 1,
     fontSize: font.caption,
     color: color.textSecondary,
   },

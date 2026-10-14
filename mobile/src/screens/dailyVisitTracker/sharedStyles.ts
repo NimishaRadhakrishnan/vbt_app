@@ -76,6 +76,8 @@ export const sharedStyles = StyleSheet.create({
     borderColor: color.primary,
   },
   chipText: {
+    // Small trailing space: on some phones the last letter was clipped.
+    paddingRight: 3,
     fontSize: font.caption,
     fontWeight: fontWeight.semibold,
     color: color.textSecondary,
