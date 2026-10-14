@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { takePhoto } from '../utils/camera';
 import SearchBox, { matchesQuery } from '../components/SearchBox';
 import { apiClient } from '../services/api';
+import { LocationService } from '../services/LocationService';
 import { showSubmitResult } from '../utils/offlineAlert';
 
 import { useDataFetch } from '../hooks/useDataFetch';
@@ -21,6 +22,7 @@ type TrialSelection = {
 
 export default function VisitScreen({ navigation }: any) {
   const [inVisit, setInVisit] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [startTime, setStartTime] = useState<string | null>(null);
   // Several photos per visit: each is uploaded as soon as it is taken.
   type VisitPhoto = { uri: string; url: string | null; failed?: boolean };
@@ -150,6 +152,7 @@ export default function VisitScreen({ navigation }: any) {
   const removePhoto = (uri: string) => setPhotos((prev) => prev.filter((p) => p.uri !== uri));
 
   const handleStartVisit = async () => {
+    if (busy) return;
     if (!purpose.trim()) {
       Alert.alert('Purpose Required', 'Please describe the purpose of this visit.');
       return;
@@ -171,26 +174,45 @@ export default function VisitScreen({ navigation }: any) {
       return;
     }
 
+    setBusy(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Location Required', 'Location permission is needed to start a visit.');
         return;
       }
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      // Never waits forever: recent fix, else live fix for up to 12s, else last known.
+      const position = await LocationService.getFix();
+      if (!position) {
+        Alert.alert('No GPS signal', 'Could not get your location. Turn on GPS / Location, step outside or near a window, and try again.');
+        return;
+      }
 
-      const startRes = await apiClient.request('/visits/start', 'POST', 'check_in', {
-        visit_type: visitType,
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        purpose: purpose.trim(),
-        photo_url_farm: uploadedUrls[0],
-        photo_urls: uploadedUrls,
-        is_trial: isTrial,
-        trial_products: isTrial
-          ? trialSelections.map((p) => ({ product_id: p.productId, quantity_given: Number(p.quantityGiven) }))
-          : [],
-      });
+      let startRes: any;
+      try {
+        startRes = await apiClient.request('/visits/start', 'POST', 'check_in', {
+          visit_type: visitType,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          purpose: purpose.trim(),
+          photo_url_farm: uploadedUrls[0],
+          photo_urls: uploadedUrls,
+          is_trial: isTrial,
+          trial_products: isTrial
+            ? trialSelections.map((p) => ({ product_id: p.productId, quantity_given: Number(p.quantityGiven) }))
+            : [],
+        });
+      } catch (err: any) {
+        // An earlier visit is still open on the server: carry on with it
+        // instead of leaving the officer stuck on this screen.
+        if (/active visit/i.test(err?.message || '')) {
+          setInVisit(true);
+          setStartTime(new Date().toLocaleTimeString());
+          Alert.alert('Visit already running', 'You already have an open visit session. Finish it with "Complete & Save Visit".');
+          return;
+        }
+        throw err;
+      }
 
       // Leftover defaults to quantity given until adjusted at end-of-visit.
       const initialLeftovers: Record<string, string> = {};
@@ -203,7 +225,9 @@ export default function VisitScreen({ navigation }: any) {
       setStartTime(new Date().toLocaleTimeString());
       showSubmitResult(startRes, 'Visit Session Started', 'GPS check and timer running.');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Could not start visit.');
+      Alert.alert('Could not start visit', err?.message || 'Please check your connection and try again.');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -371,8 +395,8 @@ export default function VisitScreen({ navigation }: any) {
             </View>
           )}
 
-          <TouchableOpacity style={styles.btnStart} onPress={handleStartVisit}>
-            <Text style={styles.btnText}>Start Visit Session</Text>
+          <TouchableOpacity style={[styles.btnStart, busy && { opacity: 0.6 }]} onPress={handleStartVisit} disabled={busy}>
+            <Text style={styles.btnText}>{busy ? 'Starting… getting GPS' : 'Start Visit Session'}</Text>
           </TouchableOpacity>
         </View>
       ) : (
