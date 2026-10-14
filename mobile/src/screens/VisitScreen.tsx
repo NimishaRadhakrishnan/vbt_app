@@ -3,6 +3,8 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert, ScrollView, TextInput,
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import { takePhoto } from '../utils/camera';
+import SearchBox, { matchesQuery } from '../components/SearchBox';
 import { apiClient } from '../services/api';
 import { showSubmitResult } from '../utils/offlineAlert';
 
@@ -64,6 +66,8 @@ export default function VisitScreen({ navigation }: any) {
   );
 
 
+  const [productQuery, setProductQuery] = useState('');
+
   const toggleProduct = (product: Product) => {
     setTrialSelections((prev) => {
       const exists = prev.find((p) => p.productId === product.id);
@@ -110,18 +114,8 @@ export default function VisitScreen({ navigation }: any) {
       Alert.alert('Photo limit', `You can attach up to ${MAX_PHOTOS} photos.`);
       return;
     }
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Camera Required', 'Allow camera access in Settings to take a farm photo, or choose one from the gallery.');
-        return;
-      }
-      const result = await ImagePicker.launchCameraAsync({ quality: 0.5 });
-      if (result.canceled || !result.assets?.[0]) return;
-      await uploadAsset(result.assets[0].uri);
-    } catch (err: any) {
-      Alert.alert('Camera problem', `${err?.message || 'The camera could not be opened.'}\n\nYou can choose a photo from the gallery instead.`);
-    }
+    const uri = await takePhoto();
+    if (uri) await uploadAsset(uri);
   };
 
   const handlePickPhotos = async () => {
@@ -344,7 +338,12 @@ export default function VisitScreen({ navigation }: any) {
               ) : (products ?? []).length === 0 ? (
                 <Text style={styles.trialHint}>No products available yet.</Text>
               ) : (
-                (products ?? []).map((product) => {
+                <>
+                <SearchBox value={productQuery} onChangeText={setProductQuery} />
+                {(products ?? []).filter((p) => matchesQuery(p.name, productQuery) || trialSelections.some((t) => t.productId === p.id)).length === 0 && (
+                  <Text style={styles.trialHint}>No product matches “{productQuery}”.</Text>
+                )}
+                {(products ?? []).filter((p) => matchesQuery(p.name, productQuery) || trialSelections.some((t) => t.productId === p.id)).map((product) => {
                   const selected = trialSelections.find((p) => p.productId === product.id);
                   return (
                     <View key={product.id} style={styles.productRow}>
@@ -366,7 +365,8 @@ export default function VisitScreen({ navigation }: any) {
                       )}
                     </View>
                   );
-                })
+                })}
+                </>
               )}
             </View>
           )}

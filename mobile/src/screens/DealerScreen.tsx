@@ -4,6 +4,7 @@ import { apiClient } from '../services/api';
 import { showSubmitResult } from '../utils/offlineAlert';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { LoadingState, ErrorState, StaleDataBanner } from '../components/FetchStates';
+import SearchBox, { matchesQuery } from '../components/SearchBox';
 import RegisterDealerModal from '../components/RegisterDealerModal';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
@@ -16,6 +17,7 @@ export default function DealerScreen({ navigation, embedded }: any) {
   const [stockQty, setStockQty] = useState('');
   const [orderQty, setOrderQty] = useState('');
   const [showRegister, setShowRegister] = useState(false);
+  const [productQuery, setProductQuery] = useState('');
 
   // Previously every audit/order was hardcoded to one fake dealer_id and
   // product_id, so every officer's submission - regardless of which real
@@ -110,8 +112,10 @@ export default function DealerScreen({ navigation, embedded }: any) {
         {products.length === 0 ? (
           <Text style={styles.emptyNote}>No products found in the catalog yet.</Text>
         ) : (
+          <>
+          <SearchBox value={productQuery} onChangeText={setProductQuery} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {products.map((p) => (
+            {products.filter((p) => matchesQuery(p.name, productQuery) || p.id === selectedProductId).map((p) => (
               <TouchableOpacity
                 key={p.id}
                 style={[styles.chip, selectedProductId === p.id && styles.chipActive]}
@@ -121,6 +125,7 @@ export default function DealerScreen({ navigation, embedded }: any) {
               </TouchableOpacity>
             ))}
           </ScrollView>
+          </>
         )}
       </View>
 

@@ -1,10 +1,24 @@
 import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
-// Camera capture that survives the usual Android failures: the OS can kill
-// the app while the camera is open (the photo then arrives later through
-// getPendingResultAsync), and the launch itself can throw.
+// Photos are taken with the in-app camera (components/CameraHost.tsx, mounted
+// once in App.tsx). Opening the phone's separate camera app made Android
+// close this app on some phones, losing the photo. If the in-app camera is
+// not mounted for any reason, this falls back to the system camera.
+
+export type CameraRequest = { quality: number; resolve: (uri: string | null) => void };
+
+let host: ((r: CameraRequest) => void) | null = null;
+
+export function registerCameraHost(fn: (r: CameraRequest) => void): () => void {
+  host = fn;
+  return () => { if (host === fn) host = null; };
+}
+
 export async function takePhoto(quality = 0.5): Promise<string | null> {
+  if (host) {
+    return new Promise<string | null>((resolve) => host!({ quality, resolve }));
+  }
   try {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
@@ -24,7 +38,7 @@ export async function takePhoto(quality = 0.5): Promise<string | null> {
   }
 }
 
-// A photo taken just before Android closed the app. Call once on screen mount.
+// A photo taken just before Android closed the app (system-camera fallback).
 export async function recoverPendingPhotos(): Promise<string[]> {
   try {
     const pending: any = await (ImagePicker as any).getPendingResultAsync?.();

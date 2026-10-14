@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import { takePhoto } from '../utils/camera';
 import { apiClient } from '../services/api';
 import { showSubmitResult } from '../utils/offlineAlert';
 import { useDataFetch } from '../hooks/useDataFetch';
@@ -170,19 +171,16 @@ export default function EnquiriesScreen({
   const pickPhoto = async (source: 'camera' | 'library') => {
     try {
       if (source === 'camera') {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (perm.status !== 'granted') {
-          Alert.alert('Camera Needed', 'Allow camera access in your phone settings to take a photo.');
-          return;
-        }
+        const uri = await takePhoto();
+        if (!uri) return;
+        setPhotoUri(uri);
+        setFormError(null);
+        return;
       }
-      const result =
-        source === 'camera'
-          ? await ImagePicker.launchCameraAsync({ quality: 0.5 })
-          : await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              quality: 0.5,
-            });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.5,
+      });
       if (result.canceled || !result.assets?.[0]) return;
       setPhotoUri(result.assets[0].uri);
       setFormError(null);

@@ -1,4 +1,5 @@
 import React from 'react';
+import SearchBox, { matchesQuery } from '../../components/SearchBox';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { spacing } from '../../theme';
 import { sharedStyles as styles } from './sharedStyles';
@@ -46,6 +47,7 @@ export default function Step7SalesConversion({
   conversionStatus,
   setConversionStatus,
 }: Props) {
+  const [query, setQuery] = React.useState('');
   return (
     <View>
       <FieldRow label="Did the farmer purchase paid products?">
@@ -73,7 +75,12 @@ export default function Step7SalesConversion({
           ) : products.length === 0 ? (
             <Text style={styles.placeholderValue}>No products found in the catalog.</Text>
           ) : (
-            products.map((p) => {
+            <>
+            <SearchBox value={query} onChangeText={setQuery} />
+            {products.filter((p) => matchesQuery(p.name, query) || !!selectedSaleProducts[p.id]).length === 0 && (
+              <Text style={styles.placeholderValue}>No product matches “{query}”.</Text>
+            )}
+            {products.filter((p) => matchesQuery(p.name, query) || !!selectedSaleProducts[p.id]).map((p) => {
               const sel = selectedSaleProducts[p.id];
               return (
                 <View key={p.id} style={styles.multiSelectRow}>
@@ -93,7 +100,8 @@ export default function Step7SalesConversion({
                   )}
                 </View>
               );
-            })
+            })}
+            </>
           )}
 
           <FieldRow label="Order Value (₹)">

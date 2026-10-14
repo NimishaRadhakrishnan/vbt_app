@@ -138,6 +138,15 @@ module.exports = {
         },
       ],
       [
+        "expo-camera",
+        {
+          cameraPermission:
+            "VBT One needs camera access so you can attach a photo to crop issue reports and visit logs.",
+          microphonePermission: false,
+          recordAudioAndroid: false,
+        },
+      ],
+      [
         "expo-location",
         {
           locationAlwaysAndWhenInUsePermission:

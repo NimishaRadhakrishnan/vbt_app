@@ -1,4 +1,5 @@
 import React from 'react';
+import SearchBox, { matchesQuery } from '../../components/SearchBox';
 import { Text, View, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { apiClient } from '../../services/api';
 import { color, font, spacing } from '../../theme';
@@ -71,6 +72,7 @@ export default function Step6TrialDemo({
   onToggleProduct,
   setSelectedTrialProducts,
 }: Props) {
+  const [query, setQuery] = React.useState('');
   return (
     <View>
       <FieldRow label="Trial / Demo">
@@ -110,7 +112,12 @@ export default function Step6TrialDemo({
           ) : stockItems.length === 0 ? (
             <Text style={styles.placeholderValue}>No products found in the catalog.</Text>
           ) : (
-            stockItems.map((item) => {
+            <>
+            <SearchBox value={query} onChangeText={setQuery} />
+            {stockItems.filter((i) => matchesQuery(i.product_name, query) || !!selectedTrialProducts[i.product_id]).length === 0 && (
+              <Text style={styles.placeholderValue}>No product matches “{query}”.</Text>
+            )}
+            {stockItems.filter((i) => matchesQuery(i.product_name, query) || !!selectedTrialProducts[i.product_id]).map((item) => {
               const sel = selectedTrialProducts[item.product_id];
               const outOfStock = item.remaining_stock <= 0;
               const givenNum = Number(sel?.quantityGiven || 0);
@@ -166,7 +173,8 @@ export default function Step6TrialDemo({
                   )}
                 </View>
               );
-            })
+            })}
+            </>
           )}
         </>
       )}

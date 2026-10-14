@@ -2,6 +2,7 @@ import 'react-native-gesture-handler';
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
+import CameraHost from './src/components/CameraHost';
 
 export default function App() {
   // GPS tracking starts from LoginScreen after a real sign-in, not here -
@@ -10,6 +11,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AppNavigator />
+      <CameraHost />
     </SafeAreaProvider>
   );
 }
