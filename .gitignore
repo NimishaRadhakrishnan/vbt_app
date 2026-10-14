@@ -42,3 +42,7 @@ test_repro*.py
 *.rdb
 tsconfig.tsbuildinfo
 debug_*.log
+
+# Local Android builds (tens of MB each)
+mobile/build-*.apk
+*.apk
