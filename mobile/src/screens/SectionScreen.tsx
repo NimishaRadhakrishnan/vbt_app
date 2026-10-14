@@ -18,6 +18,7 @@ import WeeklyPlanScreen from './WeeklyPlanScreen';
 import MyLeaveScreen from './MyLeaveScreen';
 import FarmerScreen from './FarmerScreen';
 import DealerScreen from './DealerScreen';
+import OrdersPaymentsScreen from './OrdersPaymentsScreen';
 import CropIssueScreen from './CropIssueScreen';
 import AdminTasksScreen from './admin/AdminTasksScreen';
 import AdminLeaveApprovalsScreen from './admin/AdminLeaveApprovalsScreen';
@@ -210,6 +211,10 @@ function TabBody({ tabId, role, navigation, onDone }: { tabId: string; role: str
     case 'dealers': {
       const C = as(isOversight ? AdminDealersScreen : DealerScreen);
       return isOversight ? <C navigation={navigation} /> : <C navigation={navigation} embedded onDone={onDone} />;
+    }
+    case 'orders': {
+      const C = as(OrdersPaymentsScreen);
+      return <C navigation={navigation} />;
     }
     case 'issues': {
       const C = as(isOversight ? AdminCropIssuesScreen : CropIssueScreen);

@@ -2,10 +2,16 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
 import { apiClient } from '../services/api';
+import { LocationService } from '../services/LocationService';
+import { useDistricts } from '../hooks/useDistricts';
+import { ChipPicker } from './dailyVisitTracker/FormFields';
 import { showSubmitResult } from '../utils/offlineAlert';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
+const DEFAULT_DISTRICTS = ['Dindigul', 'Tiruppur', 'Coimbatore', 'Erode', 'Salem'];
+
 export default function FarmerScreen({ navigation, embedded, onDone }: any) {
+  const districts = useDistricts(DEFAULT_DISTRICTS);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [village, setVillage] = useState('');
@@ -34,7 +40,11 @@ export default function FarmerScreen({ navigation, embedded, onDone }: any) {
         Alert.alert('Location Required', 'Location permission is needed to register a farmer.');
         return;
       }
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const position = await LocationService.getFix();
+      if (!position) {
+        Alert.alert('No GPS signal', 'Could not get your location. Turn on GPS / Location and try again.');
+        return;
+      }
 
       const res = await apiClient.request('/farmers/', 'POST', 'farmer_register', {
         name,
@@ -49,6 +59,7 @@ export default function FarmerScreen({ navigation, embedded, onDone }: any) {
       });
 
       showSubmitResult(res, 'Farmer Registered', `${name} successfully added to database.`);
+      setName(''); setPhone(''); setVillage(''); setTaluk(''); setDistrict(''); setCrop(''); setCents('');
       if (embedded) onDone?.();
       else navigation.goBack();
     } catch (err: any) {
@@ -67,7 +78,9 @@ export default function FarmerScreen({ navigation, embedded, onDone }: any) {
         <TextInput style={styles.input} placeholder="Mobile Number" placeholderTextColor={color.textMuted} keyboardType="phone-pad" maxLength={10} value={phone} onChangeText={setPhone} />
         <TextInput style={styles.input} placeholder="Village Name" placeholderTextColor={color.textMuted} value={village} onChangeText={setVillage} />
         <TextInput style={styles.input} placeholder="Taluk" placeholderTextColor={color.textMuted} value={taluk} onChangeText={setTaluk} />
-        <TextInput style={styles.input} placeholder="District" placeholderTextColor={color.textMuted} value={district} onChangeText={setDistrict} />
+        <Text style={styles.fieldLabel}>District</Text>
+        <ChipPicker options={districts.map((d) => ({ value: d, label: d }))} value={district || null} onChange={setDistrict} />
+        <View style={{ height: spacing.lg }} />
         <TextInput style={styles.input} placeholder="Primary Crop (e.g. Paddy)" placeholderTextColor={color.textMuted} value={crop} onChangeText={setCrop} />
         <TextInput style={styles.input} placeholder="Cultivated Cents (e.g. 4.5)" placeholderTextColor={color.textMuted} keyboardType="numeric" value={cents} onChangeText={setCents} />
         <Text style={{ fontSize: 11, color: color.textMuted, marginBottom: 8 }}>1 acre = 100 cents</Text>
@@ -114,6 +127,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: color.border,
   },
+  fieldLabel: { fontSize: font.caption, fontWeight: fontWeight.bold, color: color.primary, marginBottom: 6, textTransform: 'uppercase' },
   input: {
     backgroundColor: color.screenBg,
     borderWidth: 1,

@@ -187,6 +187,69 @@ async def list_all_orders(
     return [_to_order_response(o, amount_paid=paid_by_order.get(o.id, 0.0)) for o in result]
 
 
+@router.get("/orders/mine")
+async def list_my_orders(
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    _access: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.FIELD_OFFICER))],
+    limit: int = 100,
+) -> list[dict]:
+    """Orders an officer received or placed, with what has been paid and
+    what is still due. Officers see orders they booked and orders of dealers
+    assigned to them; admin/manager see everything."""
+    is_privileged = current_user.role in ("admin", "manager")
+    query = """
+        SELECT o.id, o.dealer_id, d.name AS dealer_name, d.phone AS dealer_phone, o.status,
+               o.total_amount, o.payment_deadline, o.payment_terms, o.comments, o.order_date,
+               COALESCE((SELECT SUM(amount) FROM dealer_payments
+                         WHERE dealer_order_id = o.id AND collection_status = 'collected'), 0) AS amount_paid
+        FROM dealer_orders o JOIN dealers d ON d.id = o.dealer_id
+        WHERE o.status <> 'cancelled'
+    """
+    params: dict = {"lim": max(1, min(limit, 300))}
+    if not is_privileged:
+        query += " AND (o.created_by = :uid OR d.assigned_sales_officer_id = :uid)"
+        params["uid"] = current_user.user_id
+    query += " ORDER BY o.order_date DESC LIMIT :lim"
+    rows = (await session.execute(text(query).bindparams(**params))).all()
+    ids = [r.id for r in rows]
+    items_by_order: dict = {}
+    if ids:
+        item_rows = await session.execute(
+            text(
+                "SELECT oi.order_id, p.name AS product_name, oi.quantity, oi.unit_price "
+                "FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ANY(:ids)"
+            ).bindparams(ids=ids)
+        )
+        for it in item_rows.all():
+            items_by_order.setdefault(it.order_id, []).append(
+                {"product_name": it.product_name, "quantity": it.quantity, "unit_price": float(it.unit_price)}
+            )
+    out = []
+    for r in rows:
+        total = float(r.total_amount)
+        paid = float(r.amount_paid)
+        out.append(
+            {
+                "id": str(r.id),
+                "dealer_id": str(r.dealer_id),
+                "dealer_name": r.dealer_name,
+                "dealer_phone": r.dealer_phone,
+                "status": r.status,
+                "total_amount": total,
+                "amount_paid": paid,
+                "outstanding_amount": max(round(total - paid, 2), 0.0),
+                "payment_deadline": r.payment_deadline.isoformat() if r.payment_deadline else None,
+                "payment_terms": r.payment_terms,
+                "comments": r.comments,
+                "payment_status": _payment_status(total, paid, r.payment_deadline),
+                "order_date": r.order_date.isoformat() if r.order_date else None,
+                "items": items_by_order.get(r.id, []),
+            }
+        )
+    return out
+
+
 @router.post("/{dealer_id}/stock", response_model=DealerStockResponse)
 async def audit_stock(
     dealer_id: uuid.UUID,
