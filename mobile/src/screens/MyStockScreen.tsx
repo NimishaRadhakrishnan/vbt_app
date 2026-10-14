@@ -33,6 +33,10 @@ type StockItem = {
   current_quantity: number;
   unit: string | null;
   last_movement_at: string | null;
+  issued?: boolean;
+  allocated?: number;
+  used?: number;
+  corrections?: number;
 };
 
 // Same threshold as the web My Stock page, so both always agree on "low".
@@ -93,7 +97,10 @@ export default function MyStockScreen() {
     () => apiClient.request('/stock/my-stock', 'GET', 'stock_audit')
   );
 
-  const items = useMemo<StockItem[]>(() => (Array.isArray(data) ? data : []), [data]);
+  // Every product, for the request form; only the ones admin has issued to
+  // this officer are listed and counted as "my stock".
+  const allProducts = useMemo<StockItem[]>(() => (Array.isArray(data) ? data : []), [data]);
+  const items = useMemo<StockItem[]>(() => allProducts.filter((i) => i.issued), [allProducts]);
 
   const sections = useMemo<StockSection[]>(() => {
     const byName = (a: StockItem, b: StockItem) => a.product_name.localeCompare(b.product_name);
@@ -116,7 +123,7 @@ export default function MyStockScreen() {
   } else if (error) {
     body = <ErrorState message={error} onRetry={retry} />;
   } else if (items.length === 0) {
-    body = <EmptyState message="No products are available yet." actionHint="Pull down to refresh." />;
+    body = <EmptyState message="Admin has not issued any stock to you yet." actionHint="Use Request stock to ask for the products you need." />;
   } else {
     body = (
       <SectionList
@@ -163,7 +170,11 @@ export default function MyStockScreen() {
                 </View>
               </View>
               <View style={styles.cardBottom}>
-                <Text style={styles.meta}>{date ? `Last change ${date}` : 'No stock movement yet'}</Text>
+                <Text style={styles.meta}>
+                  Issued {formatQty(item.allocated ?? 0)} · Used {formatQty(item.used ?? 0)}
+                  {item.corrections ? ` · Adjusted ${item.corrections > 0 ? '+' : ''}${formatQty(item.corrections)}` : ''}
+                  {date ? ` · ${date}` : ''}
+                </Text>
                 <TouchableOpacity
                   style={styles.rowRequestBtn}
                   onPress={() => setRequestFor({ product: item })}
@@ -186,9 +197,9 @@ export default function MyStockScreen() {
       <View style={styles.topBar}>
         <Text style={styles.topText}>Stock allocated to you</Text>
         <TouchableOpacity
-          style={[styles.requestBtn, (loading || items.length === 0) && styles.disabled]}
+          style={[styles.requestBtn, (loading || allProducts.length === 0) && styles.disabled]}
           onPress={() => setRequestFor({ product: null })}
-          disabled={loading || items.length === 0}
+          disabled={loading || allProducts.length === 0}
           accessibilityRole="button"
           accessibilityLabel="Request stock"
         >
@@ -202,7 +213,7 @@ export default function MyStockScreen() {
       <RequestStockModal
         visible={requestFor !== null}
         initialProduct={requestFor?.product ?? null}
-        products={items}
+        products={allProducts}
         onClose={() => setRequestFor(null)}
       />
     </View>

@@ -40,7 +40,7 @@ export default function MyStockPage() {
     setLoading(true);
     setError("");
     try {
-      const data: any = await apiFetch("/stock/my-stock");
+      const data: any = await apiFetch("/stock/my-stock?issued_only=true");
       setItems(Array.isArray(data) ? data : []);
     } catch (err: any) {
       setError(err.message || "Couldn't load your stock.");

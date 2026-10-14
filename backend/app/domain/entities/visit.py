@@ -7,7 +7,7 @@ from typing import Optional
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 
 @dataclass
@@ -48,4 +48,9 @@ class Visit:
         self.location_end_lng = end_lng
         self.task_completed = task_completed
         if self.start_time:
-            self.duration_seconds = int((end_time - self.start_time).total_seconds())
+            # The database hands start_time back timezone-aware while a
+            # caller may pass a naive "now"; subtracting the two raised
+            # TypeError and made every visit end fail. Compare in UTC.
+            start = self.start_time if self.start_time.tzinfo else self.start_time.replace(tzinfo=timezone.utc)
+            end = end_time if end_time.tzinfo else end_time.replace(tzinfo=timezone.utc)
+            self.duration_seconds = max(0, int((end - start).total_seconds()))

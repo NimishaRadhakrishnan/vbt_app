@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Optional
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from app.domain.entities.visit import Visit
 from app.domain.repositories.visit_repository import VisitRepository
@@ -43,7 +43,7 @@ class VisitUseCase:
         visit = Visit(
             user_id=user_id,
             visit_type=visit_type,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(timezone.utc),
             location_start_lat=lat,
             location_start_lng=lng,
             farmer_id=farmer_id,
@@ -77,7 +77,7 @@ class VisitUseCase:
         if not visit:
             raise BusinessRuleViolationException("No active visit session found.")
 
-        visit.complete_visit(datetime.utcnow(), lat, lng, task_completed)
+        visit.complete_visit(datetime.now(timezone.utc), lat, lng, task_completed)
         visit.next_visit_date = next_visit_date
         visit.voice_notes_url = voice_notes_url
         visit.voice_notes_transcript_ta = voice_notes_transcript_ta

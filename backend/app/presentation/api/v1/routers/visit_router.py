@@ -17,6 +17,7 @@ from app.core.container import get_visit_use_case
 from app.domain.value_objects.role import Role
 from app.infrastructure.database.session import get_db_session
 from app.presentation.api.v1.dependencies import CurrentUser, require_role
+from app.presentation.api.v1.routers.stock_router import get_balance, record_movement
 from app.presentation.schemas.visit_schemas import (
     EndVisitRequest,
     StartVisitRequest,
@@ -43,6 +44,22 @@ async def start_visit(
             detail="At least one product is required when Trial is Yes.",
         )
     trial_products = payload.trial_products if payload.is_trial else []
+
+    # Stock given in a trial comes out of the officer's own stock. Checked
+    # BEFORE the visit is created, so a refused trial never leaves a half-
+    # started visit behind. The same product may not be listed twice.
+    wanted: dict = {}
+    for entry in trial_products:
+        wanted[entry.product_id] = wanted.get(entry.product_id, 0) + float(entry.quantity_given)
+    for product_id, qty in wanted.items():
+        have = await get_balance(session, current_user.user_id, product_id)
+        if float(have) < qty:
+            name_row = await session.execute(text("SELECT name FROM products WHERE id = :id").bindparams(id=product_id))
+            name = name_row.scalar() or "this product"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Only {float(have):g} of {name} left with you. Reduce the quantity, or ask admin to issue more stock.",
+            )
 
     result = await use_case.start_visit(
         user_id=current_user.user_id,
@@ -71,6 +88,19 @@ async def start_visit(
                 """
             ).bindparams(visit_id=result.id, product_id=entry.product_id, qty=entry.quantity_given)
         )
+        # The deduction is written in the same transaction as the trial row,
+        # so a trial can never exist without its stock movement.
+        await record_movement(
+            session,
+            officer_id=current_user.user_id,
+            product_id=entry.product_id,
+            quantity=entry.quantity_given,
+            movement_type="trial_given",
+            created_by=current_user.user_id,
+            ref_type="visit",
+            ref_id=result.id,
+            remarks="Trial given during visit",
+        )
     for photo_url in payload.photo_urls:
         await session.execute(
             text("INSERT INTO visit_photos (id, visit_id, photo_url, photo_type, uploaded_by, created_at) VALUES (gen_random_uuid(), :vid, :url, 'farm_visit', :uid, now())")
@@ -92,6 +122,22 @@ async def end_visit(
     active = await use_case.get_active_visit(current_user.user_id)
     if not active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active visit session found.")
+
+    # Unused trial stock comes back to the officer. Validate before the visit
+    # is closed so a bad number never leaves it closed with stock unsettled.
+    given_rows = await session.execute(
+        text("SELECT product_id, quantity_given FROM visit_trial_products WHERE visit_id = :vid").bindparams(vid=active.id)
+    )
+    given_by_product = {r.product_id: float(r.quantity_given) for r in given_rows.all()}
+    if active.is_trial:
+        for entry in payload.trial_leftovers:
+            if entry.product_id not in given_by_product:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A leftover was entered for a product not given in this visit.")
+            if float(entry.quantity_leftover) > given_by_product[entry.product_id] + 1e-9:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Leftover cannot be more than the quantity you took for the trial.",
+                )
 
     result = await use_case.end_visit(
         user_id=current_user.user_id,
@@ -119,6 +165,20 @@ async def end_visit(
                     """
                 ).bindparams(visit_id=result.id, product_id=entry.product_id, qty=entry.quantity_leftover)
             )
+            if float(entry.quantity_leftover) > 0:
+                # Unused stock goes back into the officer's own balance
+                # (positive correction tied to this visit).
+                await record_movement(
+                    session,
+                    officer_id=current_user.user_id,
+                    product_id=entry.product_id,
+                    quantity=entry.quantity_leftover,
+                    movement_type="count_correction",
+                    created_by=current_user.user_id,
+                    ref_type="visit",
+                    ref_id=result.id,
+                    remarks="Unused trial stock returned to officer at end of visit",
+                )
         await session.commit()
 
     return await _to_response(result, session)

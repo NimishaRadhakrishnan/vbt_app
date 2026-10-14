@@ -269,7 +269,7 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
     if (step !== 5 || isTrial !== true || stockItems.length > 0) return;
     setLoadingStock(true);
     apiClient
-      .request('/stock/my-stock', 'GET', 'plan_submit')
+      .request('/stock/my-stock?issued_only=true', 'GET', 'plan_submit')
       .then((data: any[]) => setStockItems((data || []).map(item => ({
         ...item,
         remaining_stock: item.current_quantity

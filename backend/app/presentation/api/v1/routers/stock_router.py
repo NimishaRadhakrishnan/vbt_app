@@ -217,6 +217,13 @@ class StockItem(BaseModel):
     current_quantity: float
     unit: str | None = None
     last_movement_at: datetime | None = None
+    # True once admin has issued this product to the officer. Only issued
+    # products are "tracked" for the officer: they are the ones whose
+    # leftover is counted and offered for trials.
+    issued: bool = False
+    allocated: float = 0
+    used: float = 0  # given in trials + sold + damaged + returned (positive)
+    corrections: float = 0  # signed count corrections / reversals
 
 
 class MovementInput(BaseModel):
@@ -290,13 +297,17 @@ class ReconciliationRow(BaseModel):
 async def get_my_stock(
     current_user: CurrentUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    issued_only: bool = False,
 ) -> list[StockItem]:
-    """Every catalogue product with this officer's balance.
+    """This officer's leftover stock per product, straight from the ledger.
 
-    LEFT JOIN from products so a product the officer has never held shows
-    as 0 rather than being absent. An absent product looks like a missing
-    product; a zero looks like a missing allocation, which is what it
-    actually is.
+    leftover = issued by admin - given in trials - sold - damaged - returned
+               +/- count corrections          (always SUM(qty_delta))
+
+    `issued_only=true` returns only the products admin has issued to this
+    officer - the ones the officer is accountable for and may give in a
+    trial. Without it every active product is listed (zero when never
+    held), which the "request stock" form needs.
     """
     result = await session.execute(
         text(
@@ -304,7 +315,12 @@ async def get_my_stock(
             SELECT p.id AS product_id, p.name AS product_name, p.sku_code,
                    COALESCE(SUM(sl.qty_delta), 0) AS current_quantity,
                    MAX(sl.unit) AS unit,
-                   MAX(sl.created_at) AS last_movement_at
+                   MAX(sl.created_at) AS last_movement_at,
+                   COALESCE(BOOL_OR(sl.movement_type IN ('allocation', 'transfer_in')), false) AS issued,
+                   COALESCE(SUM(sl.qty_delta) FILTER (WHERE sl.movement_type IN ('allocation', 'transfer_in')), 0) AS allocated,
+                   COALESCE(-SUM(sl.qty_delta) FILTER (WHERE sl.movement_type IN
+                       ('trial_given', 'sale', 'damage', 'transfer_out', 'return_to_company')), 0) AS used,
+                   COALESCE(SUM(sl.qty_delta) FILTER (WHERE sl.movement_type = 'count_correction'), 0) AS corrections
             FROM products p
             LEFT JOIN stock_ledger sl
                    ON sl.product_id = p.id AND sl.officer_id = :officer_id
@@ -314,7 +330,7 @@ async def get_my_stock(
             """
         ).bindparams(officer_id=current_user.user_id)
     )
-    return [
+    items = [
         StockItem(
             product_id=r.product_id,
             product_name=r.product_name,
@@ -322,9 +338,14 @@ async def get_my_stock(
             current_quantity=float(r.current_quantity),
             unit=r.unit,
             last_movement_at=r.last_movement_at,
+            issued=bool(r.issued),
+            allocated=float(r.allocated),
+            used=float(r.used),
+            corrections=float(r.corrections),
         )
         for r in result.all()
     ]
+    return [i for i in items if i.issued] if issued_only else items
 
 
 @router.post("/movements", response_model=list[MovementResult])

@@ -12,7 +12,8 @@ import { showSubmitResult } from '../utils/offlineAlert';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
-type Product = { id: string; name: string };
+type Product = { id: string; name: string; available: number; unit?: string | null };
+type Target = { id: string; name: string; sub: string };
 
 type TrialSelection = {
   productId: string;
@@ -62,13 +63,37 @@ export default function VisitScreen({ navigation }: any) {
     error: productsError,
     retry: retryProducts,
   } = useDataFetch<Product[]>(
-    () => apiClient.request('/dealers/products/catalog', 'GET', 'stock_audit').then((d) => d || []),
+    // Only the products admin has issued to this officer, with what is left.
+    () =>
+      apiClient
+        .request('/stock/my-stock?issued_only=true', 'GET', 'stock_audit')
+        .then((d: any[]) => (d || []).map((r) => ({ id: r.product_id, name: r.product_name, available: Number(r.current_quantity) || 0, unit: r.unit }))),
     [],
     { refetchOnFocus: false }
   );
 
 
   const [productQuery, setProductQuery] = useState('');
+
+  // Every visit is for one farmer or one dealer (the server refuses a visit
+  // that names neither), so the officer picks who they are visiting.
+  const { data: targetLists } = useDataFetch<{ farmer: Target[]; dealer: Target[] }>(
+    () =>
+      Promise.all([
+        apiClient.request('/farmers/search', 'GET', 'farmer_register').catch(() => []),
+        apiClient.request('/dealers/search', 'GET', 'stock_audit').catch(() => []),
+      ]).then(([f, d]: any[]) => ({
+        farmer: (f || []).map((x: any) => ({ id: x.id, name: x.name, sub: [x.village, x.district].filter(Boolean).join(', ') })),
+        dealer: (d || []).map((x: any) => ({ id: x.id, name: x.name, sub: [x.village, x.district].filter(Boolean).join(', ') })),
+      })),
+    [],
+    { refetchOnFocus: false }
+  );
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [targetQuery, setTargetQuery] = useState('');
+  const targets = (targetLists?.[visitType] ?? []) as Target[];
+  const selectedTarget = targets.find((t) => t.id === targetId) ?? null;
+  const shownTargets = targets.filter((t) => matchesQuery(`${t.name} ${t.sub}`, targetQuery)).slice(0, 8);
 
   const toggleProduct = (product: Product) => {
     setTrialSelections((prev) => {
@@ -157,6 +182,10 @@ export default function VisitScreen({ navigation }: any) {
       Alert.alert('Purpose Required', 'Please describe the purpose of this visit.');
       return;
     }
+    if (!targetId) {
+      Alert.alert(visitType === 'farmer' ? 'Choose the farmer' : 'Choose the dealer', `Pick who you are visiting. If they are not listed, register them first (Field > ${visitType === 'farmer' ? 'Farmers' : 'Dealers'}).`);
+      return;
+    }
     if (uploadingPhoto) {
       Alert.alert('Please wait', 'Photos are still uploading.');
       return;
@@ -171,6 +200,12 @@ export default function VisitScreen({ navigation }: any) {
     }
     if (isTrial && trialSelections.some((p) => !p.quantityGiven || Number(p.quantityGiven) <= 0)) {
       Alert.alert('Quantity Required', 'Enter a quantity given for each selected product.');
+      return;
+    }
+    const over = isTrial ? trialSelections.find((p) => Number(p.quantityGiven) > (products ?? []).find((x) => x.id === p.productId)!.available) : undefined;
+    if (over) {
+      const have = (products ?? []).find((x) => x.id === over.productId)!.available;
+      Alert.alert('Not enough stock', `You only have ${have} of ${over.productName}. Reduce the quantity, or ask admin to issue more.`);
       return;
     }
 
@@ -192,6 +227,8 @@ export default function VisitScreen({ navigation }: any) {
       try {
         startRes = await apiClient.request('/visits/start', 'POST', 'check_in', {
           visit_type: visitType,
+          farmer_id: visitType === 'farmer' ? targetId : undefined,
+          dealer_id: visitType === 'dealer' ? targetId : undefined,
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           purpose: purpose.trim(),
@@ -214,12 +251,8 @@ export default function VisitScreen({ navigation }: any) {
         throw err;
       }
 
-      // Leftover defaults to quantity given until adjusted at end-of-visit.
-      const initialLeftovers: Record<string, string> = {};
-      trialSelections.forEach((p) => {
-        initialLeftovers[p.productId] = p.quantityGiven;
-      });
-      setLeftovers(initialLeftovers);
+        // The officer counts what is left at the end; nothing is assumed.
+      setLeftovers({});
 
       setInVisit(true);
       setStartTime(new Date().toLocaleTimeString());
@@ -232,6 +265,20 @@ export default function VisitScreen({ navigation }: any) {
   };
 
   const handleEndVisit = async () => {
+    if (isTrial) {
+      for (const p of trialSelections) {
+        const raw = (leftovers[p.productId] ?? '').trim();
+        const left = Number(raw);
+        if (raw === '' || !Number.isFinite(left) || left < 0) {
+          Alert.alert('Leftover needed', `Enter how much ${p.productName} is left unused (0 if all was used).`);
+          return;
+        }
+        if (left > Number(p.quantityGiven)) {
+          Alert.alert('Check leftover', `${p.productName}: you took ${p.quantityGiven}, so the leftover cannot be more than that.`);
+          return;
+        }
+      }
+    }
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -247,7 +294,7 @@ export default function VisitScreen({ navigation }: any) {
         trial_leftovers: isTrial
           ? trialSelections.map((p) => ({
               product_id: p.productId,
-              quantity_leftover: Number(leftovers[p.productId] ?? p.quantityGiven ?? 0),
+              quantity_leftover: Number(leftovers[p.productId] ?? 0),
             }))
           : [],
         farmers_covered: farmersCovered ? Number(farmersCovered) : undefined,
@@ -261,6 +308,7 @@ export default function VisitScreen({ navigation }: any) {
 
       setInVisit(false);
       setPhotos([]);
+      setTargetId(null);
       setStartTime(null);
       setPurpose('');
       setIsTrial(false);
@@ -289,17 +337,36 @@ export default function VisitScreen({ navigation }: any) {
           <View style={styles.typeToggle}>
             <TouchableOpacity
               style={[styles.typeChip, visitType === 'farmer' && styles.typeChipActive]}
-              onPress={() => setVisitType('farmer')}
+              onPress={() => { setVisitType('farmer'); setTargetId(null); }}
             >
               <Text style={[styles.typeChipText, visitType === 'farmer' && styles.typeChipTextActive]}>Farmer Visit</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.typeChip, visitType === 'dealer' && styles.typeChipActive]}
-              onPress={() => setVisitType('dealer')}
+              onPress={() => { setVisitType('dealer'); setTargetId(null); }}
             >
               <Text style={[styles.typeChipText, visitType === 'dealer' && styles.typeChipTextActive]}>Dealer Visit</Text>
             </TouchableOpacity>
           </View>
+
+          <Text style={styles.trialBoxTitle}>{visitType === 'farmer' ? 'Farmer visited' : 'Dealer visited'}</Text>
+          {selectedTarget ? (
+            <TouchableOpacity style={styles.purposeInput} onPress={() => setTargetId(null)}>
+              <Text style={styles.productName}>{selectedTarget.name}{selectedTarget.sub ? ` · ${selectedTarget.sub}` : ''}  (change)</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ marginBottom: 12 }}>
+              <SearchBox value={targetQuery} onChangeText={setTargetQuery} placeholder={`Search ${visitType === 'farmer' ? 'farmer' : 'dealer'}…`} />
+              {targets.length === 0 && (
+                <Text style={styles.trialHint}>No {visitType}s found yet. Register one first (Field &gt; {visitType === 'farmer' ? 'Farmers' : 'Dealers'}).</Text>
+              )}
+              {shownTargets.map((t) => (
+                <TouchableOpacity key={t.id} style={styles.productCheckRow} onPress={() => setTargetId(t.id)}>
+                  <Text style={styles.productName}>{t.name}{t.sub ? ` · ${t.sub}` : ''}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           <View style={styles.photoButtons}>
             <TouchableOpacity style={[styles.btnAction, styles.photoButton]} onPress={handleTakePhoto}>
@@ -360,7 +427,7 @@ export default function VisitScreen({ navigation }: any) {
                   <Text style={styles.trialHintError}>{productsError} (tap to retry)</Text>
                 </TouchableOpacity>
               ) : (products ?? []).length === 0 ? (
-                <Text style={styles.trialHint}>No products available yet.</Text>
+                <Text style={styles.trialHint}>Admin has not issued any product to you yet, so there is nothing to give in a trial. Ask admin to issue stock.</Text>
               ) : (
                 <>
                 <SearchBox value={productQuery} onChangeText={setProductQuery} />
@@ -375,7 +442,7 @@ export default function VisitScreen({ navigation }: any) {
                         <View style={[styles.checkbox, !!selected && styles.checkboxChecked]}>
                           {!!selected && <Text style={styles.checkmark}>✓</Text>}
                         </View>
-                        <Text style={styles.productName}>{product.name}</Text>
+                        <Text style={styles.productName}>{product.name} ({product.available} left)</Text>
                       </TouchableOpacity>
                       {selected && (
                         <TextInput
@@ -409,13 +476,13 @@ export default function VisitScreen({ navigation }: any) {
               <Text style={styles.trialBoxTitle}>Leftover Stock</Text>
               {trialSelections.map((p) => (
                 <View key={p.productId} style={styles.leftoverRow}>
-                  <Text style={styles.productName}>{p.productName}</Text>
+                  <Text style={styles.productName}>{p.productName} (took {p.quantityGiven})</Text>
                   <TextInput
                     style={styles.qtyInput}
-                    placeholder="Leftover"
+                    placeholder="Left unused"
                     placeholderTextColor={color.textMuted}
                     keyboardType="numeric"
-                    value={leftovers[p.productId] ?? p.quantityGiven}
+                    value={leftovers[p.productId] ?? ''}
                     onChangeText={(v) => setLeftovers((prev) => ({ ...prev, [p.productId]: v }))}
                   />
                 </View>
