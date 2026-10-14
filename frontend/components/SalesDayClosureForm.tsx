@@ -8,6 +8,7 @@ import {
   OTHER_DESCRIPTION_MESSAGE,
 } from "@/components/OtherDescriptionInput";
 import DynamicFieldRenderer from "@/components/DynamicFieldRenderer";
+import SearchableSelect from "@/components/SearchableSelect";
 import DealerStockSheet, { StockLine } from "@/components/DealerStockSheet";
 
 // Sales Officer's end-of-day record. Separate from DayClosureForm.tsx
@@ -101,6 +102,10 @@ export default function SalesDayClosureForm({
   const [district, setDistrict] = useState("");
   const [visitDate, setVisitDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dealerName, setDealerName] = useState("");
+  // Registered dealers (already in the system) vs a dealer not yet registered.
+  const [dealerKind, setDealerKind] = useState<"registered" | "new">("registered");
+  const [dealerId, setDealerId] = useState("");
+  const [registeredDealers, setRegisteredDealers] = useState<any[]>([]);
   const [village, setVillage] = useState("");
   const [dealerContact, setDealerContact] = useState("");
   const [visitPurpose, setVisitPurpose] = useState("");
@@ -143,6 +148,9 @@ export default function SalesDayClosureForm({
         setCfg(map);
         setCfgLoaded(true);
       })
+      .catch(() => {});
+    apiFetch<any[]>("/dealers/search?limit=500")
+      .then((rows) => setRegisteredDealers(rows || []))
       .catch(() => {});
     apiFetch<any[]>("/day-closure-sections")
       .then((rows) => {
@@ -205,7 +213,8 @@ export default function SalesDayClosureForm({
     setFormError("");
     const missing: string[] = [];
     if (required("sales_district", true) && !district) missing.push("District");
-    if (required("sales_dealer_name", true) && !dealerName.trim()) missing.push("Dealer name");
+    if (required("sales_dealer_name", true) && dealerKind === "registered" && !dealerId) missing.push("Dealer (pick a registered dealer, or switch to New dealer)");
+    if (required("sales_dealer_name", true) && dealerKind === "new" && !dealerName.trim()) missing.push("Dealer name");
     if (required("sales_visit_purpose", true) && !visitPurpose) missing.push("Visit purpose");
     if (required("sales_amount_collected", true) && amountCollected === "") missing.push("Amount collected");
     if (required("sales_remarks", true) && !remarks.trim()) missing.push("Remarks");
@@ -237,6 +246,7 @@ export default function SalesDayClosureForm({
           district,
           visit_date: visitDate || null,
           dealer_name: dealerName.trim(),
+          dealer_id: dealerKind === "registered" && dealerId ? dealerId : undefined,
           village: village.trim() || null,
           dealer_contact: dealerContact.trim() || null,
           visit_purpose: visitPurpose,
@@ -279,7 +289,7 @@ export default function SalesDayClosureForm({
             <Field label={label("sales_district", "District")} required={required("sales_district", true)}>
               <select className={inputCls} value={district} onChange={(e) => setDistrict(e.target.value)}>
                 <option value="">-- Select --</option>
-                {DISTRICTS_FALLBACK.map((d) => <option key={d} value={d}>{d}</option>)}
+                {(DISTRICTS_FALLBACK.includes(district) || !district ? DISTRICTS_FALLBACK : [...DISTRICTS_FALLBACK, district]).map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </Field>
           )}
@@ -289,9 +299,37 @@ export default function SalesDayClosureForm({
             </Field>
           )}
           {visible("sales_dealer_name") && (
-            <Field label={label("sales_dealer_name", "Dealer / Distributor Name")} required={required("sales_dealer_name", true)}>
-              <input className={inputCls} placeholder="One dealer per closure" value={dealerName} onChange={(e) => setDealerName(e.target.value)} />
-            </Field>
+            <div className="sm:col-span-2 space-y-2">
+              <div className="flex gap-2">
+                {(["registered", "new"] as const).map((k) => (
+                  <button key={k} type="button" onClick={() => { setDealerKind(k); if (k === "new") setDealerId(""); }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${dealerKind === k ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>
+                    {k === "registered" ? "Registered dealer" : "New dealer (not registered)"}
+                  </button>
+                ))}
+              </div>
+              <Field label={label("sales_dealer_name", "Dealer / Distributor Name")} required={required("sales_dealer_name", true)}>
+                {dealerKind === "registered" ? (
+                  <SearchableSelect
+                    value={dealerId}
+                    placeholder="-- Search a registered dealer --"
+                    options={registeredDealers.map((d) => ({ value: d.id, label: `${d.name} — ${d.village || d.taluk || ""}${d.village || d.taluk ? ", " : ""}${d.district}` }))}
+                    onChange={(id) => {
+                      setDealerId(id);
+                      const d = registeredDealers.find((x) => x.id === id);
+                      if (d) {
+                        setDealerName(d.name);
+                        if (d.district) setDistrict(d.district);
+                        setVillage(d.village || d.taluk || "");
+                        setDealerContact(d.phone || "");
+                      }
+                    }}
+                  />
+                ) : (
+                  <input className={inputCls} placeholder="Dealer name (one dealer per closure)" value={dealerName} onChange={(e) => setDealerName(e.target.value)} />
+                )}
+              </Field>
+            </div>
           )}
           {visible("sales_village") && (
             <Field label={label("sales_village", "Village / Location")} required={required("sales_village", true)}>

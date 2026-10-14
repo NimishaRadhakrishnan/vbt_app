@@ -139,7 +139,7 @@ async def admin_restore_day_closure_defaults(
             UPDATE day_closure_field_configs c
             SET label = d.label, placeholder = d.placeholder, help_text = NULL,
                 field_type = d.field_type, is_required = d.is_required, is_enabled = true,
-                is_deleted = false,
+                is_deleted = COALESCE(d.default_deleted, false),
                 display_order = d.display_order, visible_to_field_officer = true,
                 visible_to_sales_officer = true, default_value = NULL,
                 updated_by = :uid, updated_at = now()

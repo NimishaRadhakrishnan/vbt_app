@@ -159,14 +159,14 @@ export default function DayClosureForm({
   // (network hiccup, or - for the adminOfficerId "create on behalf of"
   // flow - a role with no matching config rows) rather than the whole
   // form going blank over a config-layer problem.
-  const [fieldConfig, setFieldConfig] = useState<Record<string, { label: string; placeholder: string | null; is_required: boolean }>>({});
+  const [fieldConfig, setFieldConfig] = useState<Record<string, { label: string; placeholder: string | null; is_required: boolean; field_type: string }>>({});
   const [configFetchSucceeded, setConfigFetchSucceeded] = useState(false);
 
   useEffect(() => {
     apiFetch<any[]>("/day-closure-config")
       .then((rows) => {
-        const map: Record<string, { label: string; placeholder: string | null; is_required: boolean }> = {};
-        (rows || []).forEach((r) => { map[r.field_key] = { label: r.label, placeholder: r.placeholder, is_required: r.is_required }; });
+        const map: Record<string, { label: string; placeholder: string | null; is_required: boolean; field_type: string }> = {};
+        (rows || []).forEach((r) => { map[r.field_key] = { label: r.label, placeholder: r.placeholder, is_required: r.is_required, field_type: r.field_type }; });
         setFieldConfig(map);
         setConfigFetchSucceeded(true);
       })
@@ -183,6 +183,7 @@ export default function DayClosureForm({
   // never look identical to "admin disabled every field."
   const isFieldVisible = (key: string) => !configFetchSucceeded || key in fieldConfig;
   const fieldLabel = (key: string, fallback: string) => fieldConfig[key]?.label ?? fallback;
+  const fieldType = (key: string, fallback: string) => fieldConfig[key]?.field_type ?? fallback;
   const fieldPlaceholder = (key: string, fallback?: string) => fieldConfig[key]?.placeholder ?? fallback;
   const isFieldRequired = (key: string, fallback: boolean) => {
     // A disabled (hidden) field can never be "required" - there's no
@@ -262,6 +263,7 @@ export default function DayClosureForm({
   const [cropCategoryId, setCropCategoryId] = useState("");
   const [cropCategoryOtherText, setCropCategoryOtherText] = useState("");
   const [cropId, setCropId] = useState("");
+  const [cropText, setCropText] = useState("");
   const [varietyId, setVarietyId] = useState("");
   const [varietyText, setVarietyText] = useState("");
   const [cropAgeValue, setCropAgeValue] = useState("");
@@ -284,6 +286,7 @@ export default function DayClosureForm({
   const [npkP, setNpkP] = useState("");
   const [npkK, setNpkK] = useState("");
   const [selectedMicronutrients, setSelectedMicronutrients] = useState<string[]>([]);
+  const [micronutrientText, setMicronutrientText] = useState("");
   const [selectedOperations, setSelectedOperations] = useState<string[]>([]);
   const [selectedOrganicSolutions, setSelectedOrganicSolutions] = useState<string[]>([]);
   const [usedAdvisory, setUsedAdvisory] = useState(false);
@@ -308,6 +311,8 @@ export default function DayClosureForm({
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+
+  const otherMicronutrient = micronutrients.find((m) => /^other/i.test(m.name.trim()));
 
   const toggle = (list: string[], setList: (v: string[]) => void, id: string) => {
     setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -365,8 +370,12 @@ export default function DayClosureForm({
         return;
       }
     }
-    if (!cropId && !varietyText) {
-      setFormError("Please select a crop.");
+    if (isFieldVisible("crop_name") && isFieldRequired("crop_name", true) && !cropId && !cropText.trim() && !varietyText) {
+      setFormError(`${fieldLabel("crop_name", "Crop Name")} is required.`);
+      return;
+    }
+    if (isFieldVisible("variety") && isFieldRequired("variety", false) && !varietyId && !varietyText.trim()) {
+      setFormError(`${fieldLabel("variety", "Variety/Hybrid")} is required.`);
       return;
     }
     if (descriptionMissing(statusNeedsDesc, statusOtherText)) {
@@ -392,23 +401,26 @@ export default function DayClosureForm({
         longitude: lng,
         farm_size_value: parseFloat(farmSize) || 0,
         farm_size_unit: "cents",
-        crop_category_id: cropCategoryId || undefined,
+        crop_category_id: isFieldVisible("crop_category") ? cropCategoryId || undefined : undefined,
         crop_category_other_text: clearIfNotRequired(cropCategoryNeedsDesc, cropCategoryOtherText),
         crop_id: cropId || undefined,
+        crop_other_text: !cropId && cropText.trim() ? cropText.trim() : undefined,
         variety_id: varietyId || undefined,
         variety_text: varietyText || undefined,
         crop_age_value: cropAgeValue ? parseFloat(cropAgeValue) : undefined,
         crop_age_unit: cropAgeValue ? cropAgeUnit : undefined,
-        sowing_date: sowingDate || undefined,
+        sowing_date: isFieldVisible("sowing_date") ? sowingDate || undefined : undefined,
         previous_crop_text: previousCropText || undefined,
         farming_type: farmingType,
         npk_n: npkN ? parseFloat(npkN) : undefined,
         npk_p: npkP ? parseFloat(npkP) : undefined,
         npk_k: npkK ? parseFloat(npkK) : undefined,
         npk_unit: npkN || npkP || npkK ? "kg" : undefined,
-        micronutrients: selectedMicronutrients.map((id) => ({ micronutrient_id: id })),
-        farm_operations: selectedOperations.map((id) => ({ farm_operation_id: id })),
-        organic_solutions: selectedOrganicSolutions.map((id) => ({ organic_solution_id: id })),
+        micronutrients: micronutrientText.trim() && otherMicronutrient
+          ? [{ micronutrient_id: otherMicronutrient.id, other_text: micronutrientText.trim() }]
+          : selectedMicronutrients.map((id) => ({ micronutrient_id: id })),
+        farm_operations: !isFieldVisible("operations") ? [] : selectedOperations.map((id) => ({ farm_operation_id: id })),
+        organic_solutions: !isFieldVisible("organic_solutions") ? [] : selectedOrganicSolutions.map((id) => ({ organic_solution_id: id })),
         used_advisory: usedAdvisory,
         advisory_source: usedAdvisory ? advisorySource || undefined : undefined,
         crop_status: cropStatus,
@@ -432,7 +444,7 @@ export default function DayClosureForm({
       if (isNewFarmer) {
         payload.new_farmer = {
           name: farmerName, phone: farmerPhone, village, taluk: taluk || village,
-          district, crop: crops.find((c) => c.id === cropId)?.name || varietyText || "Unspecified", cents: parseFloat(farmSize) || 0,
+          district, crop: crops.find((c) => c.id === cropId)?.name || cropText.trim() || varietyText || "Unspecified", cents: parseFloat(farmSize) || 0,
         };
       } else {
         payload.farmer_id = selectedFarmerId;
@@ -523,124 +535,174 @@ export default function DayClosureForm({
 
       <Section hidden={sectionGone("crop_farming_profile")} title={sectionTitle("crop_farming_profile", "2. Crop & Farming Profile")}>
         <div className="grid grid-cols-3 gap-4">
-          <Field label="Crop Category" required>
-            <select className={inputCls} value={cropCategoryId} onChange={(e) => { setCropCategoryId(e.target.value); setCropId(""); setVarietyId(""); }}>
-              <option value="">-- Select --</option>
-              {cropCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <OtherDescriptionInput
-              required={cropCategoryNeedsDesc}
-              value={cropCategoryOtherText}
-              onChange={setCropCategoryOtherText}
-              showError={!!formError}
-            />
-          </Field>
-          <Field label="Crop Name" required>
-            <select className={inputCls} value={cropId} onChange={(e) => { setCropId(e.target.value); setVarietyId(""); }}>
-              <option value="">-- Select --</option>
-              {crops.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Variety/Hybrid" required>
-            {varieties.length > 0 ? (
-              <select className={inputCls} value={varietyId} onChange={(e) => setVarietyId(e.target.value)}>
+          {isFieldVisible("crop_category") && (
+            <Field label={fieldLabel("crop_category", "Crop Category")} required={isFieldRequired("crop_category", true)}>
+              <select className={inputCls} value={cropCategoryId} onChange={(e) => { setCropCategoryId(e.target.value); setCropId(""); setVarietyId(""); }}>
                 <option value="">-- Select --</option>
-                {varieties.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                {cropCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-            ) : (
-              <input className={inputCls} placeholder="Type variety name" value={varietyText} onChange={(e) => setVarietyText(e.target.value)} />
-            )}
-          </Field>
+              <OtherDescriptionInput
+                required={cropCategoryNeedsDesc}
+                value={cropCategoryOtherText}
+                onChange={setCropCategoryOtherText}
+                showError={!!formError}
+              />
+            </Field>
+          )}
+          {isFieldVisible("crop_name") && (
+            <Field label={fieldLabel("crop_name", "Crop Name")} required={isFieldRequired("crop_name", true)}>
+              {fieldType("crop_name", "select") === "text" || !isFieldVisible("crop_category") ? (
+                <input className={inputCls} placeholder={fieldPlaceholder("crop_name", "Type crop name")} value={cropText} onChange={(e) => setCropText(e.target.value)} />
+              ) : (
+                <select className={inputCls} value={cropId} onChange={(e) => { setCropId(e.target.value); setVarietyId(""); }}>
+                  <option value="">-- Select --</option>
+                  {crops.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              )}
+            </Field>
+          )}
+          {isFieldVisible("variety") && (
+            <Field label={fieldLabel("variety", "Variety/Hybrid")} required={isFieldRequired("variety", true)}>
+              {varieties.length > 0 ? (
+                <select className={inputCls} value={varietyId} onChange={(e) => setVarietyId(e.target.value)}>
+                  <option value="">-- Select --</option>
+                  {varieties.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              ) : (
+                <input className={inputCls} placeholder={fieldPlaceholder("variety", "Type variety name")} value={varietyText} onChange={(e) => setVarietyText(e.target.value)} />
+              )}
+            </Field>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex gap-2">
-            <Field label="Age of Crop"><input type="number" className={inputCls} value={cropAgeValue} onChange={(e) => setCropAgeValue(e.target.value)} /></Field>
-            <Field label="Unit">
-              <select className={inputCls} value={cropAgeUnit} onChange={(e) => setCropAgeUnit(e.target.value)}>
-                <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option><option value="years">Years</option>
-              </select>
-            </Field>
-          </div>
-          <Field label="Sowing/Planting Date"><input type="date" className={inputCls} value={sowingDate} onChange={(e) => setSowingDate(e.target.value)} /></Field>
+          {isFieldVisible("crop_age") && (
+            <div className="flex gap-2">
+              <Field label={fieldLabel("crop_age", "Age of Crop")} required={isFieldRequired("crop_age", false)}><input type="number" className={inputCls} value={cropAgeValue} onChange={(e) => setCropAgeValue(e.target.value)} /></Field>
+              <Field label="Unit">
+                <select className={inputCls} value={cropAgeUnit} onChange={(e) => setCropAgeUnit(e.target.value)}>
+                  <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option><option value="years">Years</option>
+                </select>
+              </Field>
+            </div>
+          )}
+          {isFieldVisible("sowing_date") && (
+            <Field label={fieldLabel("sowing_date", "Sowing/Planting Date")} required={isFieldRequired("sowing_date", false)}><input type="date" className={inputCls} value={sowingDate} onChange={(e) => setSowingDate(e.target.value)} /></Field>
+          )}
         </div>
-        <Field label="Previous Season Crop & Yield"><input className={inputCls} value={previousCropText} onChange={(e) => setPreviousCropText(e.target.value)} placeholder="e.g. Paddy, 25 bags/cent" /></Field>
-        <Field label="Farming Type" required>
-          <select className={inputCls} value={farmingType} onChange={(e) => setFarmingType(e.target.value)}>
-            {farmingTypes.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-          </select>
-        </Field>
+        {isFieldVisible("previous_crop") && (
+          <Field label={fieldLabel("previous_crop", "Previous Season Crop & Yield")} required={isFieldRequired("previous_crop", false)}><input className={inputCls} value={previousCropText} onChange={(e) => setPreviousCropText(e.target.value)} placeholder={fieldPlaceholder("previous_crop", "e.g. Paddy, 25 bags/cent")} /></Field>
+        )}
+        {isFieldVisible("farming_type") && (
+          <Field label={fieldLabel("farming_type", "Farming Type")} required>
+            <select className={inputCls} value={farmingType} onChange={(e) => setFarmingType(e.target.value)}>
+              {farmingTypes.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+            </select>
+          </Field>
+        )}
       </Section>
 
       <Section hidden={sectionGone("farm_practices_inputs")} title={sectionTitle("farm_practices_inputs", "3. Farm Practices & Inputs")}>
-        <Field label="NPK Dosage (N / P / K, kg)">
-          <div className="grid grid-cols-3 gap-2">
-            <input type="number" className={inputCls} placeholder="N" value={npkN} onChange={(e) => setNpkN(e.target.value)} />
-            <input type="number" className={inputCls} placeholder="P" value={npkP} onChange={(e) => setNpkP(e.target.value)} />
-            <input type="number" className={inputCls} placeholder="K" value={npkK} onChange={(e) => setNpkK(e.target.value)} />
-          </div>
-        </Field>
-        <Field label="Micronutrients Applied"><MultiSelectChips options={micronutrients} selected={selectedMicronutrients} onToggle={(id) => toggle(selectedMicronutrients, setSelectedMicronutrients, id)} /></Field>
-        <Field label="Intercultural Operations Done"><MultiSelectChips options={farmOperations} selected={selectedOperations} onToggle={(id) => toggle(selectedOperations, setSelectedOperations, id)} /></Field>
-        <Field label="Organic / IPM Solutions Used"><MultiSelectChips options={organicSolutions} selected={selectedOrganicSolutions} onToggle={(id) => toggle(selectedOrganicSolutions, setSelectedOrganicSolutions, id)} /></Field>
-        <Field label="Consulting Agri-Clinic / KVK?">
-          <div className="flex gap-2 mb-2">
-            <button type="button" onClick={() => setUsedAdvisory(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${usedAdvisory ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>Yes</button>
-            <button type="button" onClick={() => setUsedAdvisory(false)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${!usedAdvisory ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>No</button>
-          </div>
-          {usedAdvisory && <input className={inputCls} placeholder="Name of agri-clinic / KVK / advisory" value={advisorySource} onChange={(e) => setAdvisorySource(e.target.value)} />}
-        </Field>
+        {isFieldVisible("npk_dosage") && (
+          <Field label={fieldLabel("npk_dosage", "NPK Dosage (N / P / K, kg)")} required={isFieldRequired("npk_dosage", false)}>
+            <div className="grid grid-cols-3 gap-2">
+              <input type="number" className={inputCls} placeholder="N" value={npkN} onChange={(e) => setNpkN(e.target.value)} />
+              <input type="number" className={inputCls} placeholder="P" value={npkP} onChange={(e) => setNpkP(e.target.value)} />
+              <input type="number" className={inputCls} placeholder="K" value={npkK} onChange={(e) => setNpkK(e.target.value)} />
+            </div>
+          </Field>
+        )}
+        {isFieldVisible("micronutrients") && (
+          <Field label={fieldLabel("micronutrients", "Micronutrients Applied")} required={isFieldRequired("micronutrients", false)}>
+            {fieldType("micronutrients", "multiselect") === "text" || !otherMicronutrient ? (
+              fieldType("micronutrients", "multiselect") === "text" ? (
+                <input className={inputCls} placeholder={fieldPlaceholder("micronutrients", "Type the micronutrients applied / added")} value={micronutrientText} onChange={(e) => setMicronutrientText(e.target.value)} />
+              ) : (
+                <MultiSelectChips options={micronutrients} selected={selectedMicronutrients} onToggle={(id) => toggle(selectedMicronutrients, setSelectedMicronutrients, id)} />
+              )
+            ) : (
+              <MultiSelectChips options={micronutrients} selected={selectedMicronutrients} onToggle={(id) => toggle(selectedMicronutrients, setSelectedMicronutrients, id)} />
+            )}
+          </Field>
+        )}
+        {isFieldVisible("operations") && (
+          <Field label={fieldLabel("operations", "Intercultural Operations Done")} required={isFieldRequired("operations", false)}><MultiSelectChips options={farmOperations} selected={selectedOperations} onToggle={(id) => toggle(selectedOperations, setSelectedOperations, id)} /></Field>
+        )}
+        {isFieldVisible("organic_solutions") && (
+          <Field label={fieldLabel("organic_solutions", "Organic / IPM Solutions Used")} required={isFieldRequired("organic_solutions", false)}><MultiSelectChips options={organicSolutions} selected={selectedOrganicSolutions} onToggle={(id) => toggle(selectedOrganicSolutions, setSelectedOrganicSolutions, id)} /></Field>
+        )}
+        {isFieldVisible("advisory") && (
+          <Field label={fieldLabel("advisory", "Consulting Agri-Clinic / KVK?")} required={isFieldRequired("advisory", false)}>
+            <div className="flex gap-2 mb-2">
+              <button type="button" onClick={() => setUsedAdvisory(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${usedAdvisory ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>Yes</button>
+              <button type="button" onClick={() => setUsedAdvisory(false)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${!usedAdvisory ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>No</button>
+            </div>
+            {usedAdvisory && <input className={inputCls} placeholder="Name of the agri-clinic / dealer shop" value={advisorySource} onChange={(e) => setAdvisorySource(e.target.value)} />}
+          </Field>
+        )}
       </Section>
 
       <Section hidden={sectionGone("crop_health_diagnosis")} title={sectionTitle("crop_health_diagnosis", "4. Crop Health & Pest Diagnosis")}>
-        <Field label="Present Health Status" required>
-          <select className={inputCls} value={cropStatus} onChange={(e) => setCropStatus(e.target.value)}>
-            {cropStatuses.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <OtherDescriptionInput
-            required={statusNeedsDesc}
-            value={statusOtherText}
-            onChange={setStatusOtherText}
-            showError={!!formError}
-          />
-        </Field>
+        {isFieldVisible("crop_status") && (
+          <Field label={fieldLabel("crop_status", "Present Health Status")} required>
+            <select className={inputCls} value={cropStatus} onChange={(e) => setCropStatus(e.target.value)}>
+              {cropStatuses.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+            <OtherDescriptionInput
+              required={statusNeedsDesc}
+              value={statusOtherText}
+              onChange={setStatusOtherText}
+              showError={!!formError}
+            />
+          </Field>
+        )}
         {cropStatus === "pest_disease_affected" && (
           <>
-            <Field label="Pests Observed"><MultiSelectChips options={pests} selected={selectedPests} onToggle={(id) => toggle(selectedPests, setSelectedPests, id)} /></Field>
-            <Field label="Diseases Observed"><MultiSelectChips options={diseases} selected={selectedDiseases} onToggle={(id) => toggle(selectedDiseases, setSelectedDiseases, id)} /></Field>
-            <Field label="Pesticide/Chemical Currently Used"><input className={inputCls} value={chemicalText} onChange={(e) => setChemicalText(e.target.value)} /></Field>
-            <Field label={`Severity Level: ${severity}/10`}>
-              <input type="range" min="1" max="10" value={severity} onChange={(e) => setSeverity(e.target.value)} className="w-full accent-green-700" />
-            </Field>
+            {isFieldVisible("pests") && <Field label={fieldLabel("pests", "Pests Observed")} required={isFieldRequired("pests", false)}><MultiSelectChips options={pests} selected={selectedPests} onToggle={(id) => toggle(selectedPests, setSelectedPests, id)} /></Field>}
+            {isFieldVisible("diseases") && <Field label={fieldLabel("diseases", "Diseases Observed")} required={isFieldRequired("diseases", false)}><MultiSelectChips options={diseases} selected={selectedDiseases} onToggle={(id) => toggle(selectedDiseases, setSelectedDiseases, id)} /></Field>}
+            {isFieldVisible("chemicals") && <Field label={fieldLabel("chemicals", "Pesticide/Chemical Currently Used")} required={isFieldRequired("chemicals", false)}><input className={inputCls} value={chemicalText} onChange={(e) => setChemicalText(e.target.value)} /></Field>}
+            {isFieldVisible("severity") && (
+              <Field label={`${fieldLabel("severity", "Severity Level")}: ${severity}/10`}>
+                <input type="range" min="1" max="10" value={severity} onChange={(e) => setSeverity(e.target.value)} className="w-full accent-green-700" />
+              </Field>
+            )}
           </>
         )}
-        <Field label="Photo Upload (Crop Condition)">
-          <input type="file" accept="image/*" multiple onChange={(e) => setPhotoFiles(Array.from(e.target.files || []).slice(0, 10))} className="text-sm" />
-          {photoFiles.length > 0 && <p className="text-xs text-slate-500 mt-1">{photoFiles.length} photo(s) selected</p>}
-        </Field>
+        {isFieldVisible("photos") && (
+          <Field label={fieldLabel("photos", "Photo Upload (Crop Condition)")} required={isFieldRequired("photos", false)}>
+            <input type="file" accept="image/*" multiple onChange={(e) => setPhotoFiles(Array.from(e.target.files || []).slice(0, 10))} className="text-sm" />
+            {photoFiles.length > 0 && <p className="text-xs text-slate-500 mt-1">{photoFiles.length} photo(s) selected</p>}
+          </Field>
+        )}
       </Section>
 
       <Section hidden={sectionGone("business_demo_tracking")} title={sectionTitle("business_demo_tracking", "5. Business & Demo Tracking")}>
-        <Field label="Visit Purpose" required>
-          <select className={inputCls} value={visitPurpose} onChange={(e) => setVisitPurpose(e.target.value)}>
-            {VISIT_PURPOSES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-        </Field>
-        <Field label="Demo / Trial Stage at This Farm Today" required>
-          <select className={inputCls} value={demoStatus} onChange={(e) => { setDemoStatus(e.target.value); setIsTrial(e.target.value === "started_today" || e.target.value === "followup_running"); }}>
-            {demoStages.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-          </select>
-        </Field>
-        {isTrial && (
-          <Field label="Area Under Demo/Trial (cents)"><input type="number" step="0.01" className={inputCls} value={trialPlotSize} onChange={(e) => setTrialPlotSize(e.target.value)} placeholder="e.g. 0.5" /></Field>
+        {isFieldVisible("visit_purpose") && (
+          <Field label={fieldLabel("visit_purpose", "Visit Purpose")} required={isFieldRequired("visit_purpose", true)}>
+            <select className={inputCls} value={visitPurpose} onChange={(e) => setVisitPurpose(e.target.value)}>
+              {VISIT_PURPOSES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </Field>
         )}
-        <Field label="Did Farmer Purchase?">
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setPurchased(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${purchased ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>Yes</button>
-            <button type="button" onClick={() => setPurchased(false)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${!purchased ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>No</button>
-          </div>
-        </Field>
-        {purchased && (
-          <Field label="Order Value (₹)"><input type="number" className={inputCls} value={orderValue} onChange={(e) => setOrderValue(e.target.value)} /></Field>
+        {isFieldVisible("demo_stage") && (
+          <Field label={fieldLabel("demo_stage", "Demo / Trial Stage at This Farm Today")} required={isFieldRequired("demo_stage", true)}>
+            <select className={inputCls} value={demoStatus} onChange={(e) => { setDemoStatus(e.target.value); setIsTrial(e.target.value === "started_today" || e.target.value === "followup_running"); }}>
+              {demoStages.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </select>
+          </Field>
+        )}
+        {isTrial && isFieldVisible("trial_plot_size") && (
+          <Field label={fieldLabel("trial_plot_size", "Area Under Demo/Trial (cents)")} required={isFieldRequired("trial_plot_size", false)}><input type="number" step="0.01" className={inputCls} value={trialPlotSize} onChange={(e) => setTrialPlotSize(e.target.value)} placeholder={fieldPlaceholder("trial_plot_size", "e.g. 0.5")} /></Field>
+        )}
+        {isFieldVisible("purchased") && (
+          <Field label={fieldLabel("purchased", "Did Farmer Purchase?")} required={isFieldRequired("purchased", false)}>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setPurchased(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${purchased ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>Yes</button>
+              <button type="button" onClick={() => setPurchased(false)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${!purchased ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>No</button>
+            </div>
+          </Field>
+        )}
+        {purchased && isFieldVisible("order_value") && (
+          <Field label={fieldLabel("order_value", "Order Value (₹)")} required={isFieldRequired("order_value", false)}><input type="number" className={inputCls} value={orderValue} onChange={(e) => setOrderValue(e.target.value)} /></Field>
         )}
       </Section>
 
