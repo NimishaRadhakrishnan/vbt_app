@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
 import { apiClient } from '../services/api';
+import { CheckInJob, CheckInState } from '../services/CheckInJob';
 import { LocationService } from '../services/LocationService';
 import { flushSavedPings } from '../services/pingBuffer';
 import { promptBatterySettingsOnce } from '../services/batterySettings';
@@ -15,6 +16,31 @@ export default function AttendanceScreen({ navigation }: any) {
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [job, setJob] = useState<CheckInState>(CheckInJob.getState());
+
+  useEffect(() => {
+    const unsub = CheckInJob.subscribe((j) => setJob(j));
+    return unsub;
+  }, []);
+
+  // Attendance marked by the background job: reflect it here.
+  useEffect(() => {
+    if (job.doneAt) {
+      setIsCheckedIn(true);
+      setCheckInTime(job.doneAt);
+      setLoadingStatus(false);
+    }
+    if (job.needsConsent) {
+      CheckInJob.clearDone();
+      navigation.navigate('LocationDisclosure', { onAcceptNavigateTo: 'back' });
+    }
+  }, [job.doneAt, job.needsConsent]);
+
+  const checkingIn = job.running;
+  const stageText: Record<string, string> = {
+    consent: 'Checking…', permission: 'Checking permission…', locating: 'Finding your location…',
+    sending: 'Marking attendance…', tracking: 'Starting tracking…',
+  };
 
   // Previously isCheckedIn was plain local state with no fetch-on-mount,
   // so navigating away and back (or restarting the app) always reset the
@@ -95,97 +121,10 @@ export default function AttendanceScreen({ navigation }: any) {
     return position;
   };
 
-  const handleCheckIn = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      // BUG FIX: previously this went straight to the OS permission
-      // prompt and then the check-in API call, with no client-side
-      // awareness that the backend independently requires a recorded
-      // location-notice acceptance (see consent_router.py /consent/location)
-      // before it will accept a check-in at all. An officer who granted
-      // the OS permission but never saw/accepted the in-app disclosure
-      // (which, until this fix, nothing in the app ever navigated to -
-      // see LoginScreen.tsx) would have the OS prompt succeed and then
-      // get a confusing 400 from the server on the next step. Checking
-      // here first and routing to the disclosure screen turns that into
-      // the normal, expected flow instead of a dead end.
-      let accepted = true;
-      try {
-        const consentStatus = await ConsentService.getStatus();
-        accepted = consentStatus.accepted;
-      } catch {
-        // Can't verify right now (offline, etc.) - let the existing
-        // permission/check-in flow below run; the backend is still the
-        // authority and will reject with its own message if truly
-        // unaccepted, same as before this fix.
-        accepted = true;
-      }
-      if (!accepted) {
-        navigation.navigate('LocationDisclosure', { onAcceptNavigateTo: 'back' });
-        return;
-      }
-
-      // Real device fix, same source LocationService.ts uses for tracking
-      // pings. Previously this sent a hardcoded lat/lng ("Mock latitude/
-      // longitude fetch") regardless of where the officer actually was.
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Location Required', 'Location permission is needed to check in.');
-        return;
-      }
-      const position = await fixOrExplain();
-      if (!position) return;
-
-      const res = await apiClient.request('/attendance/check-in', 'POST', 'check_in', {
-        device_id: apiClient.getDeviceIdValue() ?? 'unknown-device',
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        is_fake_gps: !!position.mocked,
-        is_gps_disabled: false,
-      });
-
-      setIsCheckedIn(true);
-      setCheckInTime(new Date().toLocaleTimeString());
-      // Tracking is now scoped to the shift (check-in through check-out),
-      // not to the login session - previously LoginScreen started this at
-      // sign-in regardless of whether the officer had actually started
-      // their day, so this Alert's "Live tracking started" claim used to
-      // be inaccurate (tracking had already been running since login).
-      //
-      // Check-in itself has already succeeded at this point (the
-      // attendance record exists) regardless of what happens next - only
-      // the wording of the confirmation changes based on whether
-      // continuous background tracking actually started. Previously this
-      // was unconditional even if the officer declined the Always-upgrade
-      // prompt, silently telling them tracking started when it hadn't.
-      const trackingResult = await LocationService.startTracking();
-      if (res?.offline) {
-        // Attendance wasn't confirmed by the server yet - queued locally.
-        // Tracking itself is a local OS feature and can still start
-        // regardless of network, so that part of the message stays
-        // accurate; only the "clocked" claim needs to change.
-        Alert.alert(
-          'Saved on Your Phone',
-          trackingResult === 'started' || trackingResult === 'already_running'
-            ? "Check-in will send when you're back online. Live tracking started now."
-            : "Check-in will send when you're back online. Tracking could not start - check location settings."
-        );
-      } else if (trackingResult === 'started' || trackingResult === 'already_running') {
-        Alert.alert('Checked In Successfully', 'Daily attendance clocked. Live tracking started.', [
-          { text: 'OK', onPress: () => void promptBatterySettingsOnce() },
-        ]);
-      } else {
-        Alert.alert(
-          'Checked In - Tracking Not Active',
-          'Your attendance was recorded, but continuous location tracking could not start. Please open Settings and set this app\u2019s location access to "Always Allow" so your shift is tracked correctly.'
-        );
-      }
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Check-in failed.');
-    } finally {
-      setBusy(false);
-    }
+  // Check-in runs in CheckInJob so it keeps going if the officer leaves this
+  // screen; this screen only mirrors its progress.
+  const handleCheckIn = () => {
+    void CheckInJob.start();
   };
 
   const handleCheckOut = async () => {
@@ -276,8 +215,13 @@ export default function AttendanceScreen({ navigation }: any) {
       </View>
 
       {loadingStatus ? null : !isCheckedIn ? (
-        <TouchableOpacity style={[styles.btnCheckIn, busy && styles.btnBusy]} onPress={handleCheckIn} disabled={busy}>
-          {busy ? <ActivityIndicator color={color.white} /> : <Text style={styles.btnText}>Clock In (Start Duty)</Text>}
+        <TouchableOpacity style={[styles.btnCheckIn, checkingIn && styles.btnBusy]} onPress={handleCheckIn} disabled={checkingIn}>
+          {checkingIn ? (
+            <View style={{ alignItems: 'center' }}>
+              <ActivityIndicator color={color.white} />
+              <Text style={[styles.btnText, { fontSize: font.body, marginTop: 4 }]}>{stageText[job.stage] || 'Working…'}</Text>
+            </View>
+          ) : <Text style={styles.btnText}>Clock In (Start Duty)</Text>}
         </TouchableOpacity>
       ) : (
         <TouchableOpacity style={[styles.btnCheckOut, busy && styles.btnBusy]} onPress={handleCheckOut} disabled={busy}>
@@ -285,6 +229,11 @@ export default function AttendanceScreen({ navigation }: any) {
         </TouchableOpacity>
       )}
 
+      {checkingIn && (
+        <Text style={{ textAlign: 'center', color: color.textSecondary, marginBottom: 8 }}>
+          You can leave this screen. Check-in will finish in the background.
+        </Text>
+      )}
       <TouchableOpacity style={styles.btnBack} onPress={() => navigation.goBack()}>
         <Text style={styles.btnBackText}>Go Back</Text>
       </TouchableOpacity>
