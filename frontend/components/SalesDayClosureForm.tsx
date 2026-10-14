@@ -128,6 +128,9 @@ export default function SalesDayClosureForm({
   const [customFields, setCustomFields] = useState<any[]>([]);
   const [customFieldAnswers, setCustomFieldAnswers] = useState<Record<string, any>>({});
   const [configVersion, setConfigVersion] = useState<number>(1);
+  // Section titles come from the admin's Day Closure Editor.
+  const [sectionLabels, setSectionLabels] = useState<Record<string, string>>({});
+  const [sectionsLoaded, setSectionsLoaded] = useState(false);
 
   useEffect(() => {
     apiFetch<any[]>("/day-closure-config")
@@ -138,11 +141,19 @@ export default function SalesDayClosureForm({
         setCfgLoaded(true);
       })
       .catch(() => {});
+    apiFetch<any[]>("/day-closure-sections")
+      .then((rows) => {
+        const m: Record<string, string> = {};
+        (rows || []).forEach((r) => { m[r.section_key] = r.label; });
+        setSectionLabels(m);
+        setSectionsLoaded(true);
+      })
+      .catch(() => {});
     apiFetch<any[]>("/enum-options/sales_visit_purpose")
       .then((r) => { if (r?.length) setPurposes(r); }).catch(() => {});
     apiFetch<any[]>("/enum-options/sales_stock_status")
       .then((r) => { if (r?.length) setStockOptions(r); }).catch(() => {});
-    apiFetch<any>("/custom-fields/day_closure").then((res) => {
+    apiFetch<any>("/custom-fields/sales_day_closure").then((res) => {
       setCustomFields(res?.fields || []);
       if (res?.version) setConfigVersion(res.version);
     }).catch(() => {});
@@ -152,6 +163,21 @@ export default function SalesDayClosureForm({
   // never because the fetch failed or hasn't returned yet.
   const visible = (key: string) => !cfgLoaded || key in cfg;
   const label = (key: string, fallback: string) => cfg[key]?.label ?? fallback;
+  const secVisible = (key: string) => !sectionsLoaded || key in sectionLabels;
+  const secLabel = (key: string, fallback: string) => sectionLabels[key] ?? fallback;
+  const BUILT_IN_SECTIONS = ["sales_visit_details", "sales_commercial", "sales_intel", "sales_wrapup"];
+  const customIn = (key: string) => customFields.filter((f) => f.section === key);
+  const customElsewhere = customFields.filter(
+    (f) => !BUILT_IN_SECTIONS.includes(f.section),
+  );
+  const renderCustom = (fields: any[]) =>
+    fields.length > 0 ? (
+      <DynamicFieldRenderer
+        fields={fields}
+        answers={customFieldAnswers}
+        onChange={(key, val) => setCustomFieldAnswers((prev) => ({ ...prev, [key]: val }))}
+      />
+    ) : null;
   const required = (key: string, fallback: boolean) => {
     if (!visible(key)) return false;
     return cfg[key]?.is_required ?? fallback;
@@ -243,7 +269,8 @@ export default function SalesDayClosureForm({
         <div className="p-4 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200">{formError}</div>
       )}
 
-      <Section title={label("__s1", "1. Visit & Dealer Details")}>
+      {secVisible("sales_visit_details") && (
+      <Section title={secLabel("sales_visit_details", "1. Visit & Dealer Details")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {visible("sales_district") && (
             <Field label={label("sales_district", "District")} required={required("sales_district", true)}>
@@ -288,9 +315,12 @@ export default function SalesDayClosureForm({
             </Field>
           )}
         </div>
+        {renderCustom(customIn("sales_visit_details"))}
       </Section>
+      )}
 
-      <Section title="2. Orders & Collection">
+      {secVisible("sales_commercial") && (
+      <Section title={secLabel("sales_commercial", "2. Orders & Collection")}>
         {visible("sales_order_booked") && (
           <Field label={label("sales_order_booked", "Was an Order Booked?")} required={required("sales_order_booked", true)}>
             <YesNo value={orderBooked} onChange={setOrderBooked} />
@@ -316,9 +346,12 @@ export default function SalesDayClosureForm({
             <textarea className={inputCls} rows={2} placeholder="If yes, name and contact details. Otherwise write No." value={newDealerDetails} onChange={(e) => setNewDealerDetails(e.target.value)} />
           </Field>
         )}
+        {renderCustom(customIn("sales_commercial"))}
       </Section>
+      )}
 
-      <Section title="3. Field & Market Intelligence">
+      {secVisible("sales_intel") && (
+      <Section title={secLabel("sales_intel", "3. Field & Market Intelligence")}>
         {visible("sales_fo_review") && (
           <Field label={label("sales_fo_review", "Did You Review/Accompany an FO Field Visit Today?")} required={required("sales_fo_review", true)}>
             <YesNo value={reviewedFoVisit} onChange={setReviewedFoVisit} />
@@ -346,9 +379,12 @@ export default function SalesDayClosureForm({
         <Field label="Stock Left in Dealer's Shop (by product pack)">
           <DealerStockSheet onChange={(lines, problem) => { setStockLines(lines); setStockProblem(problem); }} />
         </Field>
+        {renderCustom(customIn("sales_intel"))}
       </Section>
+      )}
 
-      <Section title="4. Rating & Follow-up">
+      {secVisible("sales_wrapup") && (
+      <Section title={secLabel("sales_wrapup", "4. Rating & Follow-up")}>
         {visible("sales_day_rating") && (
           <Field label={label("sales_day_rating", "Rating of Visit / Day (1-5)")}>
             <div className="flex items-center gap-3">
@@ -380,16 +416,12 @@ export default function SalesDayClosureForm({
             {dealerPhotos.length > 0 && <p className="text-xs text-slate-500 mt-1">{dealerPhotos.length} selected</p>}
           </Field>
         )}
+        {renderCustom(customIn("sales_wrapup"))}
       </Section>
+      )}
 
-      {customFields.length > 0 && (
-        <Section title="Additional Information">
-          <DynamicFieldRenderer
-            fields={customFields}
-            answers={customFieldAnswers}
-            onChange={(key, val) => setCustomFieldAnswers((prev) => ({ ...prev, [key]: val }))}
-          />
-        </Section>
+      {customElsewhere.length > 0 && (
+        <Section title="Additional Information">{renderCustom(customElsewhere)}</Section>
       )}
 
       <button

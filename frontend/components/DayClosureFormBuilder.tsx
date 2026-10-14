@@ -19,6 +19,7 @@ type FieldConfig = {
   visible_to_sales_officer: boolean;
   default_value: string | null;
   backend_required: boolean;
+  is_deleted?: boolean;
   updated_at: string;
 };
 
@@ -64,6 +65,7 @@ type Section = {
   label: string;
   display_order: number;
   is_original: boolean;
+  form_kind?: string;
 };
 
 // Admin's Page Builder for the Day Closure / Daily Visit Tracker form.
@@ -79,6 +81,12 @@ type Section = {
 // refusal to let them be turned off - communicated proactively rather
 // than letting the admin hit an error after the fact.
 export default function DayClosureFormBuilder({ onClose }: { onClose: () => void }) {
+  // Two separate forms: the Field Officer form (farmers) and the Sales
+  // Officer form (dealers). Each has its own fields, sections, added fields
+  // and its own Restore defaults.
+  const [formKind, setFormKind] = useState<"farm" | "sales">("farm");
+  const customFormKey = formKind === "sales" ? "sales_day_closure" : "day_closure";
+  const belongsToForm = (key: string) => (formKind === "sales" ? key.startsWith("sales_") : !key.startsWith("sales_"));
   const [savedConfig, setSavedConfig] = useState<FieldConfig[]>([]);
   const [draft, setDraft] = useState<FieldConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +114,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
 
   const fetchCustomFields = async () => {
     try {
-      const data: any = await apiFetch("/admin/custom-fields/day_closure");
+      const data: any = await apiFetch(`/admin/custom-fields/${customFormKey}`);
       setCustomFields(data?.fields || []);
       setSavedCustomFields(data?.fields || []);
     } catch (err) {
@@ -134,7 +142,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
   const fetchSections = async () => {
     try {
       const data: any = await apiFetch("/day-closure-sections");
-      setSections((data || []).slice().sort((a: Section, b: Section) => a.display_order - b.display_order));
+      setSections((data || []).filter((x: Section) => (x.form_kind || "farm") === formKind).sort((a: Section, b: Section) => a.display_order - b.display_order));
     } catch (err: any) {
       setSectionError(err.message || "Failed to load sections.");
     }
@@ -147,7 +155,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
     }
     setSectionError("");
     try {
-      await apiFetch("/admin/day-closure-sections", { method: "POST", body: JSON.stringify({ label: newSectionLabel.trim() }) });
+      await apiFetch("/admin/day-closure-sections", { method: "POST", body: JSON.stringify({ label: newSectionLabel.trim(), form: formKind }) });
       setNewSectionLabel("");
       setAddingSection(false);
       await fetchSections();
@@ -217,7 +225,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
     }
     setCustomFieldError("");
     try {
-      await apiFetch(`/admin/custom-fields/day_closure`, {
+      await apiFetch(`/admin/custom-fields/${customFormKey}`, {
         method: "POST",
         body: JSON.stringify({
           section,
@@ -241,7 +249,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
   const handleDeleteCustomField = async (fieldKey: string) => {
     if (!window.confirm("Remove this custom field? Past answers already submitted for it are kept, just no longer collected going forward.")) return;
     try {
-      await apiFetch(`/admin/custom-fields/day_closure/${fieldKey}`, { method: "DELETE" });
+      await apiFetch(`/admin/custom-fields/${customFormKey}/${fieldKey}`, { method: "DELETE" });
       await fetchCustomFields();
     } catch (err: any) {
       setCustomFieldError(err.message || "Failed to remove field.");
@@ -402,7 +410,9 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
     setError("");
     try {
       const data: any = await apiFetch("/admin/day-closure-config");
-      const sorted = (data || []).slice().sort((a: FieldConfig, b: FieldConfig) => a.display_order - b.display_order);
+      const sorted = (data || [])
+        .filter((f: FieldConfig) => !f.is_deleted && belongsToForm(f.field_key))
+        .sort((a: FieldConfig, b: FieldConfig) => a.display_order - b.display_order);
       // savedConfig and draft must be genuinely independent copies, not
       // the same array/object references - moveField below swaps
       // display_order by creating new objects (not mutating in place),
@@ -430,10 +440,24 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
   };
 
   useEffect(() => {
+    setSaveMessage("");
+    setPreviewMode(null);
     fetchConfig();
     fetchCustomFields();
     fetchSections();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formKind]);
+
+  const handleDeleteField = async (field: FieldConfig) => {
+    if (!window.confirm(`Delete "${field.label}" from the ${formKind === "sales" ? "Sales" : "Field"} Officer form? Officers will no longer see it. "Restore defaults" brings it back.`)) return;
+    try {
+      await apiFetch(`/admin/day-closure-config/${field.field_key}`, { method: "DELETE" });
+      await fetchConfig();
+      setSaveMessage(`Deleted "${field.label}".`);
+    } catch (err: any) {
+      setSaveMessage(err.message || "Could not delete this field.");
+    }
+  };
 
   const updateField = (fieldKey: string, changes: Partial<FieldConfig>) => {
     setDraft((prev) => prev.map((f) => (f.field_key === fieldKey ? { ...f, ...changes } : f)));
@@ -509,13 +533,13 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
   const [restoring, setRestoring] = useState(false);
   const handleRestoreDefaults = async () => {
     const confirmed = window.confirm(
-      "Reset the Day Closure form to its default configuration? This discards every label, order, requirement, and visibility change ever made — officers will see the original form again."
+      `Restore the ${formKind === "sales" ? "Sales Officer" : "Field Officer"} day closure to its original form? Every rename, deletion, added field and change on THIS form is undone. Answers already submitted are kept.`
     );
     if (!confirmed) return;
     setRestoring(true);
     setSaveMessage("");
     try {
-      await apiFetch("/admin/day-closure-config/restore-defaults", { method: "POST" });
+      await apiFetch(`/admin/day-closure-config/restore-defaults?form=${formKind}`, { method: "POST" });
       // Restore also removes admin-created custom fields, so both lists
       // must be refetched - previously only the real-field config was,
       // leaving deleted custom fields still visible on screen under a
@@ -579,7 +603,7 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
       });
 
       for (const cf of changedCustomFields) {
-        await apiFetch(`/admin/custom-fields/day_closure/${cf.field_key}`, {
+        await apiFetch(`/admin/custom-fields/${customFormKey}/${cf.field_key}`, {
           method: "PUT",
           body: JSON.stringify({
             label: cf.label,
@@ -622,10 +646,22 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full my-8 max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Day Closure Form Builder</h2>
+            <h2 className="text-lg font-bold text-slate-800">Day Closure Editor</h2>
             <p className="text-xs text-slate-400 mt-0.5">Configure labels, requirements, order, and per-role visibility. Changes apply the moment you save.</p>
           </div>
           <button onClick={handleRequestClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="px-6 pt-3 border-b border-slate-100 flex items-center gap-2 flex-shrink-0">
+          {(["farm", "sales"] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => { if (k !== formKind && (!hasChanges || window.confirm("You have unsaved changes. Switch form without saving?"))) setFormKind(k); }}
+              className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 ${formKind === k ? "border-green-700 text-green-800" : "border-transparent text-slate-400 hover:text-slate-700"}`}
+            >
+              {k === "farm" ? "Field Officer form (farmers)" : "Sales Officer form (dealers)"}
+            </button>
+          ))}
         </div>
 
         <div className="px-6 py-3 border-b border-slate-100 flex items-center gap-2 flex-shrink-0">
@@ -838,6 +874,15 @@ export default function DayClosureFormBuilder({ onClose }: { onClose: () => void
                               </p>
                             )}
                           </div>
+                          {!field.backend_required && (
+                            <button
+                              onClick={() => handleDeleteField(field)}
+                              className="text-red-400 hover:text-red-600 text-xs font-bold px-2 pt-1 self-start"
+                              title="Delete this field from the form"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

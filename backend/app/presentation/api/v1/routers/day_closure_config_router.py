@@ -52,7 +52,7 @@ router = APIRouter(tags=["day-closure-config"])
 _SELECT_COLUMNS = (
     "id, field_key, section, label, placeholder, help_text, field_type, is_required, "
     "is_enabled, display_order, visible_to_field_officer, visible_to_sales_officer, "
-    "default_value, backend_required, updated_at"
+    "default_value, backend_required, is_deleted, updated_at"
 )
 
 
@@ -63,7 +63,8 @@ def _row_to_response(row) -> FieldConfigResponse:
         is_required=row.is_required, is_enabled=row.is_enabled, display_order=row.display_order,
         visible_to_field_officer=row.visible_to_field_officer,
         visible_to_sales_officer=row.visible_to_sales_officer,
-        default_value=row.default_value, backend_required=row.backend_required, updated_at=row.updated_at,
+        default_value=row.default_value, backend_required=row.backend_required,
+        is_deleted=row.is_deleted, updated_at=row.updated_at,
     )
 
 
@@ -84,7 +85,7 @@ async def get_my_day_closure_config(
         if current_user.role == "field_officer" else ""
     )
     result = await session.execute(
-        text(f"SELECT {_SELECT_COLUMNS} FROM day_closure_field_configs WHERE is_enabled = true {where_role} ORDER BY display_order")
+        text(f"SELECT {_SELECT_COLUMNS} FROM day_closure_field_configs WHERE is_enabled = true AND is_deleted = false {where_role} ORDER BY display_order")
     )
     return [_row_to_response(row) for row in result.all()]
 
@@ -124,53 +125,89 @@ async def admin_reorder_day_closure_config(
 async def admin_restore_day_closure_defaults(
     current_user: Annotated[CurrentUserOutput, Depends(require_role(Role.ADMIN))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    form: str = "farm",
 ) -> list[FieldConfigResponse]:
-    """Resets every field back to the values in
-    day_closure_field_config_defaults (populated once, at migration
-    time, from the same seed list that created day_closure_field_configs
-    itself - see that migration's docstring). Only resets the
-    admin-editable columns; id/created_at are untouched, so this is a
-    genuine reset of configuration, not a delete-and-recreate."""
+    """Puts ONE form (farm = Field Officer, sales = Sales Officer) back to
+    the original: every built-in field gets its default label, order and
+    required-ness and is un-deleted, and fields the admin added to that form
+    are removed. Answers already submitted are kept."""
+    if form not in ("farm", "sales"):
+        raise HTTPException(status_code=400, detail="form must be 'farm' or 'sales'.")
+    key_filter = "c.field_key LIKE 'sales\\_%'" if form == "sales" else "c.field_key NOT LIKE 'sales\\_%'"
     await session.execute(
-        text("""
+        text(f"""
             UPDATE day_closure_field_configs c
             SET label = d.label, placeholder = d.placeholder, help_text = NULL,
                 field_type = d.field_type, is_required = d.is_required, is_enabled = true,
+                is_deleted = false,
                 display_order = d.display_order, visible_to_field_officer = true,
                 visible_to_sales_officer = true, default_value = NULL,
                 updated_by = :uid, updated_at = now()
             FROM day_closure_field_config_defaults d
-            WHERE c.field_key = d.field_key
+            WHERE c.field_key = d.field_key AND {key_filter}
         """).bindparams(uid=current_user.user_id)
     )
-    # BUG FIX: previously this reset only day_closure_field_configs, so
-    # admin-created CUSTOM fields survived a "Restore Defaults" and the
-    # form was demonstrably not back at its default state - the message
-    # said "Restored to default configuration" while an added field was
-    # still sitting there.
-    #
-    # Soft-deleted rather than hard-deleted, consistent with the custom
-    # field delete endpoint: answers already submitted against these
-    # fields are kept, they simply stop being collected.
+    form_key = "sales_day_closure" if form == "sales" else "day_closure"
+    await session.execute(
+        text("UPDATE day_closure_sections SET is_deleted = false, label = COALESCE(default_label, label), display_order = COALESCE(default_order, display_order) WHERE is_original = true AND form_kind = :f")
+        .bindparams(f=form)
+    )
+    await session.execute(
+        text("DELETE FROM day_closure_sections WHERE is_original = false AND form_kind = :f").bindparams(f=form)
+    )
     removed = await session.execute(
         text("""
             UPDATE custom_field_definitions
             SET is_deleted = true, updated_by = :uid, updated_at = now()
-            WHERE form_key = 'day_closure' AND is_deleted = false
+            WHERE form_key = :fk AND is_deleted = false
             RETURNING field_key
-        """).bindparams(uid=current_user.user_id)
+        """).bindparams(uid=current_user.user_id, fk=form_key)
     )
     removed_keys = [r.field_key for r in removed.all()]
 
     await write_audit_log(
         session, user_id=current_user.user_id, event_type="admin_day_closure_config_restore_defaults",
-        description="Admin restored Day Closure form to default configuration",
-        context_data={"custom_fields_removed": removed_keys},
+        description=f"Admin restored the {form} Day Closure form to its default configuration",
+        context_data={"form": form, "custom_fields_removed": removed_keys},
     )
-    await _bump_config_version(session)
+    await _bump_config_version(session, form_key)
     await session.commit()
     result = await session.execute(text(f"SELECT {_SELECT_COLUMNS} FROM day_closure_field_configs ORDER BY display_order"))
     return [_row_to_response(row) for row in result.all()]
+
+
+@router.delete("/admin/day-closure-config/{field_key}", response_model=FieldConfigResponse)
+async def admin_delete_day_closure_field(
+    field_key: str,
+    current_user: Annotated[CurrentUserOutput, Depends(require_role(Role.ADMIN))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> FieldConfigResponse:
+    """Removes a built-in field from the officers' form. Soft delete: the
+    row stays so Restore defaults can bring it back and old answers still
+    display. Fields the backend cannot work without are refused."""
+    existing = await session.execute(
+        text(f"SELECT {_SELECT_COLUMNS} FROM day_closure_field_configs WHERE field_key = :key").bindparams(key=field_key)
+    )
+    row = existing.first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Field not found.")
+    if row.backend_required:
+        raise HTTPException(status_code=400, detail=f'"{row.label}" is needed by the app and cannot be deleted. You can rename it.')
+    await session.execute(
+        text("UPDATE day_closure_field_configs SET is_deleted = true, updated_by = :uid, updated_at = now() WHERE field_key = :key")
+        .bindparams(uid=current_user.user_id, key=field_key)
+    )
+    await write_audit_log(
+        session, user_id=current_user.user_id, event_type="admin_day_closure_field_delete",
+        description=f"Admin deleted Day Closure field '{field_key}'",
+        context_data={"field_key": field_key},
+    )
+    await _bump_config_version(session, "sales_day_closure" if field_key.startswith("sales_") else "day_closure")
+    await session.commit()
+    updated = await session.execute(
+        text(f"SELECT {_SELECT_COLUMNS} FROM day_closure_field_configs WHERE field_key = :key").bindparams(key=field_key)
+    )
+    return _row_to_response(updated.first())
 
 
 @router.put("/admin/day-closure-config/{field_key}", response_model=FieldConfigResponse)
@@ -228,7 +265,7 @@ async def admin_update_day_closure_config(
 # zero backend_required ones) - in practice this means only sections
 # created via "Add Section" can ever be deleted.
 
-_SECTION_SELECT = "id, section_key, label, display_order, is_original"
+_SECTION_SELECT = "id, section_key, label, display_order, is_original, form_kind"
 
 
 def _slugify_section(label: str) -> str:
@@ -245,7 +282,7 @@ async def get_day_closure_sections(
     Admin renaming/reordering/adding a section reflects on the officer
     form without a code change, same principle as the field config
     itself."""
-    result = await session.execute(text(f"SELECT {_SECTION_SELECT} FROM day_closure_sections ORDER BY display_order"))
+    result = await session.execute(text(f"SELECT {_SECTION_SELECT} FROM day_closure_sections WHERE is_deleted = false ORDER BY display_order"))
     return [SectionResponse(**dict(row._mapping)) for row in result.all()]
 
 
@@ -271,9 +308,9 @@ async def admin_create_section(
     new_id = uuid.uuid4()
     await session.execute(
         text("""
-            INSERT INTO day_closure_sections (id, section_key, label, display_order, is_original, created_by, updated_by)
-            VALUES (:id, :key, :label, :order, false, :uid, :uid)
-        """).bindparams(id=new_id, key=section_key, label=payload.label, order=next_order, uid=current_user.user_id)
+            INSERT INTO day_closure_sections (id, section_key, label, display_order, is_original, form_kind, created_by, updated_by)
+            VALUES (:id, :key, :label, :order, false, :form, :uid, :uid)
+        """).bindparams(form=('sales' if payload.form == 'sales' else 'farm'), id=new_id, key=section_key, label=payload.label, order=next_order, uid=current_user.user_id)
     )
     await write_audit_log(
         session, user_id=current_user.user_id, event_type="admin_day_closure_section_add",
@@ -300,7 +337,7 @@ async def admin_reorder_sections(
         )
     await _bump_config_version(session)
     await session.commit()
-    result = await session.execute(text(f"SELECT {_SECTION_SELECT} FROM day_closure_sections ORDER BY display_order"))
+    result = await session.execute(text(f"SELECT {_SECTION_SELECT} FROM day_closure_sections WHERE is_deleted = false ORDER BY display_order"))
     return [SectionResponse(**dict(row._mapping)) for row in result.all()]
 
 
@@ -346,20 +383,30 @@ async def admin_delete_section(
     if not existing.first():
         raise HTTPException(status_code=404, detail="Section not found.")
 
-    real_field_count = await session.execute(
-        text("SELECT COUNT(*) AS cnt FROM day_closure_field_configs WHERE section = :key").bindparams(key=section_key)
+    locked = await session.execute(
+        text("SELECT COUNT(*) AS cnt FROM day_closure_field_configs WHERE section = :key AND backend_required = true AND is_deleted = false")
+        .bindparams(key=section_key)
     )
-    if real_field_count.first().cnt > 0:
+    if locked.first().cnt > 0:
         raise HTTPException(
             status_code=400,
-            detail="This section contains real form fields tied to the backend and cannot be deleted - only sections made entirely of custom fields (or empty sections) can be removed.",
+            detail="This section holds fields the app cannot work without, so it cannot be deleted. You can rename it, or delete its other fields.",
         )
-
+    # Everything else in the section goes with it (Restore defaults brings it back).
     await session.execute(
-        text("UPDATE custom_field_definitions SET is_deleted = true, updated_by = :uid, updated_at = now() WHERE form_key = 'day_closure' AND section = :key")
+        text("UPDATE day_closure_field_configs SET is_deleted = true, updated_by = :uid, updated_at = now() WHERE section = :key")
         .bindparams(uid=current_user.user_id, key=section_key)
     )
-    await session.execute(text("DELETE FROM day_closure_sections WHERE section_key = :key").bindparams(key=section_key))
+    await session.execute(
+        text("UPDATE custom_field_definitions SET is_deleted = true, updated_by = :uid, updated_at = now() WHERE form_key IN ('day_closure','sales_day_closure') AND section = :key")
+        .bindparams(uid=current_user.user_id, key=section_key)
+    )
+    # Original sections are only hidden so Restore defaults can bring them back.
+    await session.execute(
+        text("UPDATE day_closure_sections SET is_deleted = true WHERE section_key = :key AND is_original = true")
+        .bindparams(key=section_key)
+    )
+    await session.execute(text("DELETE FROM day_closure_sections WHERE section_key = :key AND is_original = false").bindparams(key=section_key))
     await write_audit_log(
         session, user_id=current_user.user_id, event_type="admin_day_closure_section_delete",
         description=f"Admin deleted Day Closure section '{section_key}'",

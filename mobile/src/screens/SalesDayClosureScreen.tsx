@@ -105,7 +105,7 @@ export default function SalesDayClosureScreen({ navigation }: any) {
   const [cfgLoaded, setCfgLoaded] = useState(false);
 
   useEffect(() => {
-    apiClient.request('/custom-fields/day_closure', 'GET', 'task_action')
+    apiClient.request('/custom-fields/sales_day_closure', 'GET', 'task_action')
       .then((res: any) => {
         setCustomFields(res?.fields || []);
         if (res?.version) setConfigVersion(res.version);

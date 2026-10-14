@@ -19,6 +19,7 @@ class FieldConfigResponse(BaseModel):
     visible_to_sales_officer: bool
     default_value: Optional[str] = None
     backend_required: bool
+    is_deleted: bool = False
     updated_at: datetime
 
 
@@ -50,10 +51,12 @@ class SectionResponse(BaseModel):
     label: str
     display_order: int
     is_original: bool
+    form_kind: str = "farm"
 
 
 class SectionCreateRequest(BaseModel):
     label: str
+    form: str = "farm"
 
 
 class SectionUpdateRequest(BaseModel):

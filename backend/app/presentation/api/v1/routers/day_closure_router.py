@@ -670,7 +670,7 @@ async def submit_sales_day_closure(
     from app.application.services.custom_field_service import validate_and_save_custom_answers
     await validate_and_save_custom_answers(
         session=session,
-        form_key="day_closure",
+        form_key="sales_day_closure",
         record_id=closure_id,
         answers=payload.custom_field_answers,
         client_version=payload.config_version,

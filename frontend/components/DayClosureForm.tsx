@@ -72,7 +72,8 @@ const DEMO_STAGES_FALLBACK = [
   { value: "converted", label: "Converted to paid purchase" },
 ];
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, hidden }: { title: string; children: React.ReactNode; hidden?: boolean }) {
+  if (hidden) return null;
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-4">
       <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{title}</h3>
@@ -198,16 +199,19 @@ export default function DayClosureForm({
   // as field config: a fetch failure or a section this build predates
   // falls back to the original hardcoded title, never a blank header.
   const [sectionLabels, setSectionLabels] = useState<Record<string, string>>({});
+  const [sectionsLoaded, setSectionsLoaded] = useState(false);
   useEffect(() => {
     apiFetch<any[]>("/day-closure-sections")
       .then((rows) => {
         const map: Record<string, string> = {};
         (rows || []).forEach((r) => { map[r.section_key] = r.label; });
         setSectionLabels(map);
+        setSectionsLoaded(true);
       })
       .catch(() => {});
   }, []);
   const sectionTitle = (key: string, fallback: string) => sectionLabels[key] ?? fallback;
+  const sectionGone = (key: string) => sectionsLoaded && !(key in sectionLabels);
 
   // Admin-manageable option lists (migration 202608260010) - fetched
   // live so an Admin's Manage Options changes (add/relabel/deactivate)
@@ -454,7 +458,7 @@ export default function DayClosureForm({
         <div className="p-4 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200">{formError}</div>
       )}
 
-      <Section title={sectionTitle("basic_visit_details", "1. Basic Visit Details")}>
+      <Section hidden={sectionGone("basic_visit_details")} title={sectionTitle("basic_visit_details", "1. Basic Visit Details")}>
         <div className="flex gap-2">
           <button type="button" onClick={() => setIsNewFarmer(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${isNewFarmer ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>New Farmer</button>
           <button type="button" onClick={() => setIsNewFarmer(false)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${!isNewFarmer ? "bg-green-700 text-white" : "bg-slate-100 text-slate-600"}`}>Existing Farmer</button>
@@ -517,7 +521,7 @@ export default function DayClosureForm({
         )}
       </Section>
 
-      <Section title={sectionTitle("crop_farming_profile", "2. Crop & Farming Profile")}>
+      <Section hidden={sectionGone("crop_farming_profile")} title={sectionTitle("crop_farming_profile", "2. Crop & Farming Profile")}>
         <div className="grid grid-cols-3 gap-4">
           <Field label="Crop Category" required>
             <select className={inputCls} value={cropCategoryId} onChange={(e) => { setCropCategoryId(e.target.value); setCropId(""); setVarietyId(""); }}>
@@ -567,7 +571,7 @@ export default function DayClosureForm({
         </Field>
       </Section>
 
-      <Section title={sectionTitle("farm_practices_inputs", "3. Farm Practices & Inputs")}>
+      <Section hidden={sectionGone("farm_practices_inputs")} title={sectionTitle("farm_practices_inputs", "3. Farm Practices & Inputs")}>
         <Field label="NPK Dosage (N / P / K, kg)">
           <div className="grid grid-cols-3 gap-2">
             <input type="number" className={inputCls} placeholder="N" value={npkN} onChange={(e) => setNpkN(e.target.value)} />
@@ -587,7 +591,7 @@ export default function DayClosureForm({
         </Field>
       </Section>
 
-      <Section title={sectionTitle("crop_health_diagnosis", "4. Crop Health & Pest Diagnosis")}>
+      <Section hidden={sectionGone("crop_health_diagnosis")} title={sectionTitle("crop_health_diagnosis", "4. Crop Health & Pest Diagnosis")}>
         <Field label="Present Health Status" required>
           <select className={inputCls} value={cropStatus} onChange={(e) => setCropStatus(e.target.value)}>
             {cropStatuses.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -615,7 +619,7 @@ export default function DayClosureForm({
         </Field>
       </Section>
 
-      <Section title={sectionTitle("business_demo_tracking", "5. Business & Demo Tracking")}>
+      <Section hidden={sectionGone("business_demo_tracking")} title={sectionTitle("business_demo_tracking", "5. Business & Demo Tracking")}>
         <Field label="Visit Purpose" required>
           <select className={inputCls} value={visitPurpose} onChange={(e) => setVisitPurpose(e.target.value)}>
             {VISIT_PURPOSES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
