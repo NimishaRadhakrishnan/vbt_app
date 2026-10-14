@@ -74,6 +74,14 @@ async def test_location_ping_and_active() -> None:
         me_response = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {access_token}"})
         user_id = me_response.json()["id"]
 
+        # 2b. Positions are only recorded between check-in and check-out, so
+        # the officer must be checked in first.
+        async with engine.begin() as conn:
+            await conn.execute(
+                text("INSERT INTO attendance (user_id, date, check_in_time, check_in_location, check_in_device_id) VALUES (:u, CURRENT_DATE, now(), ST_GeogFromText('POINT(78.9 12.3)'), 'test-device')"),
+                {"u": user_id},
+            )
+
         # 3. Send location ping
         ping_response = await client.post(
             "/api/v1/location/ping",

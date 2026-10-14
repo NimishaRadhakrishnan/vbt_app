@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 
+from app.domain.exceptions.domain_exceptions import BusinessRuleViolationException
 from app.infrastructure.config.settings import get_settings
 from app.infrastructure.database.session import AsyncSessionLocal
 
@@ -24,7 +25,7 @@ async def purge_old_gps(days: int | None = None) -> dict[str, int]:
     older than `days` (default: settings.gps_retention_days). Returns counts."""
     keep_days = days if days is not None else get_settings().gps_retention_days
     if keep_days < 1:
-        raise ValueError("gps_retention_days must be at least 1")
+        raise BusinessRuleViolationException("gps_retention_days must be at least 1")
     cutoff = datetime.now(UTC) - timedelta(days=keep_days)
 
     counts = {"gps_tracks": 0, "officer_locations": 0, "location_alerts": 0}
@@ -65,7 +66,7 @@ async def purge_old_closures(days: int | None = None) -> dict[str, int]:
 
     keep_days = days if days is not None else get_settings().closure_retention_days
     if keep_days < 1:
-        raise ValueError("closure_retention_days must be at least 1")
+        raise BusinessRuleViolationException("closure_retention_days must be at least 1")
     cutoff_day = (datetime.now(UTC) - timedelta(days=keep_days)).date()
 
     counts = {"day_closures": 0, "photos": 0}

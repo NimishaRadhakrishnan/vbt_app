@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from app.domain.exceptions.domain_exceptions import BusinessRuleViolationException
 
 from app.application.services import gps_retention as gr
 
@@ -53,5 +54,5 @@ def test_cutoff_is_sixty_days_by_default(monkeypatch):
 
 
 def test_zero_days_is_refused():
-    with pytest.raises(ValueError):
+    with pytest.raises(BusinessRuleViolationException):
         asyncio.run(gr.purge_old_gps(days=0))
