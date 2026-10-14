@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, ScrollView, TextInput, Image, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -20,9 +20,13 @@ type TrialSelection = {
 export default function VisitScreen({ navigation }: any) {
   const [inVisit, setInVisit] = useState(false);
   const [startTime, setStartTime] = useState<string | null>(null);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  // Several photos per visit: each is uploaded as soon as it is taken.
+  type VisitPhoto = { uri: string; url: string | null; failed?: boolean };
+  const [photos, setPhotos] = useState<VisitPhoto[]>([]);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const uploadingPhoto = uploadingCount > 0;
+  const uploadedUrls = photos.filter((p) => p.url).map((p) => p.url as string);
+  const MAX_PHOTOS = 10;
   const [visitType, setVisitType] = useState<'farmer' | 'dealer'>('farmer');
   const [purpose, setPurpose] = useState('');
 
@@ -72,37 +76,96 @@ export default function VisitScreen({ navigation }: any) {
     setTrialSelections((prev) => prev.map((p) => (p.productId === productId ? { ...p, quantityGiven: value } : p)));
   };
 
-  const handleTakePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Camera Required', 'Camera access is needed to attach a farm photo.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.5 });
-    if (result.canceled || !result.assets?.[0]) return;
-
-    const asset = result.assets[0];
-    setPhotoUri(asset.uri);
-    setUploadedPhotoUrl(null);
-    setUploadingPhoto(true);
+  const uploadAsset = async (uri: string) => {
+    setPhotos((prev) => [...prev, { uri, url: null }]);
+    setUploadingCount((n) => n + 1);
     try {
-      const url = await apiClient.uploadFile('/issues/upload', asset.uri, `visit-${Date.now()}.jpg`, 'image/jpeg');
-      setUploadedPhotoUrl(url);
+      const url = await apiClient.uploadFile('/issues/upload', uri, `visit-${Date.now()}.jpg`, 'image/jpeg');
+      setPhotos((prev) => prev.map((p) => (p.uri === uri ? { ...p, url } : p)));
     } catch (err: any) {
-      Alert.alert('Upload Failed', err.message || 'Could not upload the photo. You can retake it.');
-      setPhotoUri(null);
+      setPhotos((prev) => prev.map((p) => (p.uri === uri ? { ...p, failed: true } : p)));
+      Alert.alert('Upload Failed', err?.message || 'Could not upload the photo. Tap it to try again.');
     } finally {
-      setUploadingPhoto(false);
+      setUploadingCount((n) => Math.max(0, n - 1));
     }
   };
+
+  // Android can restart the app while the camera is open; the photo that was
+  // just taken is waiting here, so pick it up instead of losing it.
+  useEffect(() => {
+    (async () => {
+      try {
+        const pending: any = await (ImagePicker as any).getPendingResultAsync?.();
+        const list = Array.isArray(pending) ? pending : pending?.assets ? pending.assets : [];
+        for (const a of list) if (a?.uri) void uploadAsset(a.uri);
+      } catch {
+        /* nothing pending */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleTakePhoto = async () => {
+    if (photos.length >= MAX_PHOTOS) {
+      Alert.alert('Photo limit', `You can attach up to ${MAX_PHOTOS} photos.`);
+      return;
+    }
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Camera Required', 'Allow camera access in Settings to take a farm photo, or choose one from the gallery.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.5 });
+      if (result.canceled || !result.assets?.[0]) return;
+      await uploadAsset(result.assets[0].uri);
+    } catch (err: any) {
+      Alert.alert('Camera problem', `${err?.message || 'The camera could not be opened.'}\n\nYou can choose a photo from the gallery instead.`);
+    }
+  };
+
+  const handlePickPhotos = async () => {
+    const room = MAX_PHOTOS - photos.length;
+    if (room <= 0) {
+      Alert.alert('Photo limit', `You can attach up to ${MAX_PHOTOS} photos.`);
+      return;
+    }
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Gallery Required', 'Allow photo access in Settings to choose photos.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        quality: 0.5,
+        allowsMultipleSelection: true,
+        selectionLimit: room,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      for (const asset of result.assets.slice(0, room)) await uploadAsset(asset.uri);
+    } catch (err: any) {
+      Alert.alert('Gallery problem', err?.message || 'Could not open the gallery.');
+    }
+  };
+
+  const retryPhoto = async (uri: string) => {
+    setPhotos((prev) => prev.filter((p) => p.uri !== uri));
+    await uploadAsset(uri);
+  };
+
+  const removePhoto = (uri: string) => setPhotos((prev) => prev.filter((p) => p.uri !== uri));
 
   const handleStartVisit = async () => {
     if (!purpose.trim()) {
       Alert.alert('Purpose Required', 'Please describe the purpose of this visit.');
       return;
     }
-    if (!uploadedPhotoUrl) {
-      Alert.alert('Photo Required', 'Please attach a farm photo before starting the visit.');
+    if (uploadingPhoto) {
+      Alert.alert('Please wait', 'Photos are still uploading.');
+      return;
+    }
+    if (uploadedUrls.length === 0) {
+      Alert.alert('Photo Required', 'Please attach at least one farm photo before starting the visit.');
       return;
     }
     if (isTrial && trialSelections.length === 0) {
@@ -127,7 +190,8 @@ export default function VisitScreen({ navigation }: any) {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         purpose: purpose.trim(),
-        photo_url_farm: uploadedPhotoUrl,
+        photo_url_farm: uploadedUrls[0],
+        photo_urls: uploadedUrls,
         is_trial: isTrial,
         trial_products: isTrial
           ? trialSelections.map((p) => ({ product_id: p.productId, quantity_given: Number(p.quantityGiven) }))
@@ -178,8 +242,7 @@ export default function VisitScreen({ navigation }: any) {
       });
 
       setInVisit(false);
-      setPhotoUri(null);
-      setUploadedPhotoUrl(null);
+      setPhotos([]);
       setStartTime(null);
       setPurpose('');
       setIsTrial(false);
@@ -220,16 +283,36 @@ export default function VisitScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.btnAction} onPress={handleTakePhoto} disabled={uploadingPhoto}>
-            {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-            ) : (
-              <Ionicons name="camera-outline" size={32} color={color.primary} style={styles.actionIcon} />
-            )}
-            <Text style={styles.actionLabel}>
-              {uploadingPhoto ? 'Uploading...' : uploadedPhotoUrl ? 'Farm Photo Attached ✓ (tap to retake)' : 'Take Farm Photo'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.photoButtons}>
+            <TouchableOpacity style={[styles.btnAction, styles.photoButton]} onPress={handleTakePhoto}>
+              <Ionicons name="camera-outline" size={28} color={color.primary} style={styles.actionIcon} />
+              <Text style={styles.actionLabel}>Take Photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btnAction, styles.photoButton]} onPress={handlePickPhotos}>
+              <Ionicons name="images-outline" size={28} color={color.primary} style={styles.actionIcon} />
+              <Text style={styles.actionLabel}>From Gallery</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.photoHint}>
+            {uploadingPhoto
+              ? 'Uploading...'
+              : photos.length === 0
+                ? 'Add one or more farm photos (up to 10).'
+                : `${uploadedUrls.length} photo${uploadedUrls.length === 1 ? '' : 's'} attached. Tap a failed one to retry.`}
+          </Text>
+          {photos.length > 0 && (
+            <ScrollView horizontal style={styles.photoStrip} showsHorizontalScrollIndicator={false}>
+              {photos.map((p) => (
+                <TouchableOpacity key={p.uri} onPress={() => (p.failed ? retryPhoto(p.uri) : undefined)} style={styles.thumbWrap}>
+                  <Image source={{ uri: p.uri }} style={[styles.thumb, !p.url && !p.failed && { opacity: 0.5 }]} />
+                  {p.failed && <Text style={styles.thumbFailed}>Retry</Text>}
+                  <TouchableOpacity onPress={() => removePhoto(p.uri)} style={styles.thumbRemove} hitSlop={8}>
+                    <Ionicons name="close-circle" size={20} color={color.error} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
 
           <TextInput
             style={styles.purposeInput}
@@ -532,6 +615,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     marginBottom: spacing.xxl,
   },
+  photoButtons: { flexDirection: 'row', gap: 10 },
+  photoButton: { flex: 1 },
+  photoHint: { fontSize: font.caption, color: color.textSecondary, marginTop: 6, marginBottom: 6 },
+  photoStrip: { marginBottom: 10 },
+  thumbWrap: { marginRight: 8 },
+  thumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: color.borderLight },
+  thumbFailed: { position: 'absolute', bottom: 4, left: 4, right: 4, textAlign: 'center', fontSize: 11, color: '#fff', backgroundColor: 'rgba(160,30,30,0.85)', borderRadius: 4 },
+  thumbRemove: { position: 'absolute', top: -6, right: -6, backgroundColor: '#fff', borderRadius: 10 },
   btnAction: {
     width: '100%',
     backgroundColor: color.screenBg,

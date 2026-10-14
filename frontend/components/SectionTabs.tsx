@@ -131,3 +131,16 @@ export default function SectionTabs({ dashboardTab, onSelectDashboardTab, showSe
     </div>
   );
 }
+
+
+/** Keeps the open tab in the address bar so refreshing stays on it. */
+export function rememberPageTab(tab: string): void {
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("tab") === tab) return;
+    url.searchParams.set("tab", tab);
+    window.history.replaceState(null, "", url.toString());
+  } catch {
+    /* address bar update is a convenience only */
+  }
+}

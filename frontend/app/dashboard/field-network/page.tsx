@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth-context";
-import SectionTabs, { usePageTab } from "@/components/SectionTabs";
+import SectionTabs, { usePageTab, rememberPageTab } from "@/components/SectionTabs";
 
 type SubTab = "farmers" | "dealers";
 
@@ -23,6 +23,7 @@ export default function FieldNetworkPage() {
 
   const [subTab, setSubTab] = useState<SubTab>("farmers");
   const pageTab = usePageTab();
+  useEffect(() => { rememberPageTab(subTab); }, [subTab]);
   useEffect(() => {
     if (pageTab === "farmers" || pageTab === "dealers") setSubTab(pageTab);
   }, [pageTab]);

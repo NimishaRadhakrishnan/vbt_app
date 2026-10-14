@@ -261,6 +261,7 @@ const styles = StyleSheet.create({
     borderBottomColor: color.borderLight,
   },
   menuLabel: {
+    flex: 1, // fill the row so a long label is never clipped
     fontSize: font.subtitle,
     color: color.textPrimary,
   },

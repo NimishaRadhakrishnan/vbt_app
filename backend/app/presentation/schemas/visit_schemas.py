@@ -35,6 +35,8 @@ class StartVisitRequest(BaseModel):
     dealer_id: Optional[uuid.UUID] = None
     photo_url_farmer: Optional[str] = None
     photo_url_farm: Optional[str] = None
+    # Several photos can be attached at the start of a visit.
+    photo_urls: list[str] = Field(default_factory=list, max_length=10)
     crop: Optional[str] = None
     purpose: Optional[str] = None
     products_demonstrated: list[str] = Field(default_factory=list)
@@ -81,6 +83,7 @@ class VisitResponse(BaseModel):
     location_end_lng: Optional[float] = None
     photo_url_farmer: Optional[str] = None
     photo_url_farm: Optional[str] = None
+    photo_urls: list[str] = Field(default_factory=list)
     crop: Optional[str] = None
     purpose: Optional[str] = None
     products_demonstrated: list[str]

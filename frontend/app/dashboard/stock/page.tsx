@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Upload, Download, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth-context";
-import SectionTabs, { usePageTab } from "@/components/SectionTabs";
+import SectionTabs, { usePageTab, rememberPageTab } from "@/components/SectionTabs";
 
 type Product = { id: string; name: string; sku_code: string; unit: string; is_active: boolean };
 type User = { id: string; full_name: string; employee_id: string; role: string; email: string };
@@ -18,6 +18,7 @@ export default function AdminStockPage() {
   
   const [tab, setTab] = useState<"issue"|"recon"|"ledger">("issue");
   const pageTab = usePageTab();
+  useEffect(() => { rememberPageTab(tab); }, [tab]);
   useEffect(() => {
     if (pageTab === "issue" || pageTab === "recon" || pageTab === "ledger") setTab(pageTab);
   }, [pageTab]);

@@ -316,6 +316,26 @@ export default function Dashboard() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  // Clicking anywhere outside the bell / profile menu closes it.
+  const notifBoxRef = useRef<HTMLDivElement>(null);
+  const userMenuBoxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showNotifications && !showUserMenu) return;
+    const close = (e: MouseEvent | TouchEvent) => {
+      const t = e.target as Node;
+      if (notifBoxRef.current && !notifBoxRef.current.contains(t)) setShowNotifications(false);
+      if (userMenuBoxRef.current && !userMenuBoxRef.current.contains(t)) setShowUserMenu(false);
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { setShowNotifications(false); setShowUserMenu(false); } };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [showNotifications, showUserMenu]);
 
   // New Plan Submission Form State
   const [planWeek, setPlanWeek] = useState("");
@@ -1641,6 +1661,19 @@ export default function Dashboard() {
     }
   }, [user, hasSetLandingTab]);
 
+  // Keep the open tab in the address bar so a refresh stays on it.
+  useEffect(() => {
+    if (!user || !hasSetLandingTab) return;
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("tab") === activeTab && !url.searchParams.has("builder")) return;
+      url.searchParams.set("tab", activeTab);
+      url.searchParams.delete("builder");
+      window.history.replaceState(null, "", url.toString());
+      window.sessionStorage.setItem("vbt_last_tab", activeTab);
+    } catch {}
+  }, [activeTab, user, hasSetLandingTab]);
+
   useEffect(() => {
     if (user && activeTab === "users") {
       fetchUsers(isArchivedTab);
@@ -1921,7 +1954,7 @@ export default function Dashboard() {
           </button>
 
           {/* Notification Bell */}
-          <div className="relative">
+          <div className="relative" ref={notifBoxRef}>
             <button 
               onClick={() => {
                 setShowNotifications(!showNotifications);
@@ -1981,7 +2014,7 @@ export default function Dashboard() {
           </div>
 
           {/* User Menu Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={userMenuBoxRef}>
             <button 
               onClick={() => {
                 setShowUserMenu(!showUserMenu);

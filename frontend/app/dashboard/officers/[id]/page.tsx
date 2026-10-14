@@ -10,6 +10,7 @@ import {
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth-context";
 import MomentumWidget from "@/components/MomentumWidget";
+import PhotoGallery from "@/components/PhotoViewer";
 
 type TabKey = "overview" | "activity" | "tasks" | "visits" | "attendance" | "analytics";
 
@@ -291,6 +292,7 @@ export default function OfficerProfilePage() {
                         <th className="p-4">Start</th>
                         <th className="p-4">Duration</th>
                         <th className="p-4">Purpose</th>
+                        <th className="p-4">Photos</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm">
@@ -302,6 +304,13 @@ export default function OfficerProfilePage() {
                             {v.duration_seconds ? `${Math.round(v.duration_seconds / 60)} min` : "In progress"}
                           </td>
                           <td className="p-4 text-slate-500">{v.purpose || "-"}</td>
+                          <td className="p-4">
+                            {(v.photo_urls || []).length > 0 ? (
+                              <PhotoGallery urls={v.photo_urls} name={`visit-${(v.start_time || "").slice(0, 10)}`} />
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

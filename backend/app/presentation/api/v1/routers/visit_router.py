@@ -52,7 +52,7 @@ async def start_visit(
         farmer_id=payload.farmer_id,
         dealer_id=payload.dealer_id,
         photo_url_farmer=payload.photo_url_farmer,
-        photo_url_farm=payload.photo_url_farm,
+        photo_url_farm=payload.photo_url_farm or (payload.photo_urls[0] if payload.photo_urls else None),
         crop=payload.crop,
         purpose=payload.purpose,
         products_demonstrated=payload.products_demonstrated,
@@ -71,7 +71,12 @@ async def start_visit(
                 """
             ).bindparams(visit_id=result.id, product_id=entry.product_id, qty=entry.quantity_given)
         )
-    if trial_products:
+    for photo_url in payload.photo_urls:
+        await session.execute(
+            text("INSERT INTO visit_photos (id, visit_id, url) VALUES (gen_random_uuid(), :vid, :url)")
+            .bindparams(vid=result.id, url=photo_url)
+        )
+    if trial_products or payload.photo_urls:
         await session.commit()
 
     return await _to_response(result, session)
@@ -245,8 +250,16 @@ async def _to_response(visit, session: AsyncSession) -> VisitResponse:
             for row in result.all()
         ]
 
+    photo_rows = await session.execute(
+        text("SELECT url FROM visit_photos WHERE visit_id = :vid ORDER BY created_at, id").bindparams(vid=visit.id)
+    )
+    photo_urls = [r.url for r in photo_rows.all()]
+    if not photo_urls and visit.photo_url_farm:
+        photo_urls = [visit.photo_url_farm]
+
     return VisitResponse(
         id=visit.id,
+        photo_urls=photo_urls,
         user_id=visit.user_id,
         visit_type=visit.visit_type,
         start_time=visit.start_time,
