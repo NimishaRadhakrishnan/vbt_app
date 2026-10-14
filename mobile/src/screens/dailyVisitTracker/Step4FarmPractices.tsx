@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { spacing } from '../../theme';
 import { sharedStyles as styles } from './sharedStyles';
-import { FieldRow, TextInputLike, ChipPicker } from './FormFields';
+import { FieldRow, TextInputLike, ChipPicker, OtherAnswerBox } from './FormFields';
 import { isOtherName, otherLast, OTHER_PLACEHOLDER, type MasterItem } from './types';
 
 type MicronutrientSel = Record<string, { quantity: string; unit: string }>;
@@ -87,7 +87,7 @@ export default function Step4FarmPractices({
                 <Text style={styles.checkLabel}>{m.name}</Text>
               </TouchableOpacity>
               {sel && isOtherName(m.name) && (
-                <TextInputLike value={otherTexts[`micro:${m.id}`] ?? ''} onChangeText={(v) => setOtherText(`micro:${m.id}`, v)} placeholder={OTHER_PLACEHOLDER} />
+                <OtherAnswerBox value={otherTexts[`micro:${m.id}`] ?? ''} onChangeText={(v) => setOtherText(`micro:${m.id}`, v)} placeholder={OTHER_PLACEHOLDER} />
               )}
               {sel && (
                 <View style={styles.inlineRow}>
@@ -128,7 +128,7 @@ export default function Step4FarmPractices({
                 <Text style={styles.checkLabel}>{op.name}</Text>
               </TouchableOpacity>
               {sel && isOtherName(op.name) && (
-                <TextInputLike value={otherTexts[`op:${op.id}`] ?? ''} onChangeText={(v) => setOtherText(`op:${op.id}`, v)} placeholder={OTHER_PLACEHOLDER} />
+                <OtherAnswerBox value={otherTexts[`op:${op.id}`] ?? ''} onChangeText={(v) => setOtherText(`op:${op.id}`, v)} placeholder={OTHER_PLACEHOLDER} />
               )}
               {sel && (
                 <View>
@@ -164,7 +164,7 @@ export default function Step4FarmPractices({
                 <Text style={styles.checkLabel}>{sol.name}</Text>
               </TouchableOpacity>
               {sel && isOtherName(sol.name) && (
-                <TextInputLike value={otherTexts[`org:${sol.id}`] ?? ''} onChangeText={(v) => setOtherText(`org:${sol.id}`, v)} placeholder={OTHER_PLACEHOLDER} />
+                <OtherAnswerBox value={otherTexts[`org:${sol.id}`] ?? ''} onChangeText={(v) => setOtherText(`org:${sol.id}`, v)} placeholder={OTHER_PLACEHOLDER} />
               )}
               {sel && (
                 <View>

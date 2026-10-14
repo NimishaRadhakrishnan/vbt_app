@@ -20,7 +20,6 @@ module.exports = {
   expo: {
     name: IS_DEV ? "VBT One (Dev)" : "VBT One",
     slug: "vishakan-biotech-ffm",
-    owner: "vishakanbiotech",
     version: "1.0.0",
     orientation: "portrait",
     userInterfaceStyle: "light",
@@ -172,7 +171,9 @@ module.exports = {
     extra: {
       apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000/api/v1",
       eas: {
-        projectId: "7c14a884-76fb-42f2-abc2-3ec91480a75f",
+        // Filled in by `eas init`. Kept here so the field is visibly
+        // expected rather than silently missing at first build.
+        projectId: process.env.EAS_PROJECT_ID || undefined,
       },
     },
   },

@@ -3,7 +3,7 @@ import { Text, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { color, spacing } from '../../theme';
 import { sharedStyles as styles } from './sharedStyles';
-import { FieldRow, TextInputLike } from './FormFields';
+import { FieldRow, TextInputLike, OtherAnswerBox } from './FormFields';
 import LinearScaleInput from '../../components/LinearScaleInput';
 import { OTHER_ID, OTHER_PLACEHOLDER, isOtherName, otherLast, withOther, type MasterItem } from './types';
 
@@ -118,7 +118,7 @@ export default function Step5HealthDiagnosis({
             </View>
           )}
           {pestIsOther && (
-            <TextInputLike value={otherTexts.pests ?? ''} onChangeText={(v) => setOtherText('pests', v)} placeholder={OTHER_PLACEHOLDER} />
+            <OtherAnswerBox value={otherTexts.pests ?? ''} onChangeText={(v) => setOtherText('pests', v)} placeholder={OTHER_PLACEHOLDER} />
           )}
 
           <Text style={styles.sectionHeading}>Disease</Text>
@@ -138,7 +138,7 @@ export default function Step5HealthDiagnosis({
             </View>
           )}
           {diseaseIsOther && (
-            <TextInputLike value={otherTexts.diseases ?? ''} onChangeText={(v) => setOtherText('diseases', v)} placeholder={OTHER_PLACEHOLDER} />
+            <OtherAnswerBox value={otherTexts.diseases ?? ''} onChangeText={(v) => setOtherText('diseases', v)} placeholder={OTHER_PLACEHOLDER} />
           )}
 
           <Text style={styles.sectionHeading}>Chemicals Currently in Use</Text>
@@ -156,7 +156,7 @@ export default function Step5HealthDiagnosis({
                     <Text style={styles.checkLabel}>{c.name}</Text>
                   </TouchableOpacity>
                   {sel && c.id === OTHER_ID && (
-                    <TextInputLike value={otherTexts.chemical ?? ''} onChangeText={(v) => setOtherText('chemical', v)} placeholder={OTHER_PLACEHOLDER} />
+                    <OtherAnswerBox value={otherTexts.chemical ?? ''} onChangeText={(v) => setOtherText('chemical', v)} placeholder={OTHER_PLACEHOLDER} />
                   )}
                   {sel && (
                     <View style={styles.inlineRow}>

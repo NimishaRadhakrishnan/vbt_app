@@ -77,3 +77,30 @@ export function TextInputLike({
     />
   );
 }
+
+// Shown when an officer picks "Other": a clearly labelled box to type the
+// answer, focused straight away so it cannot be missed.
+export function OtherAnswerBox({
+  value,
+  onChangeText,
+  placeholder,
+}: {
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <View style={{ marginTop: 8 }}>
+      <Text style={[styles.fieldLabel, { marginBottom: 4 }]}>Other — type your answer</Text>
+      <TextInput
+        style={styles.textInput}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={color.textMuted}
+        autoFocus
+        maxLength={200}
+      />
+    </View>
+  );
+}

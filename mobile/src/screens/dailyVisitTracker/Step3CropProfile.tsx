@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { spacing } from '../../theme';
 import { sharedStyles as styles } from './sharedStyles';
-import { FieldRow, TextInputLike, ChipPicker } from './FormFields';
+import { FieldRow, TextInputLike, ChipPicker, OtherAnswerBox } from './FormFields';
 import { FARMING_TYPES, CROP_AGE_UNITS, OTHER_ID, OTHER_PLACEHOLDER, isOtherName, withOther, type MasterItem, type CropOption, type VarietyOption } from './types';
 
 type Props = {
@@ -81,7 +81,7 @@ export default function Step3CropProfile({
           emptyText="Loading categories…"
         />
         {categoryIsOther && (
-          <TextInputLike value={otherTexts.category ?? ''} onChangeText={(v) => setOtherText('category', v)} placeholder={OTHER_PLACEHOLDER} />
+          <OtherAnswerBox value={otherTexts.category ?? ''} onChangeText={(v) => setOtherText('category', v)} placeholder={OTHER_PLACEHOLDER} />
         )}
       </FieldRow>
 
@@ -97,7 +97,7 @@ export default function Step3CropProfile({
           />
         )}
         {!!selectedCategoryId && cropIsOther && (
-          <TextInputLike value={otherTexts.crop ?? ''} onChangeText={(v) => setOtherText('crop', v)} placeholder={OTHER_PLACEHOLDER} />
+          <OtherAnswerBox value={otherTexts.crop ?? ''} onChangeText={(v) => setOtherText('crop', v)} placeholder={OTHER_PLACEHOLDER} />
         )}
       </FieldRow>
 
@@ -117,7 +117,7 @@ export default function Step3CropProfile({
           />
         )}
         {selectedCropId && varieties.length > 0 && varietyIsOther && (
-          <TextInputLike value={varietyText} onChangeText={setVarietyText} placeholder={OTHER_PLACEHOLDER} />
+          <OtherAnswerBox value={varietyText} onChangeText={setVarietyText} placeholder={OTHER_PLACEHOLDER} />
         )}
       </FieldRow>
 
