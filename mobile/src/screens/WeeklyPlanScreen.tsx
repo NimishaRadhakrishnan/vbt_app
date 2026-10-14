@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { apiClient } from '../services/api';
 import { showSubmitResult } from '../utils/offlineAlert';
 import { dbService } from '../services/db';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { LoadingState, ErrorState, StaleDataBanner } from '../components/FetchStates';
+import { ChipPicker } from './dailyVisitTracker/FormFields';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
 type WeeklyPlan = {
@@ -12,6 +13,8 @@ type WeeklyPlan = {
   week_start_date: string;
   status: string;
   manager_comment?: string | null;
+  end_date?: string | null;
+  summary?: string | null;
 };
 
 // Next Monday, in YYYY-MM-DD - previously this was a fixed hardcoded past
@@ -23,6 +26,41 @@ function nextMondayISO(): string {
   const diff = (8 - day) % 7 || 7;
   d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0, 10);
+}
+
+function addDays(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+function todayISO(): string {
+  return addDays(new Date().toISOString().slice(0, 10), 0);
+}
+
+// Day-by-day date chooser (no date-picker library in this app).
+function DateStepper({ label, value, onChange, min }: { label: string; value: string; onChange: (v: string) => void; min: string }) {
+  const step = (n: number) => {
+    const next = addDays(value, n);
+    if (next >= min) onChange(next);
+  };
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={{ color: color.textSecondary, marginBottom: 6 }}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: color.border, borderRadius: radius.sm, backgroundColor: color.white }}>
+        <TouchableOpacity onPress={() => step(-1)} style={{ padding: 10 }} accessibilityLabel={`${label} earlier`}>
+          <Text style={{ fontSize: 18, color: color.primary, fontWeight: fontWeight.bold }}>‹</Text>
+        </TouchableOpacity>
+        <Text style={{ flex: 1, textAlign: 'center', color: color.textPrimary, fontWeight: fontWeight.bold }}>{value}</Text>
+        <TouchableOpacity onPress={() => step(1)} style={{ padding: 10 }} accessibilityLabel={`${label} later`}>
+          <Text style={{ fontSize: 18, color: color.primary, fontWeight: fontWeight.bold }}>›</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 }
 
 export default function WeeklyPlanScreen({ navigation, embedded }: any) {
@@ -43,6 +81,9 @@ export default function WeeklyPlanScreen({ navigation, embedded }: any) {
   const [myTerritoryId, setMyTerritoryId] = useState<string | null>(null);
   const [territoryError, setTerritoryError] = useState(false);
   const [territories, setTerritories] = useState<any[]>([]);
+  const [startDate, setStartDate] = useState<string>(todayISO());
+  const [endDate, setEndDate] = useState<string>(addDays(todayISO(), 5));
+  const [summary, setSummary] = useState('');
 
   React.useEffect(() => {
     apiClient.request('/plans/my-territories', 'GET', 'task_action')
@@ -85,20 +126,23 @@ export default function WeeklyPlanScreen({ navigation, embedded }: any) {
       );
       return;
     }
+    if (endDate < startDate) {
+      Alert.alert('Check Dates', 'The end date cannot be before the start date.');
+      return;
+    }
+    if (summary.trim().length < 3) {
+      Alert.alert('Description Needed', 'Add a short description of the work you plan to do.');
+      return;
+    }
     try {
       const res = await apiClient.request('/plans/submit', 'POST', 'plan_submit', {
-        week_start_date: nextMondayISO(),
-        activities: [
-          {
-            date: nextMondayISO(),
-            territory_id: myTerritoryId,
-            activity_type: 'Dealer Visit',
-            planned_villages: [],
-            planned_dealers: [],
-          },
-        ],
+        week_start_date: startDate,
+        end_date: endDate,
+        summary: summary.trim(),
+        territory_id: myTerritoryId,
       });
-      showSubmitResult(res, 'Plan Submitted', 'Weekly schedule sent to regional manager for verification.');
+      showSubmitResult(res, 'Plan Submitted', 'Your plan was sent to your manager for approval.');
+      setSummary('');
       refresh();
       refreshPendingCount();
     } catch (err: any) {
@@ -127,29 +171,36 @@ export default function WeeklyPlanScreen({ navigation, embedded }: any) {
       {territories.length > 1 && (
         <View style={{ marginBottom: 12 }}>
           <Text style={{ color: color.textSecondary, marginBottom: 6 }}>Territory / District</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {territories.map((t) => {
-              const on = t.id === myTerritoryId;
-              return (
-                <TouchableOpacity
-                  key={t.id}
-                  onPress={() => setMyTerritoryId(t.id)}
-                  style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: on ? color.primary : color.border, backgroundColor: on ? color.primary : color.white }}
-                >
-                  <Text style={{ color: on ? color.white : color.textSecondary }}>{t.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <ChipPicker
+            options={territories.map((t) => ({ value: t.id, label: t.name }))}
+            value={myTerritoryId}
+            onChange={setMyTerritoryId}
+          />
         </View>
       )}
+
+      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+        <DateStepper label="Start date" value={startDate} min={todayISO()} onChange={(v) => { setStartDate(v); if (endDate < v) setEndDate(v); }} />
+        <DateStepper label="End date" value={endDate} min={startDate} onChange={setEndDate} />
+      </View>
+
+      <Text style={{ color: color.textSecondary, marginBottom: 6 }}>Work description</Text>
+      <TextInput
+        style={{ borderWidth: 1, borderColor: color.border, borderRadius: radius.sm, backgroundColor: color.white, padding: 12, minHeight: 90, textAlignVertical: 'top', marginBottom: 12, color: color.textPrimary }}
+        placeholder="Short description of the work (villages, dealers, demos, collections…)"
+        placeholderTextColor={color.textMuted}
+        multiline
+        maxLength={1000}
+        value={summary}
+        onChangeText={setSummary}
+      />
 
       <TouchableOpacity
         style={[styles.btnSubmit, territoryError && styles.btnSubmitDisabled]}
         onPress={handleSubmitNewPlan}
         disabled={territoryError}
       >
-        <Text style={styles.btnSubmitText}>Submit Plan (week of {nextMondayISO()})</Text>
+        <Text style={styles.btnSubmitText}>Submit Plan</Text>
       </TouchableOpacity>
 
       <Text style={styles.sectionHeader}>Plan Submission History</Text>
@@ -168,7 +219,7 @@ export default function WeeklyPlanScreen({ navigation, embedded }: any) {
         planList.map((p) => (
           <View key={p.id} style={styles.planCard}>
             <View style={styles.row}>
-              <Text style={styles.planWeek}>Week of: {p.week_start_date}</Text>
+              <Text style={styles.planWeek}>{p.week_start_date}{p.end_date ? ` → ${p.end_date}` : ''}</Text>
               <Text style={[
                 styles.planStatus,
                 { color: p.status === 'approved' ? color.success : p.status === 'rejected' ? color.error : color.warning }
@@ -176,6 +227,8 @@ export default function WeeklyPlanScreen({ navigation, embedded }: any) {
                 {p.status.toUpperCase()}
               </Text>
             </View>
+
+            {!!p.summary && <Text style={{ color: color.textSecondary, marginTop: 6 }}>{p.summary}</Text>}
 
             {p.manager_comment && (
               <View style={styles.commentBox}>

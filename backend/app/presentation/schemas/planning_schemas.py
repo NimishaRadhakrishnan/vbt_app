@@ -34,7 +34,13 @@ class WeeklyPlanSubmitRequest(BaseModel):
     def check_week_start_date(cls, v):
         return validate_current_week_or_later(v)
 
-    activities: list[PlanActivityInput] = Field(min_length=1)
+    # New-style submission: a period, a short description and one territory.
+    # One activity per day is generated from these. Older app builds still
+    # send an explicit activities list, which keeps working.
+    end_date: Optional[date] = None
+    summary: Optional[str] = Field(default=None, max_length=1000)
+    territory_id: Optional[uuid.UUID] = None
+    activities: list[PlanActivityInput] = Field(default_factory=list)
 
 
 class PlanApproveRequest(BaseModel):
@@ -70,6 +76,8 @@ class WeeklyPlanResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
     week_start_date: date
+    end_date: Optional[date] = None
+    summary: Optional[str] = None
     status: str
     approved_by: Optional[uuid.UUID] = None
     approved_at: Optional[datetime] = None

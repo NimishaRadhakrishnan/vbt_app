@@ -361,6 +361,8 @@ export default function Dashboard() {
   const [planType, setPlanType] = useState("farmer_visit");
   const [planDescription, setPlanDescription] = useState("");
   const [planVillages, setPlanVillages] = useState("");
+  const [planTerritoryId, setPlanTerritoryId] = useState("");
+  const [planTerritories, setPlanTerritories] = useState<any[]>([]);
   const [planDealers, setPlanDealers] = useState("");
   const [planSuccess, setPlanSuccess] = useState("");
   const [planError, setPlanError] = useState("");
@@ -3244,7 +3246,10 @@ export default function Dashboard() {
                   )}
                   {user?.role !== "admin" && (
                     <button
-                      onClick={() => setShowPlanForm((v) => !v)}
+                      onClick={() => {
+                        setShowPlanForm((v) => !v);
+                        apiFetch<any[]>("/plans/my-territories").then((t) => { setPlanTerritories(t || []); if (t?.length === 1) setPlanTerritoryId(t[0].id); }).catch(() => {});
+                      }}
                       className="flex items-center gap-1.5 px-4 py-2 bg-green-700 hover:bg-green-800 text-white font-bold rounded-lg text-sm transition"
                     >
                       <Plus className="w-4 h-4" /> {showPlanForm ? "Cancel" : "Submit Weekly Plan"}
@@ -3263,20 +3268,27 @@ export default function Dashboard() {
                     setPlanError("");
                     setPlanSuccess("");
                     if (!planWeek || !planDate) {
-                      setPlanError("Week Start Date and Activity Date are required.");
+                      setPlanError("Start date and end date are required.");
+                      return;
+                    }
+                    if (planDate < planWeek) {
+                      setPlanError("End date cannot be before the start date.");
+                      return;
+                    }
+                    if (planDescription.trim().length < 3) {
+                      setPlanError("Add a short description of the planned work.");
+                      return;
+                    }
+                    if (!planTerritoryId) {
+                      setPlanError("Choose a territory / district.");
                       return;
                     }
                     try {
                       const payload = {
                         week_start_date: planWeek,
-                        activities: [{
-                          date: planDate,
-                          territory_id: "00000000-0000-0000-0000-000000000000", // system default territory
-                          activity_type: planType,
-                          planned_villages: planVillages.split(",").map(v => v.trim()).filter(Boolean),
-                          planned_dealers: planDealers.split(",").map(d => d.trim()).filter(Boolean),
-                          description: planDescription
-                        }]
+                        end_date: planDate,
+                        summary: planDescription.trim(),
+                        territory_id: planTerritoryId,
                       };
                       await apiFetch("/plans/submit", {
                         method: "POST",
@@ -3288,6 +3300,7 @@ export default function Dashboard() {
                       setPlanDescription("");
                       setPlanVillages("");
                       setPlanDealers("");
+                      setPlanTerritoryId("");
                       setShowPlanForm(false);
                       fetchDashboardData();
                     } catch (err: any) {
@@ -3299,70 +3312,46 @@ export default function Dashboard() {
                   <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Submit New Weekly Plan</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Week Start Date</label>
-                      <input 
-                        type="date" 
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Start Date</label>
+                      <input
+                        type="date"
                         value={planWeek}
-                        onChange={(e) => setPlanWeek(e.target.value)}
+                        onChange={(e) => { setPlanWeek(e.target.value); if (planDate && planDate < e.target.value) setPlanDate(e.target.value); }}
                         min={weekStartIST()}
                         className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Activity Date</label>
-                      <input 
-                        type="date" 
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">End Date</label>
+                      <input
+                        type="date"
                         value={planDate}
                         onChange={(e) => setPlanDate(e.target.value)}
-                        min={weekStartIST()}
+                        min={planWeek || weekStartIST()}
                         className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Activity Type</label>
-                      <select 
-                        value={planType}
-                        onChange={(e) => setPlanType(e.target.value)}
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Territory / District</label>
+                      <select
+                        value={planTerritoryId}
+                        onChange={(e) => setPlanTerritoryId(e.target.value)}
                         className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
                       >
-                        <option value="farmer_visit">Farmer Visit</option>
-                        <option value="dealer_visit">Dealer Stock Audit</option>
-                        <option value="demo">Product Demonstration</option>
-                        <option value="other">Other Operations</option>
+                        <option value="">-- Select --</option>
+                        {planTerritories.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                       </select>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Target Villages (Comma-separated)</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Mallasamudram, Vennandur"
-                        value={planVillages}
-                        onChange={(e) => setPlanVillages(e.target.value)}
-                        className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Target Dealers (Comma-separated)</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Subbu Agencies, Kovai Agro"
-                        value={planDealers}
-                        onChange={(e) => setPlanDealers(e.target.value)}
-                        className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 mb-1">Activity Description</label>
-                    <textarea 
-                      rows={2}
-                      placeholder="Enter activity description..."
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Work Description</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Short description of the planned work (villages, dealers, demos, collections…)"
                       value={planDescription}
                       onChange={(e) => setPlanDescription(e.target.value)}
+                      maxLength={1000}
                       className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
                     />
                   </div>
@@ -3403,7 +3392,7 @@ export default function Dashboard() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-slate-800 text-base">{officerName}</span>
                             <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold tracking-wider">{formattedRole}</span>
-                            <span className="text-slate-400 text-xs font-medium">Week Starting: {week}</span>
+                            <span className="text-slate-400 text-xs font-medium">{p.end_date ? `${week} → ${p.end_date}` : `Week Starting: ${week}`}</span>
                             <span className={`ml-auto px-2 py-0.5 text-xs font-bold rounded-full uppercase ${
                               p.status === "approved" ? "bg-green-100 text-green-800" :
                               p.status === "rejected" || p.status === "disapproved" ? "bg-red-100 text-red-800" :
@@ -3414,6 +3403,7 @@ export default function Dashboard() {
                           </div>
                           
                           <div className="text-xs text-slate-600 space-y-1">
+                            {p.summary && <div><strong className="text-slate-700">Work Plan:</strong> {p.summary}</div>}
                             <div><strong className="text-slate-700">Planned Villages:</strong> {targetVillagesList.join(", ") || "None"}</div>
                             <div><strong className="text-slate-700">Target Dealers:</strong> {targetDealersList.join(", ") || "None"}</div>
                             {p.manager_comment && (

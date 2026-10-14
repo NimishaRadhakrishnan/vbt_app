@@ -45,6 +45,8 @@ type WeeklyPlan = {
   id: string;
   user_id: string;
   week_start_date: string;
+  end_date?: string | null;
+  summary?: string | null;
   status: string;
   approved_by: string | null;
   approved_at: string | null;
@@ -250,7 +252,8 @@ export default function AdminPlanApprovalsScreen() {
                 </View>
                 <StatusBadge status={item.status} />
               </View>
-              <Text style={styles.week}>{formatWeek(item.week_start_date)}</Text>
+              <Text style={styles.week}>{item.end_date ? `${item.week_start_date} → ${item.end_date}` : formatWeek(item.week_start_date)}</Text>
+              {!!item.summary && <Text style={styles.meta} numberOfLines={2}>{item.summary}</Text>}
               <View style={styles.cardBottom}>
                 <Text style={styles.meta}>{count === 1 ? '1 planned activity' : `${count} planned activities`}</Text>
                 <Ionicons name="chevron-forward" size={20} color={color.textMuted} />
@@ -353,7 +356,8 @@ function PlanDetail({ plan, officerName, deciderName, territoryName, busy, alrea
       <View style={styles.modalHeader}>
         <View style={styles.cardTitleWrap}>
           <Text style={styles.name}>{officerName}</Text>
-          <Text style={styles.meta}>{formatWeek(plan.week_start_date)}</Text>
+          <Text style={styles.meta}>{plan.end_date ? `${plan.week_start_date} → ${plan.end_date}` : formatWeek(plan.week_start_date)}</Text>
+          {!!plan.summary && <Text style={styles.meta}>{plan.summary}</Text>}
         </View>
         <TouchableOpacity
           style={styles.iconBtn}

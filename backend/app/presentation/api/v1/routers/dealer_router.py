@@ -192,7 +192,7 @@ async def audit_stock(
     dealer_id: uuid.UUID,
     payload: StockAuditRequest,
     use_case: Annotated[DealerUseCase, Depends(get_dealer_use_case)],
-    _access: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER))],
+    _access: Annotated[object, Depends(require_role(Role.ADMIN, Role.MANAGER, Role.FIELD_OFFICER))],
 ) -> DealerStockResponse:
     result = await use_case.audit_stock(
         dealer_id=dealer_id,

@@ -5,7 +5,7 @@ Weekly Planning Router endpoints.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional, Annotated
 
 from fastapi import APIRouter, Depends, status, HTTPException
@@ -84,8 +84,61 @@ async def submit_weekly_plan(
     payload: WeeklyPlanSubmitRequest,
     current_user: CurrentUser,
     use_case: Annotated[PlanningUseCase, Depends(get_planning_use_case)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> WeeklyPlanResponse:
-    activities_list = [
+    start = payload.week_start_date
+    end = payload.end_date
+    summary = (payload.summary or "").strip() or None
+    if payload.activities:
+        end = end or max(a.date for a in payload.activities)
+    else:
+        if end is None:
+            raise HTTPException(status_code=400, detail="Choose the plan's end date.")
+        if not summary or len(summary) < 3:
+            raise HTTPException(status_code=400, detail="Add a short description of the planned work.")
+        if payload.territory_id is None:
+            raise HTTPException(status_code=400, detail="Choose a territory / district.")
+    if end < start:
+        raise HTTPException(status_code=400, detail="End date cannot be before the start date.")
+    if (end - start).days > 30:
+        raise HTTPException(status_code=400, detail="A plan can cover at most 31 days.")
+
+    # No two live plans for the same officer may overlap in dates.
+    clash = await session.execute(
+        text("""
+            SELECT week_start_date, COALESCE(end_date, week_start_date + 6) AS e, status
+            FROM weekly_plans
+            WHERE user_id = :uid AND is_deleted = false AND status IN ('pending', 'approved')
+              AND week_start_date <= :end AND COALESCE(end_date, week_start_date + 6) >= :start
+            LIMIT 1
+        """),
+        {"uid": current_user.user_id, "start": start, "end": end},
+    )
+    row = clash.first()
+    if row:
+        raise HTTPException(
+            status_code=409,
+            detail=f"You already have a {row.status} plan from {row.week_start_date} to {row.e}. Pick dates outside that period.",
+        )
+
+    if payload.activities:
+        acts = payload.activities
+        activities_list = None
+    else:
+        activities_list = []
+        d = start
+        while d <= end:
+            activities_list.append({
+                "date": d,
+                "territory_id": str(payload.territory_id),
+                "activity_type": "Field Work",
+                "planned_villages": [],
+                "planned_dealers": [],
+                "description": summary,
+            })
+            d += timedelta(days=1)
+        acts = []
+    activities_list = activities_list if activities_list is not None else [
         {
             "date": act.date,
             "territory_id": str(act.territory_id),
@@ -94,13 +147,26 @@ async def submit_weekly_plan(
             "planned_dealers": act.planned_dealers,
             "description": act.description,
         }
-        for act in payload.activities
+        for act in acts
     ]
     result = await use_case.submit_plan(
         user_id=current_user.user_id,
-        week_start_date=payload.week_start_date,
+        week_start_date=start,
         activities=activities_list,
+        end_date=end,
+        summary=summary,
     )
+
+    # Tell managers/admins there is a plan to review.
+    admins = await session.execute(text("SELECT id FROM users WHERE role IN ('admin', 'manager') AND is_active = true AND is_deleted = false"))
+    repo = get_notification_repository(session)
+    for (aid,) in admins.all():
+        await repo.add(Notification(
+            user_id=aid,
+            title="Weekly Plan Submitted",
+            message=f"{current_user.full_name} submitted a plan for {start} to {end}.",
+            type="plan_submitted",
+        ))
     return _to_response(result)
 
 
@@ -239,6 +305,8 @@ def _to_response(plan) -> WeeklyPlanResponse:
         id=plan.id,
         user_id=plan.user_id,
         week_start_date=plan.week_start_date,
+        end_date=plan.end_date,
+        summary=plan.summary,
         status=plan.status,
         approved_by=plan.approved_by,
         approved_at=plan.approved_at,

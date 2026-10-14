@@ -25,6 +25,8 @@ class PlanningUseCase:
         user_id: uuid.UUID,
         week_start_date: date,
         activities: list[dict],
+        end_date: Optional[date] = None,
+        summary: Optional[str] = None,
     ) -> WeeklyPlan:
         # Check if plan already exists for this week
         existing = await self._weekly_plan_repository.get_by_user_and_week(user_id, week_start_date)
@@ -45,6 +47,8 @@ class PlanningUseCase:
 
         if existing:
             existing.activities = plan_activities
+            existing.end_date = end_date
+            existing.summary = summary
             existing.status = "pending"
             existing.updated_at = datetime.utcnow()
             return await self._weekly_plan_repository.update(existing)
@@ -52,6 +56,8 @@ class PlanningUseCase:
             plan = WeeklyPlan(
                 user_id=user_id,
                 week_start_date=week_start_date,
+                end_date=end_date,
+                summary=summary,
                 status="pending",
                 activities=plan_activities,
             )

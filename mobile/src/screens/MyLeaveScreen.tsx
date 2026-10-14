@@ -212,7 +212,7 @@ export default function MyLeaveScreen() {
                       : `${day}${leaveStatus ? `, leave ${leaveStatus}` : ''}, tap to apply for leave`
                   }
                 >
-                  <Text style={[styles.cellText, isHoliday && styles.cellTextHoliday]}>{day}</Text>
+                  <Text style={[styles.cellText, isHoliday && styles.cellTextHoliday]} numberOfLines={1}>{day}</Text>
                   {holiday && !isSunday && <Text style={styles.holidayLabel} numberOfLines={1}>{holiday.description}</Text>}
                   {markerStyle && <View style={[styles.dot, markerStyle]} />}
                 </TouchableOpacity>
@@ -311,7 +311,7 @@ function LegendItem({ color, label }: { color: string; label: string }) {
   );
 }
 
-const CELL_SIZE = '14.28%';
+const CELL_SIZE = '14.2857%';
 
 const styles = StyleSheet.create({
   container: {
@@ -354,14 +354,12 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: spacing.xs,
   },
   cell: {
     width: CELL_SIZE,
-    aspectRatio: 1,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 2,
   },
   cellHoliday: {
     backgroundColor: color.borderLight,

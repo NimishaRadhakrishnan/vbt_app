@@ -4,6 +4,7 @@ import { apiClient } from '../services/api';
 import { showSubmitResult } from '../utils/offlineAlert';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { LoadingState, ErrorState, StaleDataBanner } from '../components/FetchStates';
+import RegisterDealerModal from '../components/RegisterDealerModal';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
 type Dealer = { id: string; name: string; district: string; village?: string; contact_person?: string; phone: string };
@@ -14,12 +15,13 @@ export default function DealerScreen({ navigation, embedded }: any) {
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [stockQty, setStockQty] = useState('');
   const [orderQty, setOrderQty] = useState('');
+  const [showRegister, setShowRegister] = useState(false);
 
   // Previously every audit/order was hardcoded to one fake dealer_id and
   // product_id, so every officer's submission - regardless of which real
   // dealer they were standing in front of - silently wrote to the same
   // dealer's record nationwide. This pulls the real lists instead.
-  const { data, loading, error, isStale, retry } = useDataFetch(
+  const { data, loading, error, isStale, retry, refresh } = useDataFetch(
     () =>
       Promise.all([
         apiClient.request('/dealers/search', 'GET', 'stock_audit'),
@@ -73,6 +75,10 @@ export default function DealerScreen({ navigation, embedded }: any) {
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Dealer Stock & Order Audit</Text>
+      <TouchableOpacity style={[styles.btnAction, { marginBottom: 12 }]} onPress={() => setShowRegister(true)}>
+        <Text style={styles.btnText}>+ Register New Dealer</Text>
+      </TouchableOpacity>
+      <RegisterDealerModal visible={showRegister} onClose={() => setShowRegister(false)} onRegistered={() => refresh?.()} />
       {isStale && <StaleDataBanner onRetry={retry} />}
 
       <View style={styles.dealerMeta}>

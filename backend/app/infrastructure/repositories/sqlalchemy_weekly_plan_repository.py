@@ -48,6 +48,8 @@ class SQLAlchemyWeeklyPlanRepository(WeeklyPlanRepository):
             id=model.id,
             user_id=model.user_id,
             week_start_date=model.week_start_date,
+            end_date=model.end_date,
+            summary=model.summary,
             status=model.status,
             approved_by=model.approved_by,
             approved_at=model.approved_at,
@@ -81,6 +83,8 @@ class SQLAlchemyWeeklyPlanRepository(WeeklyPlanRepository):
             id=weekly_plan.id,
             user_id=weekly_plan.user_id,
             week_start_date=weekly_plan.week_start_date,
+            end_date=weekly_plan.end_date,
+            summary=weekly_plan.summary,
             status=weekly_plan.status,
             approved_by=weekly_plan.approved_by,
             approved_at=weekly_plan.approved_at,
@@ -130,6 +134,8 @@ class SQLAlchemyWeeklyPlanRepository(WeeklyPlanRepository):
         if model is None:
             raise ValueError(f"Weekly plan not found: {weekly_plan.id}")
         model.status = weekly_plan.status
+        model.end_date = weekly_plan.end_date
+        model.summary = weekly_plan.summary
         model.approved_by = weekly_plan.approved_by
         model.approved_at = weekly_plan.approved_at
         model.manager_comment = weekly_plan.manager_comment

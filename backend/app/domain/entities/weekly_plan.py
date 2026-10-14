@@ -34,6 +34,8 @@ class WeeklyPlanDeviation:
 class WeeklyPlan:
     user_id: uuid.UUID
     week_start_date: date
+    end_date: Optional[date] = None
+    summary: Optional[str] = None
     status: str = "draft"  # draft, pending, approved, rejected, needs_modification, escalated
     approved_by: Optional[uuid.UUID] = None
     approved_at: Optional[datetime] = None
