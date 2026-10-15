@@ -24,6 +24,7 @@ module.exports = {
     version: "1.0.0",
     orientation: "portrait",
     userInterfaceStyle: "light",
+    icon: "./assets/icon.png",
     splash: {
       backgroundColor: "#ffffff",
       resizeMode: "contain",
@@ -93,6 +94,10 @@ module.exports = {
 
     android: {
       package: "com.vishakanbiotech.ffm",
+      adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#ffffff",
+      },
       versionCode: 1,
 
       // ----------------------------------------------------------------
