@@ -137,17 +137,6 @@ export default function Step3CropProfile({
         </View>
       </FieldRow>
 
-      <FieldRow label="Sowing / Planting Date">
-        <TextInputLike value={sowingDate} onChangeText={setSowingDate} placeholder="YYYY-MM-DD" />
-        {/* Plain text entry rather than a native date picker - no
-            date-picker library exists in this app yet
-            (@react-native-community/datetimepicker isn't a dependency),
-            and adding a new native module isn't something verifiable
-            without a device/emulator (none available in this
-            environment). Same YYYY-MM-DD text pattern MyLeaveScreen's
-            apply-leave modal already uses for its end-date field. */}
-      </FieldRow>
-
       <FieldRow label="Previous Season Crop">
         <TextInputLike value={previousCropText} onChangeText={setPreviousCropText} placeholder="e.g. Groundnut" />
       </FieldRow>

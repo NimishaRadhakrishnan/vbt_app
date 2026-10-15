@@ -633,7 +633,6 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
     if (d.varietyText) setVarietyText(d.varietyText);
     if (d.cropAgeValue) setCropAgeValue(d.cropAgeValue);
     if (d.cropAgeUnit) setCropAgeUnit(d.cropAgeUnit);
-    if (d.sowingDate) setSowingDate(d.sowingDate);
     if (d.previousCropText) setPreviousCropText(d.previousCropText);
     if (d.previousYieldValue) setPreviousYieldValue(d.previousYieldValue);
     if (d.previousYieldUnit) setPreviousYieldUnit(d.previousYieldUnit);
@@ -798,10 +797,6 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
       }
       if (!farmingType) {
         Alert.alert('Missing Information', 'Please select a farming type.');
-        return;
-      }
-      if (sowingDate.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(sowingDate.trim())) {
-        Alert.alert('Invalid Date', 'Enter the sowing date as YYYY-MM-DD, or leave it blank.');
         return;
       }
     }
