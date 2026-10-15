@@ -145,17 +145,23 @@ async def search_dealers(
     status_filter: Optional[str] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    mine: bool = False,
     limit: int = 50,
     offset: int = 0,
 ) -> list[DealerResponse]:
+    # mine=true: the dealers this user registered, in any status (so an
+    # officer can follow a pending dealer until it is approved).
     # Default view (no status_filter given) only shows active dealers —
     # pending/rejected dealers never leak into normal ordering flows.
     # Only Admin/Manager may explicitly request other statuses (e.g. the
     # approval queue via ?status_filter=pending_approval).
     is_privileged = current_user.role in ("admin", "manager")
     effective_status = status_filter if (status_filter and is_privileged) else "active"
+    if mine:
+        effective_status = status_filter or None
     result = await use_case.search_dealers(
-        district=district, taluk=taluk, status=effective_status, date_from=date_from, date_to=date_to, limit=limit, offset=offset
+        district=district, taluk=taluk, status=effective_status, date_from=date_from, date_to=date_to,
+        requested_by=current_user.user_id if mine else None, limit=limit, offset=offset
     )
     # Who registered each dealer, for the "Registered by" line.
     ids = list({d.requested_by for d in result if d.requested_by})

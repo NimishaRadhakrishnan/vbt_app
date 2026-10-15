@@ -240,13 +240,14 @@ async def search_farmers(
     limit: int = 50,
     offset: int = 0,
 ) -> list[FarmerResponse]:
+    # Officers see the farmers they registered; admin and manager see all.
+    # Scoped in the query itself, so an officer's list is never cut short by
+    # other officers' farmers filling the page.
+    scope = None if current_user.role in ("admin", "manager") else current_user.user_id
     result = await use_case.search_farmers(
         village=village, taluk=taluk, district=district, crop=crop,
-        date_from=date_from, date_to=date_to, limit=limit, offset=offset
+        date_from=date_from, date_to=date_to, created_by=scope, limit=limit, offset=offset
     )
-    # Scope to own assigned/created farmers for non-admins
-    if current_user.role != "admin":
-        result = [f for f in result if f.created_by == current_user.user_id]
     trial_by_farmer = await _load_trial_products(session, [f.id for f in result])
     names = await _user_names(session, [f.created_by for f in result])
     out = [_to_response(f, trial_by_farmer.get(f.id)) for f in result]

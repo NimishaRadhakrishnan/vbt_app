@@ -86,3 +86,23 @@ async def test_farmer_and_dealer_lists_name_the_registering_officer(client):
     farmers = (await client.get("/api/v1/farmers/search?limit=200", headers=admin)).json()
     frow = next(f for f in farmers if f["name"] == f"Named Farmer {phone}")
     assert frow["registered_by_name"] == full_name
+
+
+async def test_officer_sees_own_farmers_and_own_pending_dealers(client):
+    officer = await _login(client, "dinesh@vishakan.com")
+    tag = str(uuid.uuid4().int)[:8]
+    dphone = str(uuid.uuid4().int)[:10]
+    d = await client.post("/api/v1/dealers/", headers=officer, json={"name": f"Mine Dealer {tag}", "phone": dphone, "district": "Erode"})
+    assert d.status_code == 201, d.text
+    f = await client.post("/api/v1/farmers/", headers=officer, json={
+        "name": f"Mine Farmer {tag}", "phone": str(uuid.uuid4().int)[:10], "village": "V", "taluk": "T",
+        "district": "Erode", "crop": "Paddy", "cents": 5, "location_lat": 11.0, "location_lng": 77.0})
+    assert f.status_code == 201, f.text
+
+    farmers = (await client.get("/api/v1/farmers/search?limit=200", headers=officer)).json()
+    assert any(x["name"] == f"Mine Farmer {tag}" for x in farmers)
+    # The normal dealer list hides pending ones, "mine" shows them with their status.
+    assert not any(x["phone"] == dphone for x in (await client.get("/api/v1/dealers/search", headers=officer)).json())
+    mine = (await client.get("/api/v1/dealers/search?mine=true", headers=officer)).json()
+    row = next(x for x in mine if x["phone"] == dphone)
+    assert row["status"] == "pending_approval"

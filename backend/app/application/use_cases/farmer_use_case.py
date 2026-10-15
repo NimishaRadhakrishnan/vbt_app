@@ -62,12 +62,13 @@ class FarmerUseCase:
         crop: Optional[str] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
+        created_by: Optional[uuid.UUID] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Farmer]:
         return await self._farmer_repository.search(
             village=village, taluk=taluk, district=district, crop=crop,
-            date_from=date_from, date_to=date_to, limit=limit, offset=offset
+            date_from=date_from, date_to=date_to, created_by=created_by, limit=limit, offset=offset
         )
 
     async def get_farmer_profile(self, farmer_id: uuid.UUID) -> Optional[Farmer]:

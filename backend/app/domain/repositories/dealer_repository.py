@@ -32,6 +32,7 @@ class DealerRepository(ABC):
         status: Optional[str] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
+        requested_by: Optional[uuid.UUID] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Dealer]: ...

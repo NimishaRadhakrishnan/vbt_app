@@ -6,6 +6,7 @@ import { useDataFetch } from '../hooks/useDataFetch';
 import { LoadingState, ErrorState, StaleDataBanner } from '../components/FetchStates';
 import SearchBox, { matchesQuery } from '../components/SearchBox';
 import RegisterDealerModal from '../components/RegisterDealerModal';
+import MyRegistrations from '../components/MyRegistrations';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
 type Dealer = { id: string; name: string; district: string; village?: string; contact_person?: string; phone: string };
@@ -17,6 +18,8 @@ export default function DealerScreen({ navigation, embedded }: any) {
   const [stockQty, setStockQty] = useState('');
   const [orderQty, setOrderQty] = useState('');
   const [showRegister, setShowRegister] = useState(false);
+  const [showMine, setShowMine] = useState(false);
+  const [mineKey, setMineKey] = useState(0);
   const [productQuery, setProductQuery] = useState('');
 
   // Previously every audit/order was hardcoded to one fake dealer_id and
@@ -80,7 +83,11 @@ export default function DealerScreen({ navigation, embedded }: any) {
       <TouchableOpacity style={[styles.btnAction, { marginBottom: 12 }]} onPress={() => setShowRegister(true)}>
         <Text style={styles.btnText}>+ Register New Dealer</Text>
       </TouchableOpacity>
-      <RegisterDealerModal visible={showRegister} onClose={() => setShowRegister(false)} onRegistered={() => refresh?.()} />
+      <RegisterDealerModal visible={showRegister} onClose={() => setShowRegister(false)} onRegistered={() => { refresh?.(); setMineKey((k) => k + 1); }} />
+      <TouchableOpacity style={[styles.btnAction, { marginBottom: 12, backgroundColor: color.info }]} onPress={() => setShowMine((v) => !v)}>
+        <Text style={styles.btnText}>{showMine ? 'Hide my registered dealers' : 'My registered dealers'}</Text>
+      </TouchableOpacity>
+      {showMine && <View style={{ marginBottom: 16 }}><MyRegistrations key={mineKey} kind="dealer" /></View>}
       {isStale && <StaleDataBanner onRetry={retry} />}
 
       <View style={styles.dealerMeta}>

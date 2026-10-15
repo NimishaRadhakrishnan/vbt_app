@@ -100,11 +100,13 @@ class DealerUseCase:
         status: Optional[str] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
+        requested_by: Optional[uuid.UUID] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Dealer]:
         return await self._dealer_repository.search_dealers(
-            district=district, taluk=taluk, status=status, date_from=date_from, date_to=date_to, limit=limit, offset=offset
+            district=district, taluk=taluk, status=status, date_from=date_from, date_to=date_to,
+            requested_by=requested_by, limit=limit, offset=offset
         )
 
     async def set_dealer_approval(

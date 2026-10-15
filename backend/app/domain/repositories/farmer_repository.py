@@ -35,6 +35,7 @@ class FarmerRepository(ABC):
         crop: Optional[str] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
+        created_by: Optional[uuid.UUID] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Farmer]: ...

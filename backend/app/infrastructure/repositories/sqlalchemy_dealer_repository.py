@@ -169,10 +169,13 @@ class SQLAlchemyDealerRepository(DealerRepository):
         status: Optional[str] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
+        requested_by: Optional[uuid.UUID] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Dealer]:
         query = select(DealerModel).where(DealerModel.is_deleted == False)  # noqa: E712
+        if requested_by:
+            query = query.where(DealerModel.requested_by == requested_by)
         if district:
             query = query.where(DealerModel.district.ilike(f"%{district}%"))
         if taluk:

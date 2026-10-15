@@ -107,10 +107,13 @@ class SQLAlchemyFarmerRepository(FarmerRepository):
         crop: Optional[str] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
+        created_by: Optional[uuid.UUID] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Farmer]:
         query = select(FarmerModel).where(FarmerModel.is_deleted == False)  # noqa: E712
+        if created_by:
+            query = query.where(FarmerModel.created_by == created_by)
         if village:
             query = query.where(FarmerModel.village.ilike(f"%{village}%"))
         if taluk:

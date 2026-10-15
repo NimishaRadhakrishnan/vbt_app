@@ -5,6 +5,7 @@ import { apiClient } from '../services/api';
 import { LocationService } from '../services/LocationService';
 import { useDistricts } from '../hooks/useDistricts';
 import { ChipPicker } from './dailyVisitTracker/FormFields';
+import MyRegistrations from '../components/MyRegistrations';
 import { showSubmitResult } from '../utils/offlineAlert';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
@@ -12,6 +13,8 @@ const DEFAULT_DISTRICTS = ['Dindigul', 'Tiruppur', 'Coimbatore', 'Erode', 'Salem
 
 export default function FarmerScreen({ navigation, embedded, onDone }: any) {
   const districts = useDistricts(DEFAULT_DISTRICTS);
+  const [view, setView] = useState<'new' | 'mine'>('new');
+  const [listKey, setListKey] = useState(0);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [village, setVillage] = useState('');
@@ -60,6 +63,7 @@ export default function FarmerScreen({ navigation, embedded, onDone }: any) {
 
       showSubmitResult(res, 'Farmer Registered', `${name} successfully added to database.`);
       setName(''); setPhone(''); setVillage(''); setTaluk(''); setDistrict(''); setCrop(''); setCents('');
+      setListKey((k) => k + 1);
       if (embedded) onDone?.();
       else navigation.goBack();
     } catch (err: any) {
@@ -71,8 +75,20 @@ export default function FarmerScreen({ navigation, embedded, onDone }: any) {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Register Farmer Profile</Text>
+      <Text style={styles.title}>{view === 'new' ? 'Register Farmer Profile' : 'My Farmers'}</Text>
 
+      <View style={styles.tabs}>
+        <TouchableOpacity style={[styles.tab, view === 'new' && styles.tabActive]} onPress={() => setView('new')}>
+          <Text style={[styles.tabText, view === 'new' && styles.tabTextActive]}>Register new</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tab, view === 'mine' && styles.tabActive]} onPress={() => setView('mine')}>
+          <Text style={[styles.tabText, view === 'mine' && styles.tabTextActive]}>My farmers</Text>
+        </TouchableOpacity>
+      </View>
+
+      {view === 'mine' && <MyRegistrations key={listKey} kind="farmer" />}
+
+      {view === 'new' && (
       <View style={styles.form}>
         <TextInput style={styles.input} placeholder="Farmer Name" placeholderTextColor={color.textMuted} value={name} onChangeText={setName} />
         <TextInput style={styles.input} placeholder="Mobile Number" placeholderTextColor={color.textMuted} keyboardType="phone-pad" maxLength={10} value={phone} onChangeText={setPhone} />
@@ -97,6 +113,7 @@ export default function FarmerScreen({ navigation, embedded, onDone }: any) {
           )}
         </TouchableOpacity>
       </View>
+      )}
 
       {!embedded && (
         <TouchableOpacity style={styles.btnBack} onPress={() => navigation.goBack()}>
@@ -127,6 +144,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: color.border,
   },
+  tabs: { flexDirection: 'row', marginBottom: spacing.lg },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 10, borderWidth: 1, borderColor: color.border, backgroundColor: color.white },
+  tabActive: { backgroundColor: color.primary, borderColor: color.primary },
+  tabText: { fontSize: font.body, fontWeight: fontWeight.bold, color: color.textPrimary },
+  tabTextActive: { color: color.white },
   fieldLabel: { fontSize: font.caption, fontWeight: fontWeight.bold, color: color.primary, marginBottom: 6, textTransform: 'uppercase' },
   input: {
     backgroundColor: color.screenBg,
