@@ -58,6 +58,7 @@ class FarmerResponse(BaseModel):
     location_lng: Optional[float] = None
     photo_url: Optional[str] = None
     created_by: Optional[uuid.UUID] = None
+    registered_by_name: Optional[str] = None
     trial_conducted: bool = False
     trial_products: list[TrialProductDetail] = Field(default_factory=list)
     created_at: datetime

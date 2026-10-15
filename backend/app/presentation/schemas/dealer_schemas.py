@@ -54,6 +54,7 @@ class DealerResponse(BaseModel):
     assigned_sales_officer_id: Optional[uuid.UUID] = None
     status: str = "active"
     requested_by: Optional[uuid.UUID] = None
+    registered_by_name: Optional[str] = None
     created_at: datetime
 
 

@@ -248,7 +248,11 @@ async def search_farmers(
     if current_user.role != "admin":
         result = [f for f in result if f.created_by == current_user.user_id]
     trial_by_farmer = await _load_trial_products(session, [f.id for f in result])
-    return [_to_response(f, trial_by_farmer.get(f.id)) for f in result]
+    names = await _user_names(session, [f.created_by for f in result])
+    out = [_to_response(f, trial_by_farmer.get(f.id)) for f in result]
+    for item in out:
+        item.registered_by_name = names.get(item.created_by)
+    return out
 
 
 @router.get("/{farmer_id}", response_model=Optional[FarmerResponse])
@@ -287,6 +291,15 @@ def _to_response(farmer, trial_products: Optional[list[TrialProductDetail]] = No
         created_at=farmer.created_at,
         updated_at=farmer.updated_at,
     )
+
+
+async def _user_names(session: AsyncSession, ids) -> dict:
+    """Officer names for the 'Registered by' line, one query for the page."""
+    wanted = list({i for i in ids if i})
+    if not wanted:
+        return {}
+    rows = await session.execute(text("SELECT id, full_name FROM users WHERE id = ANY(:ids)").bindparams(ids=wanted))
+    return {r.id: r.full_name for r in rows.all()}
 
 
 async def _load_trial_products(session: AsyncSession, farmer_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[TrialProductDetail]]:

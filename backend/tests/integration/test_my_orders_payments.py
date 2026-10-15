@@ -63,3 +63,26 @@ async def test_my_orders_and_collect_payment(client):
     assert row["amount_paid"] == 400 and row["outstanding_amount"] == 600
     hist = await client.get(f"/api/v1/dealers/orders/{order_id}/payments", headers=officer)
     assert len(hist.json()) == 1
+
+
+async def test_farmer_and_dealer_lists_name_the_registering_officer(client):
+    officer = await _login(client, "dinesh@vishakan.com")
+    admin = await _login(client, "admin@vishakan.com")
+    me = (await client.get("/api/v1/auth/me", headers=officer)).json()
+    uid = me.get("id") or me.get("user_id")
+    full_name = me.get("full_name")
+    phone = str(uuid.uuid4().int)[:10]
+    dealer = await client.post("/api/v1/dealers/", headers=officer, json={
+        "name": f"Named Dealer {phone}", "phone": phone, "district": "Erode"})
+    assert dealer.status_code == 201, dealer.text
+    farmer = await client.post("/api/v1/farmers/", headers=officer, json={
+        "name": f"Named Farmer {phone}", "phone": str(uuid.uuid4().int)[:10], "village": "V", "taluk": "T",
+        "district": "Erode", "crop": "Paddy", "cents": 10, "location_lat": 11.0, "location_lng": 77.0})
+    assert farmer.status_code == 201, farmer.text
+
+    pending = (await client.get("/api/v1/dealers/search?status_filter=pending_approval", headers=admin)).json()
+    row = next(d for d in pending if d["phone"] == phone)
+    assert row["registered_by_name"] == full_name
+    farmers = (await client.get("/api/v1/farmers/search?limit=200", headers=admin)).json()
+    frow = next(f for f in farmers if f["name"] == f"Named Farmer {phone}")
+    assert frow["registered_by_name"] == full_name

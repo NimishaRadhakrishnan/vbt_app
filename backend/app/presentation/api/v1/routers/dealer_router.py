@@ -139,6 +139,7 @@ async def register_dealer(
 async def search_dealers(
     current_user: CurrentUser,
     use_case: Annotated[DealerUseCase, Depends(get_dealer_use_case)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
     district: Optional[str] = None,
     taluk: Optional[str] = None,
     status_filter: Optional[str] = None,
@@ -156,7 +157,16 @@ async def search_dealers(
     result = await use_case.search_dealers(
         district=district, taluk=taluk, status=effective_status, date_from=date_from, date_to=date_to, limit=limit, offset=offset
     )
-    return [_to_dealer_response(d) for d in result]
+    # Who registered each dealer, for the "Registered by" line.
+    ids = list({d.requested_by for d in result if d.requested_by})
+    names: dict = {}
+    if ids:
+        rows = await session.execute(text("SELECT id, full_name FROM users WHERE id = ANY(:ids)").bindparams(ids=ids))
+        names = {r.id: r.full_name for r in rows.all()}
+    out = [_to_dealer_response(d) for d in result]
+    for item in out:
+        item.registered_by_name = names.get(item.requested_by)
+    return out
 
 
 @router.patch("/{dealer_id}/approval", response_model=DealerResponse)

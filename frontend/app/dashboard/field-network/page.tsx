@@ -637,7 +637,7 @@ export default function FieldNetworkPage() {
                             </div>
                             <p className="text-xs text-slate-400 mt-1">{f.village ? `${f.village}, ` : ""}{f.district}</p>
                             <p className="text-xs text-slate-500 mt-1 font-mono">{f.phone}{f.cents ? ` · ${f.cents} cents` : ""}</p>
-                            {f.createdBy && <p className="text-[11px] text-slate-400 mt-1">Registered by {f.createdBy}</p>}
+                            {f.registered_by_name && <p className="text-[11px] text-slate-400 mt-1">Registered by {f.registered_by_name}</p>}
                             {f.trial_conducted && !isEditingThis && (
                               <div className="mt-2 pt-2 border-t border-slate-100">
                                 <span className="text-[11px] font-bold text-green-700 uppercase">Trial Conducted</span>
@@ -1016,6 +1016,7 @@ export default function FieldNetworkPage() {
                       <div>
                         <p className="font-bold text-slate-800 text-sm">{d.name}</p>
                         <p className="text-xs text-slate-400">{d.village ? `${d.village}, ` : ""}{d.district} · {d.phone}</p>
+                        {d.registered_by_name && <p className="text-[11px] text-slate-400 mt-0.5">Registered by {d.registered_by_name}</p>}
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => handleDealerApproval(d.id, true)} className="px-3 py-1.5 text-xs bg-green-700 hover:bg-green-800 text-white rounded-lg font-semibold">Approve</button>
@@ -1094,6 +1095,7 @@ export default function FieldNetworkPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-400">{d.village ? `${d.village}, ` : ""}{d.district}</p>
+                        {d.registered_by_name && <p className="text-[11px] text-slate-400 mt-0.5">Registered by {d.registered_by_name}</p>}
                         <span className="text-xs font-semibold text-green-700 mt-2 inline-block">
                           {isExpanded ? "Hide inventory ↑" : "View inventory →"}
                         </span>
