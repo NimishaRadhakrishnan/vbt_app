@@ -10,7 +10,7 @@ import SectionTabs, { usePageTab, rememberPageTab } from "@/components/SectionTa
 type Product = { id: string; name: string; sku_code: string; unit: string; is_active: boolean };
 type User = { id: string; full_name: string; employee_id: string; role: string; email: string };
 type ReconRow = { officer_id: string; officer_name: string; product_id: string; product_name: string; allocated: number; trial_given: number; sold: number; other: number; on_hand: number; };
-type LedgerRow = { id: string; product_name: string; officer_name: string; qty_delta: number; movement_type: string; remarks: string; created_at: string; };
+type LedgerRow = { id: string; product_name: string; officer_name: string; qty_delta: number; movement_type: string; remarks: string; created_at: string; balance_after?: number | null; context?: string | null; };
 
 export default function AdminStockPage() {
   const router = useRouter();
@@ -354,7 +354,7 @@ export default function AdminStockPage() {
           <div className="bg-white p-6 rounded-xl border border-slate-200 overflow-x-auto">
             <table className="w-full text-left text-sm border whitespace-nowrap">
               <thead className="bg-slate-50 border-b">
-                <tr><th className="p-3">Date</th><th className="p-3">Officer</th><th className="p-3">Product</th><th className="p-3">Movement</th><th className="p-3">Delta</th><th className="p-3">Remarks</th></tr>
+                <tr><th className="p-3">Date</th><th className="p-3">Officer</th><th className="p-3">Product</th><th className="p-3">Movement</th><th className="p-3">Delta</th><th className="p-3">Left after</th><th className="p-3">Used for</th><th className="p-3">Remarks</th></tr>
               </thead>
               <tbody>
                 {ledgerData.map((l, i) => (
@@ -364,6 +364,8 @@ export default function AdminStockPage() {
                     <td className="p-3">{l.product_name}</td>
                     <td className="p-3">{l.movement_type}</td>
                     <td className={`p-3 font-bold ${l.qty_delta > 0 ? "text-green-600" : "text-red-600"}`}>{l.qty_delta > 0 ? "+" : ""}{l.qty_delta}</td>
+                    <td className="p-3">{l.balance_after ?? "—"}</td>
+                    <td className="p-3">{l.context || "—"}</td>
                     <td className="p-3 text-slate-500">{l.remarks || "—"}</td>
                   </tr>
                 ))}

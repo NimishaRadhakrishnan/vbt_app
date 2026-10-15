@@ -32,6 +32,7 @@ class LoginRequest(BaseModel):
     email: Optional[str] = None
     employee_id: Optional[str] = None
     device_id: Optional[str] = None
+    device_name: Optional[str] = Field(default=None, max_length=200)
     work_mode: str = "both"
 
 

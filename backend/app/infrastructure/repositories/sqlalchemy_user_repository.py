@@ -33,6 +33,7 @@ class SQLAlchemyUserRepository(UserRepository):
             employee_id=model.employee_id,
             phone=model.phone,
             device_id=model.device_id,
+            login_status=model.login_status or "active",
             biometric_token=model.biometric_token,
             manager_id=model.manager_id,
             last_login_at=model.last_login_at,
@@ -120,6 +121,7 @@ class SQLAlchemyUserRepository(UserRepository):
         model.employee_id = user.employee_id
         model.phone = user.phone
         model.device_id = user.device_id
+        model.login_status = user.login_status
         model.work_mode = user.work_mode
         model.biometric_token = user.biometric_token
         model.manager_id = user.manager_id

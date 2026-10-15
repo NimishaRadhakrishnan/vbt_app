@@ -38,3 +38,19 @@ export async function getDeviceId(): Promise<string | null> {
     return null;
   }
 }
+
+/** What the admin sees when this phone asks to be approved, e.g.
+ *  "Samsung SM-A525F · Android 13". No extra package: React Native already
+ *  exposes the make/model on Android. */
+export function getDeviceName(): string {
+  try {
+    if (Platform.OS === 'android') {
+      const c: any = (Platform as any).constants || {};
+      const make = [c.Brand || c.Manufacturer, c.Model].filter(Boolean).join(' ');
+      return `${make || 'Android phone'} · Android ${c.Release || Platform.Version}`.slice(0, 200);
+    }
+    return `${Platform.OS === 'ios' ? 'iPhone' : Platform.OS} · ${Platform.OS} ${Platform.Version}`.slice(0, 200);
+  } catch {
+    return 'Unknown phone';
+  }
+}

@@ -30,6 +30,7 @@ from app.core.container import (
 from app.domain.exceptions.domain_exceptions import (
     InactiveAccountException,
     InvalidCredentialsException,
+    LoginIssueException,
 )
 from app.domain.value_objects.role import Role
 from sqlalchemy import text
@@ -126,8 +127,15 @@ async def login(
                 employee_id=payload.employee_id,
                 password=payload.password,
                 device_id=payload.device_id,
+                device_name=payload.device_name,
+                ip_address=client_ip,
             )
         )
+    except LoginIssueException:
+        # Right password, held for the admin: not a failed guess, so it must
+        # not spend the throttle (the officer will retry after approval).
+        await clear_login_rate_limit(identifier, redis)
+        raise
     except (InvalidCredentialsException, InactiveAccountException):
         # Only a rejected sign-in spends from the throttle. Counting every
         # attempt would have meant an officer signing in on the phone and

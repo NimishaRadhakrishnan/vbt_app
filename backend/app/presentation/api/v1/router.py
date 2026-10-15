@@ -41,6 +41,7 @@ from app.presentation.api.v1.routers.daily_visit_tracker_router import router as
 from app.presentation.api.v1.routers.admin_daily_visit_router import router as admin_daily_visit_router
 from app.presentation.api.v1.routers.dealer_payment_router import router as dealer_payment_router
 from app.presentation.api.v1.routers.stock_router import router as stock_router
+from app.presentation.api.v1.routers.login_issue_router import router as login_issue_router
 from app.presentation.api.v1.websocket_router import router as websocket_router
 
 api_v1_router = APIRouter()
@@ -79,4 +80,5 @@ api_v1_router.include_router(daily_visit_tracker_router)
 api_v1_router.include_router(admin_daily_visit_router)
 api_v1_router.include_router(dealer_payment_router)
 api_v1_router.include_router(stock_router)
+api_v1_router.include_router(login_issue_router)
 api_v1_router.include_router(websocket_router)

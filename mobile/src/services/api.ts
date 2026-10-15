@@ -4,7 +4,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dbService, SyncPayload } from './db';
-import { getDeviceId } from './deviceId';
+import { getDeviceId, getDeviceName } from './deviceId';
 
 // Persisted session so a returning officer with a valid session lands on
 // Dashboard on cold open instead of Login. Previously nothing survived an
@@ -241,6 +241,7 @@ class FFMAPIClient {
       employee_id: employeeId,
       password,
       device_id: this.deviceId,
+      device_name: getDeviceName(),
     });
     this.token = loginRes.access_token;
     this.refreshToken = loginRes.refresh_token ?? null;
@@ -333,10 +334,12 @@ class FFMAPIClient {
   // (a plain string, or the first validation message when it's the
   // structured list form) when present, and falls back to a generic
   // message keyed off the status range otherwise - never the raw body.
-  private async toReadableError(response: Response): Promise<Error & { status?: number }> {
+  private async toReadableError(response: Response): Promise<Error & { status?: number; code?: string }> {
     let message = `Something went wrong (${response.status}). Please try again.`;
+    let code: string | undefined;
     try {
       const body = await response.json();
+      if (typeof body?.code === 'string') code = body.code;
       if (typeof body?.message === 'string' && body.message) {
         // The server's own error shape: { code, message, request_id }.
         message = body.message;
@@ -353,8 +356,9 @@ class FFMAPIClient {
       // Body wasn't JSON (or was empty) - keep the generic message above
       // rather than showing raw/partial response text.
     }
-    const err = new Error(message) as Error & { status?: number };
+    const err = new Error(message) as Error & { status?: number; code?: string };
     err.status = response.status;
+    err.code = code;
     return err;
   }
 

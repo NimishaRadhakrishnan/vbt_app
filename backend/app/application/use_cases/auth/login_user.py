@@ -14,9 +14,11 @@ from app.domain.entities.notification import Notification
 from app.domain.repositories.notification_repository import NotificationRepository
 from app.application.interfaces.password_hasher import PasswordHasher
 from app.application.interfaces.token_service import TokenService
+from app.application.services.login_issue_service import report_login_issue
 from app.domain.exceptions.domain_exceptions import (
     InactiveAccountException,
     InvalidCredentialsException,
+    LoginIssueException,
 )
 from app.domain.repositories.user_repository import UserRepository
 from app.domain.value_objects.email import Email
@@ -114,6 +116,19 @@ class LoginUserUseCase:
             raise InvalidCredentialsException()
 
         if not user.is_active:
+            # The password was right, so tell the admins - they may want to
+            # switch the account back on. The officer still gets the same
+            # 'deactivated' answer as before.
+            try:
+                await report_login_issue(
+                    user_id=user.id, full_name=user.full_name, employee_id=user.employee_id,
+                    issue_type="account_inactive", attempted_device_id=data.device_id,
+                    device_name=data.device_name, bound_device_id=user.device_id,
+                    description="Tried to sign in while the account is deactivated.",
+                    ip_address=data.ip_address,
+                )
+            except Exception:
+                logger.error("Could not record inactive-account login issue", exc_info=True)
             raise InactiveAccountException()
 
         # Handle device binding
@@ -123,17 +138,29 @@ class LoginUserUseCase:
                 user.bind_device(data.device_id)
                 await self._user_repository.update(user)
             elif user.device_id != data.device_id:
-                # Block login if device ID mismatch (Single device binding rule)
+                # Single-device rule: hold the sign-in and ask the admin.
                 logger.warning(
                     "device_binding_mismatch",
-                    extra={
-                        "user_id": str(user.id),
-                        "expected": user.device_id,
-                        "actual": data.device_id,
-                    },
+                    extra={"user_id": str(user.id), "expected": user.device_id, "actual": data.device_id},
                 )
-                raise InvalidCredentialsException(
-                    "This account is bound to another mobile device."
+                issue = await report_login_issue(
+                    user_id=user.id, full_name=user.full_name, employee_id=user.employee_id,
+                    issue_type="device_mismatch", attempted_device_id=data.device_id,
+                    device_name=data.device_name, bound_device_id=user.device_id,
+                    description="Signed in from a phone other than the registered one.",
+                    ip_address=data.ip_address,
+                )
+                short = issue["id"][:8].upper()
+                if issue["status"] == "rejected":
+                    note = f" Reason: {issue['note']}" if issue.get("note") else ""
+                    raise LoginIssueException(
+                        f"Your admin declined the request to use this phone.{note} Please contact your admin.",
+                        code="device_approval_rejected", issue_id=issue["id"], status="rejected",
+                    )
+                raise LoginIssueException(
+                    "This account is registered to another phone. Your request to use this phone has been "
+                    f"sent to the admin (ref {short}). Try signing in again once they approve it.",
+                    code="device_approval_pending", issue_id=issue["id"], status="pending",
                 )
 
         token_pair = await self._token_service.issue_token_pair(
@@ -143,6 +170,8 @@ class LoginUserUseCase:
         logger.info("login_succeeded", extra={"user_id": str(user.id)})
 
         user.last_login_at = datetime.now(timezone.utc)
+        # A successful sign-in clears 'pending_review' / 'blocked'.
+        user.login_status = "active"
         await self._user_repository.update(user)
 
         if self._notification_repository and user.role.value != "admin":

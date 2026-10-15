@@ -60,6 +60,21 @@ class InvalidCredentialsException(DomainException):
         super().__init__(message, code="invalid_credentials")
 
 
+class LoginIssueException(InvalidCredentialsException):
+    """The password was right but the sign-in is held for an admin.
+
+    Carries its own code so the app can show "request sent to admin"
+    instead of "wrong password", and the request id/status so the officer
+    can quote it. 401: no session was issued.
+    """
+
+    def __init__(self, message: str, *, code: str, issue_id: str | None = None, status: str = "pending") -> None:
+        super().__init__(message)
+        self.code = code
+        self.issue_id = issue_id
+        self.status = status
+
+
 class InactiveAccountException(DomainException):
     """Raised when a disabled/inactive user attempts to authenticate."""
 

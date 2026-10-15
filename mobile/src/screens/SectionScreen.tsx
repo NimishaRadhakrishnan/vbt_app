@@ -41,6 +41,7 @@ import AdminReportsScreen from './admin/AdminReportsScreen';
 import AdminFormBuilderScreen from './admin/AdminFormBuilderScreen';
 import AdminKnowledgeReviewScreen from './admin/AdminKnowledgeReviewScreen';
 import AdminUsersScreen from './admin/AdminUsersScreen';
+import AdminLoginRequestsScreen from './admin/AdminLoginRequestsScreen';
 import AdminStockScreen from './admin/AdminStockScreen';
 import AdminMasterDataScreen from './admin/AdminMasterDataScreen';
 
@@ -248,6 +249,10 @@ function TabBody({ tabId, role, navigation, onDone }: { tabId: string; role: str
     }
     case 'attendance': {
       const C = as(AdminAttendanceScreen);
+      return <C navigation={navigation} />;
+    }
+    case 'login-requests': {
+      const C = as(AdminLoginRequestsScreen);
       return <C navigation={navigation} />;
     }
     case 'people': {

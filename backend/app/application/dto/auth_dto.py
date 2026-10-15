@@ -35,6 +35,9 @@ class LoginInput:
     employee_id: Optional[str] = None
     email: Optional[str] = None
     device_id: Optional[str] = None
+    # Shown to the admin when the sign-in is held: "Samsung SM-A52, Android 13".
+    device_name: Optional[str] = None
+    ip_address: Optional[str] = None
 
 
 @dataclass(frozen=True)

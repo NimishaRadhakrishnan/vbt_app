@@ -133,6 +133,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: "live", label: "Live", aliases: ["Live Tracking Map", "Team's Live Location"], roles: OVERSIGHT, target: { kind: "tab", id: "map" } },
       { id: "history", label: "History", aliases: ["Movement History", "Historical Route Replay"], roles: OVERSIGHT, target: { kind: "tab", id: "route-history" } },
       { id: "attendance", label: "Attendance", aliases: ["Attendance Log"], roles: OVERSIGHT, target: { kind: "tab", id: "attendance" } },
+      { id: "login-requests", label: "Login Requests", aliases: ["Device change", "Login issues", "Phone change"], roles: ["admin"], target: { kind: "route", path: "/dashboard/login-requests" } },
       { id: "people", label: "People", aliases: ["User Management", "Users"], roles: ["admin"], target: { kind: "tab", id: "users" } },
     ],
   },

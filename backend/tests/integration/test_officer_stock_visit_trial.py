@@ -109,3 +109,18 @@ async def test_visit_without_farmer_or_dealer_gets_a_clear_message(client):
         "visit_type": "farmer", "latitude": 11.0, "longitude": 77.0, "purpose": "x", "photo_urls": ["/u/x.jpg"]})
     assert res.status_code == 400
     assert "farmer or a dealer" in res.text
+
+
+async def test_ledger_shows_running_balance_and_who_it_went_to(client):
+    """History rows carry the stock left after each movement and the farmer."""
+    officer = await _login(client, "dinesh@vishakan.com")
+    hist = await client.get("/api/v1/stock/ledger?limit=50", headers=officer)
+    assert hist.status_code == 200, hist.text
+    rows = hist.json()
+    assert rows and all("balance_after" in r and "context" in r for r in rows)
+    # newest first: the newest row's balance equals the officer's current stock for that product
+    top = rows[0]
+    mine = {i["product_id"]: i["current_quantity"] for i in (await client.get("/api/v1/stock/my-stock", headers=officer)).json()}
+    assert abs(top["balance_after"] - mine[top["product_id"]]) < 1e-6
+    only_trials = await client.get("/api/v1/stock/ledger?movement_type=trial_given&date_from=2020-01-01&date_to=2099-01-01", headers=officer)
+    assert only_trials.status_code == 200 and all(r["movement_type"] == "trial_given" for r in only_trials.json())

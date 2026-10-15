@@ -19,7 +19,7 @@ all.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
 
@@ -256,6 +256,10 @@ class LedgerEntry(BaseModel):
     ref_id: uuid.UUID | None = None
     remarks: str | None = None
     created_at: datetime
+    # Stock the officer held right after this movement, and who/where it
+    # went to (the farmer or dealer of the visit, or the farmer registered).
+    balance_after: float | None = None
+    context: str | None = None
 
 
 class AllocationInput(BaseModel):
@@ -453,6 +457,9 @@ async def get_ledger(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     officer_id: uuid.UUID | None = None,
     product_id: uuid.UUID | None = None,
+    movement_type: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[LedgerEntry]:
@@ -472,14 +479,28 @@ async def get_ledger(
         None if is_privileged else current_user.user_id
     )
 
+    # balance_after is a running SUM over the officer's whole history for the
+    # product, computed BEFORE any filter or paging so a filtered view still
+    # shows the true balance at that moment.
     query = """
         SELECT sl.id, sl.product_id, p.name AS product_name, u.full_name AS officer_name,
                sl.qty_delta, sl.movement_type, sl.ref_type, sl.ref_id,
-               sl.remarks, sl.created_at
-        FROM stock_ledger sl
+               sl.remarks, sl.created_at, sl.balance_after,
+               COALESCE(fv.name, dv.name, fr.name) AS context
+        FROM (
+            SELECT l.*, SUM(l.qty_delta) OVER (
+                       PARTITION BY l.officer_id, l.product_id
+                       ORDER BY l.created_at, l.id) AS balance_after
+            FROM stock_ledger l
+            WHERE (CAST(:officer_id AS UUID) IS NULL OR l.officer_id = CAST(:officer_id AS UUID))
+        ) sl
         JOIN products p ON p.id = sl.product_id
         JOIN users u ON u.id = sl.officer_id
-        WHERE (CAST(:officer_id AS UUID) IS NULL OR sl.officer_id = CAST(:officer_id AS UUID))
+        LEFT JOIN visits v ON sl.ref_type = 'visit' AND v.id = sl.ref_id
+        LEFT JOIN farmers fv ON fv.id = v.farmer_id
+        LEFT JOIN dealers dv ON dv.id = v.dealer_id
+        LEFT JOIN farmers fr ON sl.ref_type = 'farmer' AND fr.id = sl.ref_id
+        WHERE TRUE
     """
     params: dict = {
         "officer_id": str(target) if target else None,
@@ -489,6 +510,15 @@ async def get_ledger(
     if product_id:
         query += " AND sl.product_id = :product_id"
         params["product_id"] = product_id
+    if movement_type:
+        query += " AND sl.movement_type = :movement_type"
+        params["movement_type"] = movement_type
+    if date_from:
+        query += " AND sl.created_at >= :date_from"
+        params["date_from"] = datetime.combine(date_from, datetime.min.time(), tzinfo=UTC)
+    if date_to:
+        query += " AND sl.created_at < :date_to"
+        params["date_to"] = datetime.combine(date_to + timedelta(days=1), datetime.min.time(), tzinfo=UTC)
     query += " ORDER BY sl.created_at DESC, sl.id DESC LIMIT :limit OFFSET :offset"
 
     result = await session.execute(text(query).bindparams(**params))
@@ -504,6 +534,8 @@ async def get_ledger(
             ref_id=r.ref_id,
             remarks=r.remarks,
             created_at=r.created_at,
+            balance_after=float(r.balance_after) if r.balance_after is not None else None,
+            context=r.context,
         )
         for r in result.all()
     ]

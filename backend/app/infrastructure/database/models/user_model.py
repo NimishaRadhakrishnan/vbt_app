@@ -32,6 +32,7 @@ class UserModel(TimestampedUUIDMixin, Base):
     password_changed_by: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     failed_logins: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
     last_failed_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    login_status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active")
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     # field | sales | both - which day closure and dashboard an officer sees.
     work_mode: Mapped[str] = mapped_column(String(10), nullable=False, default="both", server_default="both")

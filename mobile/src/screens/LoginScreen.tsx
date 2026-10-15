@@ -71,7 +71,13 @@ export default function LoginScreen({ navigation }: any) {
       // to survive minor rewording, but this is not a robust contract -
       // a dedicated error code from the backend would be the real fix.
       const rawMessage: string = err?.message || '';
-      if (rawMessage.includes('bound to another mobile device')) {
+      if (err?.code === 'device_approval_pending') {
+        Alert.alert('Waiting for admin approval', rawMessage);
+      } else if (err?.code === 'device_approval_rejected') {
+        Alert.alert('Request declined', rawMessage);
+      } else if (err?.code === 'inactive_account') {
+        Alert.alert('Account deactivated', `${rawMessage} A request has been sent to your admin.`);
+      } else if (rawMessage.includes('bound to another mobile device')) {
         Alert.alert(
           'Device Not Recognized',
           'This account is already linked to a different device. Please contact your admin to reset your device access before signing in - retrying your password will not fix this.'

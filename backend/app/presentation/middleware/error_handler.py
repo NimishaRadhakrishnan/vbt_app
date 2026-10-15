@@ -29,6 +29,7 @@ from app.domain.exceptions.domain_exceptions import (
     InsufficientPermissionsException,
     InvalidCredentialsException,
     InvalidTokenException,
+    LoginIssueException,
     WeakPasswordException,
 )
 from app.presentation.schemas.error_schemas import ErrorResponse
@@ -39,6 +40,7 @@ _EXCEPTION_STATUS_MAP: dict[type[DomainException], int] = {
     EntityNotFoundException: status.HTTP_404_NOT_FOUND,
     DuplicateEntityException: status.HTTP_409_CONFLICT,
     InvalidCredentialsException: status.HTTP_401_UNAUTHORIZED,
+    LoginIssueException: status.HTTP_401_UNAUTHORIZED,
     InactiveAccountException: status.HTTP_403_FORBIDDEN,
     InvalidTokenException: status.HTTP_401_UNAUTHORIZED,
     InsufficientPermissionsException: status.HTTP_403_FORBIDDEN,

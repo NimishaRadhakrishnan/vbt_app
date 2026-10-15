@@ -18,6 +18,7 @@ import { apiClient } from '../services/api';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { LoadingState, ErrorState, EmptyState, StaleDataBanner } from '../components/FetchStates';
 import { showSubmitResult } from '../utils/offlineAlert';
+import StockHistory from '../components/StockHistory';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 
 // Stock in hand for field and sales officers.
@@ -133,6 +134,7 @@ export default function MyStockScreen() {
         stickySectionHeadersEnabled={false}
         refreshing={refreshing}
         onRefresh={refresh}
+        ListFooterComponent={<StockHistory />}
         ListHeaderComponent={
           <View style={styles.summary}>
             <View style={styles.summaryItem}>
