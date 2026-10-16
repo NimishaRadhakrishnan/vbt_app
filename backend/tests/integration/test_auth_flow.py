@@ -96,7 +96,22 @@ async def test_full_auth_flow() -> None:
         new_tokens = refresh_response.json()
         assert new_tokens["refresh_token"] != tokens["refresh_token"]
 
-        # Old refresh token must now be invalid (rotation).
+        # Right after a refresh the old token still works for a short grace
+        # period (the reply may have been lost on a weak signal) ...
+        retry_response = await client.post(
+            "/api/v1/auth/refresh", json={"refresh_token": tokens["refresh_token"]}
+        )
+        assert retry_response.status_code == 200
+        # ... and once that grace has run out it is invalid (rotation).
+        import hashlib
+        from app.core.container import get_redis
+
+        redis = await get_redis()
+        key = "refresh_token:" + hashlib.sha256(tokens["refresh_token"].encode()).hexdigest()
+        assert 0 < await redis.ttl(key) <= 120
+        await redis.expire(key, 1)
+        import asyncio
+        await asyncio.sleep(1.2)
         reuse_response = await client.post(
             "/api/v1/auth/refresh", json={"refresh_token": tokens["refresh_token"]}
         )

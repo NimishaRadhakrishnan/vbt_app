@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(default="HS256")
     access_token_expire_minutes: int = Field(default=15)
     refresh_token_expire_days: int = Field(default=7)
+    # After a refresh token is swapped for a new one, the old one still works
+    # this long. A phone on a weak signal often never receives the reply; with
+    # no grace it kept the dead token and was signed out for good.
+    refresh_token_grace_seconds: int = Field(default=120)
 
     # --- CORS ---
     cors_allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])

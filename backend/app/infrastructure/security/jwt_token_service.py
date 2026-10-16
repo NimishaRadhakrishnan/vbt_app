@@ -111,7 +111,11 @@ class JWTTokenService(TokenService):
             raise InvalidTokenException("Refresh token is invalid, expired, or already used.")
 
         user_id_str, role = stored.split(":", 1)
-        await self._redis.delete(key)  # rotation: old token is single-use
+        # Rotation: the old token stops working shortly, not instantly. If the
+        # reply carrying the new token is lost (weak mobile signal), the phone
+        # retries with the old one and is given a fresh pair instead of being
+        # signed out. Logout still deletes a token at once.
+        await self._redis.expire(key, max(1, self._settings.refresh_token_grace_seconds))
 
         return await self.issue_token_pair(uuid.UUID(user_id_str), role)
 

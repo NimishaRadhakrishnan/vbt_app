@@ -10,8 +10,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from redis.asyncio import Redis
 
-from app.core.container import get_redis, get_websocket_manager
-from app.infrastructure.security.jwt_token_service import JWTTokenService
+from app.application.interfaces.token_service import TokenService
+from app.core.container import get_redis, get_token_service, get_websocket_manager
+from app.domain.exceptions.domain_exceptions import InvalidTokenException
 from app.infrastructure.websockets.connection_manager import ConnectionManager
 
 logger = logging.getLogger(__name__)
@@ -24,11 +25,14 @@ async def websocket_alerts_endpoint(
     websocket: WebSocket,
     manager: Annotated[ConnectionManager, Depends(get_websocket_manager)],
     redis: Annotated[Redis, Depends(get_redis)],
+    token_service: Annotated[TokenService, Depends(get_token_service)],
     token: str = Query(...),
 ) -> None:
-    token_service = JWTTokenService()
-    user_payload = await token_service.verify_access_token(token)
-    if not user_payload:
+    # This used to build the service with no arguments and call a method that
+    # does not exist, so every connection ended in a 500.
+    try:
+        await token_service.decode_access_token(token)
+    except InvalidTokenException:
         await websocket.close(code=1008)
         return
 
