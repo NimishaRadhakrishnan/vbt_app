@@ -35,8 +35,8 @@ ISSUE_LABELS = {
 async def add_event(session, issue_id, event_type: str, *, actor_id=None, actor_name: Optional[str] = None, detail: Optional[str] = None) -> None:
     await session.execute(
         text(
-            "INSERT INTO login_issue_events (issue_id, event_type, actor_id, actor_name, detail) "
-            "VALUES (:i, :e, :a, :n, :d)"
+            "INSERT INTO login_issue_events (issue_id, event_type, actor_id, actor_name, detail, created_at) "
+            "VALUES (:i, :e, :a, :n, :d, clock_timestamp())"
         ),
         {"i": issue_id, "e": event_type, "a": actor_id, "n": actor_name, "d": detail},
     )

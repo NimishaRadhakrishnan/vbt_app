@@ -172,8 +172,16 @@ class SQLAlchemyDealerRepository(DealerRepository):
         requested_by: Optional[uuid.UUID] = None,
         limit: int = 50,
         offset: int = 0,
+        scope_districts: Optional[list[str]] = None,
+        scope_user_id: Optional[uuid.UUID] = None,
     ) -> list[Dealer]:
         query = select(DealerModel).where(DealerModel.is_deleted == False)  # noqa: E712
+        if scope_districts:
+            from sqlalchemy import func, or_
+            conds = [func.lower(DealerModel.district).in_([d.lower() for d in scope_districts])]
+            if scope_user_id:
+                conds += [DealerModel.requested_by == scope_user_id, DealerModel.assigned_sales_officer_id == scope_user_id]
+            query = query.where(or_(*conds))
         if requested_by:
             query = query.where(DealerModel.requested_by == requested_by)
         if district:

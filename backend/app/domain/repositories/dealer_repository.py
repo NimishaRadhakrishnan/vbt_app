@@ -35,6 +35,8 @@ class DealerRepository(ABC):
         requested_by: Optional[uuid.UUID] = None,
         limit: int = 50,
         offset: int = 0,
+        scope_districts: Optional[list[str]] = None,
+        scope_user_id: Optional[uuid.UUID] = None,
     ) -> list[Dealer]: ...
 
     @abstractmethod

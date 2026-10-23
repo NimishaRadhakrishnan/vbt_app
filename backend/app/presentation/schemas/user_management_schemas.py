@@ -78,7 +78,8 @@ class ResetPasswordRequest(BaseModel):
 
 
 class AssignUserDetailsRequest(BaseModel):
-    territory_ids: List[uuid.UUID] = []
+    territory_ids: Optional[List[uuid.UUID]] = None  # None = leave territories untouched
+    districts: Optional[List[str]] = None  # None = leave untouched; [] = clear district assignment
     district: Optional[str] = None
     taluk: Optional[str] = None
     village: Optional[str] = None

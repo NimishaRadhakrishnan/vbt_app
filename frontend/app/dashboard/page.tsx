@@ -407,6 +407,8 @@ export default function Dashboard() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [resettingUser, setResettingUser] = useState<any | null>(null);
   const [assigningUser, setAssigningUser] = useState<any | null>(null);
+  const [allDistricts, setAllDistricts] = useState<string[]>([]);
+  const [formDistricts, setFormDistricts] = useState<string[]>([]);
 
   // Momentum State
   const [momentumData, setMomentumData] = useState<any | null>(null);
@@ -4911,6 +4913,19 @@ export default function Dashboard() {
                       />
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Districts (an officer sees dealers of these districts; none selected = all)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {allDistricts.map((d) => (
+                        <label key={d} className={`px-3 py-1.5 text-xs font-semibold rounded-full border cursor-pointer ${formDistricts.some((x) => x.toLowerCase() === d.toLowerCase()) ? "bg-green-700 text-white border-green-700" : "bg-slate-50 text-slate-700 border-slate-200"}`}>
+                          <input type="checkbox" className="hidden" checked={formDistricts.some((x) => x.toLowerCase() === d.toLowerCase())}
+                            onChange={() => setFormDistricts((cur) => cur.some((x) => x.toLowerCase() === d.toLowerCase()) ? cur.filter((x) => x.toLowerCase() !== d.toLowerCase()) : [...cur, d])} />
+                          {d}
+                        </label>
+                      ))}
+                      {allDistricts.length === 0 && <span className="text-xs text-slate-400">No districts configured yet.</span>}
+                    </div>
+                  </div>
 
                   <div className="flex gap-2 justify-end pt-2">
                     <button
@@ -4929,7 +4944,7 @@ export default function Dashboard() {
                             body: JSON.stringify({
                               manager_id: formManagerId || null,
                               device_id: formDeviceId || null,
-                              territory_ids: [], // Set empty or populate
+                              districts: formDistricts,
                             }),
                           });
                           setFormSuccess(`Assignments updated for ${assigningUser.full_name}!`);
@@ -5201,7 +5216,7 @@ export default function Dashboard() {
                                   {dropdownOpenId === u.id && (
                                     <div className="absolute right-0 top-8 w-40 bg-white border border-slate-100 shadow-md rounded-lg py-1 z-10 text-left">
                                       <button onClick={() => { setDropdownOpenId(null); router.push(`/dashboard/officers/${u.id}`); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Profile</button>
-                                      <button onClick={() => { setDropdownOpenId(null); setAssigningUser(u); setFormManagerId(u.manager_id || ""); setFormDeviceId(u.device_id || ""); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Assign</button>
+                                      <button onClick={() => { setDropdownOpenId(null); setAssigningUser(u); setFormManagerId(u.manager_id || ""); setFormDeviceId(u.device_id || ""); setFormDistricts([]); apiFetch("/districts").then((d: any) => setAllDistricts((Array.isArray(d) ? d : d?.districts || []).map((x: any) => typeof x === "string" ? x : x.name))).catch(() => {}); apiFetch(`/users/${u.id}/districts`).then((d: any) => setFormDistricts(Array.isArray(d) ? d : [])).catch(() => {}); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Assign</button>
                                       <button onClick={() => { setDropdownOpenId(null); setResettingUser(u); setFormPassword(""); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Key</button>
                                       <button
                                         disabled={u.id === user?.id}

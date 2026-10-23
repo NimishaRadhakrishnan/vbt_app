@@ -103,10 +103,13 @@ class DealerUseCase:
         requested_by: Optional[uuid.UUID] = None,
         limit: int = 50,
         offset: int = 0,
+        scope_districts: Optional[list[str]] = None,
+        scope_user_id: Optional[uuid.UUID] = None,
     ) -> list[Dealer]:
         return await self._dealer_repository.search_dealers(
             district=district, taluk=taluk, status=status, date_from=date_from, date_to=date_to,
-            requested_by=requested_by, limit=limit, offset=offset
+            requested_by=requested_by, limit=limit, offset=offset,
+            scope_districts=scope_districts, scope_user_id=scope_user_id,
         )
 
     async def set_dealer_approval(

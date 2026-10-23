@@ -279,6 +279,21 @@ async def update_status(
     return _to_response(result)
 
 
+@router.get("/{user_id}/districts")
+async def get_user_districts(
+    user_id: uuid.UUID,
+    _admin_access: _AdminAccess,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> list[str]:
+    rows = await session.execute(
+        text("""SELECT DISTINCT t.district FROM user_territories ut
+                JOIN territories t ON t.id = ut.territory_id
+                WHERE ut.user_id = :u AND t.district IS NOT NULL ORDER BY t.district"""),
+        {"u": user_id},
+    )
+    return [r.district for r in rows.all()]
+
+
 @router.post("/{user_id}/assignments", response_model=UserResponse)
 async def assign_user_details(
     user_id: uuid.UUID,
@@ -298,17 +313,44 @@ async def assign_user_details(
     user.updated_by = _current_user.user_id
     await user_repo.update(user)
 
-    # 2. Clear existing user_territories
-    await session.execute(
-        text("DELETE FROM user_territories WHERE user_id = :user_id").bindparams(user_id=user_id)
-    )
-
-    # 3. Add new user_territories mappings
-    for t_id in payload.territory_ids:
+    # 2. Explicit territory list replaces everything (legacy behaviour);
+    #    omitted (None) leaves territories untouched.
+    if payload.territory_ids is not None:
         await session.execute(
-            text("INSERT INTO user_territories (user_id, territory_id) VALUES (:user_id, :t_id)")
-            .bindparams(user_id=user_id, t_id=t_id)
+            text("DELETE FROM user_territories WHERE user_id = :user_id").bindparams(user_id=user_id)
         )
+        for t_id in payload.territory_ids:
+            await session.execute(
+                text("INSERT INTO user_territories (user_id, territory_id) VALUES (:user_id, :t_id)")
+                .bindparams(user_id=user_id, t_id=t_id)
+            )
+
+    # 3. District assignment: one district-level territory per district
+    #    (created on first use); replaces only the district-level mappings.
+    if payload.districts is not None:
+        await session.execute(
+            text("""DELETE FROM user_territories WHERE user_id = :u AND territory_id IN
+                    (SELECT id FROM territories WHERE lower(name) = lower(district))""").bindparams(u=user_id)
+        )
+        seen: set[str] = set()
+        for raw in payload.districts:
+            name = (raw or "").strip()
+            if not name or name.lower() in seen:
+                continue
+            seen.add(name.lower())
+            row = (await session.execute(
+                text("SELECT id FROM territories WHERE lower(name) = lower(:n) AND lower(district) = lower(:n) LIMIT 1"),
+                {"n": name},
+            )).first()
+            tid = row.id if row else uuid.uuid4()
+            if not row:
+                await session.execute(
+                    text("INSERT INTO territories (id, name, district) VALUES (:id, :n, :n)"), {"id": tid, "n": name}
+                )
+            await session.execute(
+                text("INSERT INTO user_territories (user_id, territory_id) VALUES (:u, :t) ON CONFLICT DO NOTHING"),
+                {"u": user_id, "t": tid},
+            )
     await session.commit()
     from app.application.services.geofence_service import invalidate_fence_cache
     invalidate_fence_cache()

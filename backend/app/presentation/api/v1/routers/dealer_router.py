@@ -159,9 +159,21 @@ async def search_dealers(
     effective_status = status_filter if (status_filter and is_privileged) else "active"
     if mine:
         effective_status = status_filter or None
+    # Field officers see the dealers of the districts an admin assigned to
+    # them (plus ones they registered / are assigned). With no district
+    # assigned they keep seeing everything, so nobody is locked out.
+    scope_districts = None
+    if current_user.role == "field_officer" and not mine:
+        drows = await session.execute(
+            text("""SELECT DISTINCT t.district FROM user_territories ut
+                    JOIN territories t ON t.id = ut.territory_id
+                    WHERE ut.user_id = :u AND t.district IS NOT NULL""").bindparams(u=current_user.user_id)
+        )
+        scope_districts = [r.district for r in drows.all()] or None
     result = await use_case.search_dealers(
         district=district, taluk=taluk, status=effective_status, date_from=date_from, date_to=date_to,
-        requested_by=current_user.user_id if mine else None, limit=limit, offset=offset
+        requested_by=current_user.user_id if mine else None, limit=limit, offset=offset,
+        scope_districts=scope_districts, scope_user_id=current_user.user_id,
     )
     # Who registered each dealer, for the "Registered by" line.
     ids = list({d.requested_by for d in result if d.requested_by})
