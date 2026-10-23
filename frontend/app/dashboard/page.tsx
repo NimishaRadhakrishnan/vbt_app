@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { apiFetch, API_BASE_URL, ApiError } from "@/lib/api/client";
 import PhotoGallery from "@/components/PhotoViewer";
+import PasswordInput from "@/components/PasswordInput";
 import { tokenStorage } from "@/lib/api/token-storage";
 import { useAuth } from "@/lib/auth-context";
 import { computeLiveOfficers, countActive as countActiveOfficers, formatSpeed, LiveOfficer } from "@/lib/officerStatus";
@@ -4722,8 +4723,7 @@ export default function Dashboard() {
                     {isCreatingUser && (
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Password</label>
-                        <input
-                          type="password"
+                        <PasswordInput
                           value={formPassword}
                           onChange={(e) => setFormPassword(e.target.value)}
                           className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-green-700"
@@ -4843,8 +4843,7 @@ export default function Dashboard() {
                   <h3 className="font-bold text-slate-800 text-md">Reset Password for {resettingUser.full_name}</h3>
                   <div className="w-full max-w-md">
                     <label className="block text-xs font-semibold text-slate-600 mb-1">New Password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={formPassword}
                       onChange={(e) => setFormPassword(e.target.value)}
                       placeholder="At least 8 characters"

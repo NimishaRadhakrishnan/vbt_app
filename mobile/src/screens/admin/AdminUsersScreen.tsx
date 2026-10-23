@@ -6,6 +6,7 @@ import {
 import { apiClient } from '../../services/api';
 import { useDataFetch } from '../../hooks/useDataFetch';
 import { LoadingState, ErrorState, EmptyState } from '../../components/FetchStates';
+import PasswordField from '../../components/PasswordField';
 import { color, font, fontWeight, spacing, radius } from '../../theme';
 
 type UserRow = {
@@ -288,7 +289,7 @@ export default function AdminUsersScreen() {
               {isCreatingUser && (
                 <>
                   <FieldLabel text="Password" />
-                  <TextInput style={styles.input} value={profileForm.password} onChangeText={(v) => setProfileForm((f) => ({ ...f, password: v }))} secureTextEntry />
+                  <PasswordField style={styles.input} value={profileForm.password} onChangeText={(v) => setProfileForm((f) => ({ ...f, password: v }))} />
                 </>
               )}
               <FieldLabel text="Role" />
@@ -318,7 +319,7 @@ export default function AdminUsersScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Reset Password</Text>
             <FieldLabel text="New Password" />
-            <TextInput style={styles.input} value={resetPassword} onChangeText={setResetPassword} secureTextEntry />
+            <PasswordField style={styles.input} value={resetPassword} onChangeText={setResetPassword} />
             <View style={styles.modalBtnRow}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setResetUserId(null)}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
