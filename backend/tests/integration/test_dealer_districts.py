@@ -60,3 +60,19 @@ async def test_district_scoped_dealers(client):
     await client.post(f"/api/v1/users/{uid}/assignments", headers=admin, json={"districts": []})
     names = {d["district"] for d in (await client.get("/api/v1/dealers/search?limit=500", headers=off)).json()}
     assert db in names
+
+
+async def test_admin_can_delete_dealer_and_reuse_phone(client):
+    admin = await _login(client, "admin@vishakan.com")
+    off = await _login(client, EMAIL)
+    tag = uuid.uuid4().hex[:6]
+    phone = ("8" + tag + "1234567")[:10]
+    body = {"name": f"Del {tag}", "phone": phone, "district": f"DelD{tag}", "duplicate_check_acknowledged": True}
+    r = await client.post("/api/v1/dealers/", headers=admin, json=body)
+    assert r.status_code in (200, 201), r.text
+    did = r.json()["id"]
+    assert (await client.delete(f"/api/v1/dealers/{did}", headers=off)).status_code == 403
+    assert (await client.delete(f"/api/v1/dealers/{did}", headers=admin)).status_code == 204
+    assert (await client.delete(f"/api/v1/dealers/{did}", headers=admin)).status_code == 404
+    assert did not in {d["id"] for d in (await client.get("/api/v1/dealers/search?limit=500", headers=admin)).json()}
+    assert (await client.post("/api/v1/dealers/", headers=admin, json=body)).status_code in (200, 201)

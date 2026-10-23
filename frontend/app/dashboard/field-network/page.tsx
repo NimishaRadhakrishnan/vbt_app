@@ -1101,6 +1101,23 @@ export default function FieldNetworkPage() {
                         </span>
                       </button>
 
+                      {user?.role === "admin" && (
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm(`Delete dealer "${d.name}"? This removes it from all lists.`)) return;
+                            try {
+                              await apiFetch(`/dealers/${d.id}`, { method: "DELETE" });
+                              setDealers((cur: any[]) => cur.filter((x) => x.id !== d.id));
+                            } catch (err: any) {
+                              alert(err.message || "Failed to delete dealer");
+                            }
+                          }}
+                          className="text-xs font-semibold text-red-600 hover:text-red-800 mt-2 ml-4"
+                        >
+                          Delete dealer
+                        </button>
+                      )}
+
                       {isExpanded && (
                         <div className="space-y-1 mt-3 pt-3 border-t border-slate-100">
                           {(d.inventory?.length ?? 0) === 0 ? (

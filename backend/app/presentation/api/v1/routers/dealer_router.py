@@ -8,7 +8,7 @@ import uuid
 from datetime import date
 from typing import Optional, Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -185,6 +185,35 @@ async def search_dealers(
     for item in out:
         item.registered_by_name = names.get(item.requested_by)
     return out
+
+
+@router.delete("/{dealer_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response, response_model=None)
+async def delete_dealer(
+    dealer_id: uuid.UUID,
+    current_user: CurrentUser,
+    _access: Annotated[object, Depends(require_role(Role.ADMIN))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> None:
+    """Admin only. Soft delete: the dealer disappears from every list but
+    past visits/orders keep their history. The phone/GST are released so
+    the same dealer can be registered again later."""
+    row = (await session.execute(
+        text("SELECT name, phone FROM dealers WHERE id = :i AND is_deleted = false"), {"i": dealer_id}
+    )).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Dealer not found.")
+    await session.execute(
+        text("""UPDATE dealers SET is_deleted = true, status = 'rejected',
+                phone = left('deleted-' || substr(id::text, 1, 8) || '-' || phone, 50),
+                gst_number = NULL, updated_by = :u WHERE id = :i"""),
+        {"i": dealer_id, "u": current_user.user_id},
+    )
+    from app.infrastructure.audit.audit_log import write_audit_log
+    await write_audit_log(
+        session, user_id=current_user.user_id, event_type="admin_dealer_delete",
+        description=f"Deleted dealer {row.name}", context_data={"dealer_id": str(dealer_id), "phone": row.phone},
+    )
+    await session.commit()
 
 
 @router.patch("/{dealer_id}/approval", response_model=DealerResponse)
