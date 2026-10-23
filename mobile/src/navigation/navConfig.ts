@@ -77,6 +77,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'alerts', label: 'Alerts', aliases: ['Location alerts', 'Territory alerts'], roles: OVERSIGHT, ready: true },
       { id: 'territories', label: 'Territories', aliases: ['Geofence', 'Territory areas'], roles: ['admin'], ready: true },
       { id: 'attendance', label: 'Attendance', aliases: ['Attendance Log'], roles: OVERSIGHT, ready: true },
+      { id: 'speedometer', label: 'Speedometer', aliases: ['Odometer', 'Vehicle km', 'Meter photo'], roles: OVERSIGHT, ready: true },
       { id: 'login-requests', label: 'Login Requests', aliases: ['Device change', 'Login issues', 'Phone change'], roles: ['admin'], ready: true },
       { id: 'people', label: 'People', aliases: ['Users', 'User Management'], roles: ['admin'], ready: true },
     ],

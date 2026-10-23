@@ -12,10 +12,11 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from app.application.services.gps_retention import purge_old_closures, purge_old_gps  # noqa: E402
+from app.application.services.gps_retention import purge_old_closures, purge_old_gps, purge_old_odometer  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 if __name__ == "__main__":
     print(asyncio.run(purge_old_gps()))
     print(asyncio.run(purge_old_closures()))
+    print(asyncio.run(purge_old_odometer()))

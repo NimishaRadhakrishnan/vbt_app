@@ -148,3 +148,35 @@ async def purge_old_closures(days: int | None = None) -> dict[str, int]:
         counts["visits"] = counts.get("visits", 0) + len(vids)
     logger.info("closure_retention_done", extra={"cutoff": cutoff_day.isoformat(), **counts})
     return counts
+
+
+async def purge_old_odometer(days: int | None = None) -> int:
+    """Delete speedometer readings (and their photo files) older than
+    settings.odometer_retention_days."""
+    import os
+
+    from app.infrastructure.storage.local_file_storage import UPLOAD_DIR
+
+    keep = days if days is not None else get_settings().odometer_retention_days
+    if keep < 1:
+        raise BusinessRuleViolationException("odometer_retention_days must be at least 1")
+    cutoff = datetime.now(UTC) - timedelta(days=keep)
+    total = 0
+    while True:
+        async with AsyncSessionLocal() as session:
+            rows = (await session.execute(
+                text("DELETE FROM odometer_readings WHERE id IN "
+                     "(SELECT id FROM odometer_readings WHERE created_at < :c LIMIT 500) RETURNING filename"),
+                {"c": cutoff},
+            )).all()
+            await session.commit()
+        for r in rows:
+            try:
+                os.remove(os.path.join(UPLOAD_DIR, "odometer", os.path.basename(r.filename)))
+            except OSError:
+                pass
+        total += len(rows)
+        if len(rows) < 500:
+            break
+    logger.info("odometer_retention_done", extra={"deleted": total})
+    return total

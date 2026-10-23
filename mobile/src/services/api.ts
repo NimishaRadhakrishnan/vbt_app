@@ -262,6 +262,14 @@ class FFMAPIClient {
   // camera's cache) isn't safely replayable later the way a JSON payload
   // is, so this only succeeds while actually online.
   public async uploadFile(endpoint: string, fileUri: string, fileName: string, mimeType: string): Promise<string> {
+    const data = await this.uploadForm(endpoint, fileUri, fileName, mimeType);
+    return data.url;
+  }
+
+  // Same upload, plus extra text fields; returns the server's JSON.
+  public async uploadForm(
+    endpoint: string, fileUri: string, fileName: string, mimeType: string, fields: Record<string, string> = {},
+  ): Promise<any> {
     // One try at sending the photo. A fresh FormData each time, because a
     // body that has been sent once cannot be sent again.
     const attempt = async (): Promise<Response> => {
@@ -275,6 +283,7 @@ class FFMAPIClient {
         name: fileName,
         type: mimeType,
       } as any);
+      Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
 
       const headers: Record<string, string> = {};
       if (this.token) {
@@ -321,8 +330,14 @@ class FFMAPIClient {
     if (!response.ok) {
       throw await this.toReadableError(response);
     }
-    const data = await response.json();
-    return data.url;
+    return await response.json();
+  }
+
+  // URL for an authenticated photo/file the server serves with ?token= (for
+  // <Image> and for opening a download in the browser).
+  public mediaUrl(path: string): string {
+    const sep = path.includes('?') ? '&' : '?';
+    return `${BACKEND_URL}${path}${sep}token=${encodeURIComponent(this.token ?? '')}`;
   }
 
   // Turns a failed response into an Error with a plain-language message

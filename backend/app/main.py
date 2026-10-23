@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.application.services.gps_retention import purge_old_closures, purge_old_gps
+from app.application.services.gps_retention import purge_old_closures, purge_old_gps, purge_old_odometer
 from app.core.logging_config import configure_logging
 from app.infrastructure.config.settings import get_settings
 from app.presentation.api.v1.router import api_v1_router
@@ -67,6 +67,7 @@ async def _gps_retention_loop() -> None:
         try:
             await purge_old_gps()
             await purge_old_closures()
+            await purge_old_odometer()
         except Exception:
             logger.exception("gps_retention_failed")
         await asyncio.sleep(_RETENTION_INTERVAL_SECONDS)

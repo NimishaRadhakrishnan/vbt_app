@@ -8,6 +8,7 @@ from fastapi import APIRouter
 
 from app.presentation.api.v1.routers.auth_router import router as auth_router
 from app.presentation.api.v1.routers.attendance_router import router as attendance_router
+from app.presentation.api.v1.routers.odometer_router import router as odometer_router
 from app.presentation.api.v1.routers.consent_router import router as consent_router
 from app.presentation.api.v1.routers.location_router import router as location_router
 from app.presentation.api.v1.routers.location_ws_router import router as location_ws_router
@@ -48,6 +49,7 @@ api_v1_router = APIRouter()
 api_v1_router.include_router(health_router)
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(attendance_router)
+api_v1_router.include_router(odometer_router)
 api_v1_router.include_router(consent_router)
 api_v1_router.include_router(location_router)
 api_v1_router.include_router(location_ws_router)

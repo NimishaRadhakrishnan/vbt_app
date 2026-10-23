@@ -8,6 +8,9 @@ import uuid
 from typing import Optional, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.infrastructure.database.session import get_db_session
 
 from app.application.use_cases.attendance_use_case import AttendanceUseCase
 from app.core.container import get_attendance_use_case
@@ -20,11 +23,32 @@ from app.presentation.schemas.attendance_schemas import AttendanceResponse, Chec
 router = APIRouter(prefix="/attendance", tags=["attendance"])
 
 
+async def _require_odometer(session, current_user, kind: str) -> None:
+    """Officers must submit the speedometer photo + km first (setting
+    odometer_required; admins are exempt)."""
+    from app.infrastructure.config.settings import get_settings
+    if not get_settings().odometer_required or current_user.role == "admin":
+        return
+    from sqlalchemy import text as _t
+    from app.infrastructure.config.company_time import company_today as _today
+    row = (await session.execute(
+        _t("SELECT 1 FROM odometer_readings WHERE user_id = :u AND reading_date = :d AND kind = :k"),
+        {"u": current_user.user_id, "d": _today(), "k": kind},
+    )).first()
+    if not row:
+        when = "start-of-day" if kind == "check_in" else "end-of-day"
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail=f"Upload the speedometer photo and enter the {when} km before you {'check in' if kind == 'check_in' else 'check out'}.",
+        )
+
+
 @router.post("/check-in", response_model=AttendanceResponse, status_code=status.HTTP_201_CREATED)
 async def check_in(
     payload: CheckInRequest,
     current_user: CurrentUser,
     use_case: Annotated[AttendanceUseCase, Depends(get_attendance_use_case)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
     _consent: Annotated[None, Depends(require_location_consent)] = None,
 ) -> AttendanceResponse:
     # Consent is enforced HERE, server-side, not only on the disclosure
@@ -39,6 +63,7 @@ async def check_in(
     # stop it, whatever their consent state. Gating check-out would trap
     # someone in exactly the situation the disclosure promises they can
     # leave.
+    await _require_odometer(session, current_user, "check_in")
     result = await use_case.check_in(
         user_id=current_user.user_id,
         device_id=payload.device_id,
@@ -71,7 +96,9 @@ async def check_out(
     payload: CheckOutRequest,
     current_user: CurrentUser,
     use_case: Annotated[AttendanceUseCase, Depends(get_attendance_use_case)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> AttendanceResponse:
+    await _require_odometer(session, current_user, "check_out")
     result = await use_case.check_out(
         user_id=current_user.user_id,
         lat=payload.latitude,

@@ -23,7 +23,7 @@ async def client():
 
 
 async def _login(client, email):
-    r = await client.post("/api/v1/auth/login", json={"email": email, "password": "Password123!", "device_id": "dev-dist-test"})
+    r = await client.post("/api/v1/auth/login", json={"email": email, "password": "Password123!", **({} if email.startswith("admin") else {"device_id": "dev-dist-test"})})
     assert r.status_code == 200, r.text
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 

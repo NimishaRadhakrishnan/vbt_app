@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import OdometerCard, { OdoReading } from '../components/OdometerCard';
 import * as Location from 'expo-location';
 import { apiClient } from '../services/api';
 import { CheckInJob, CheckInState } from '../services/CheckInJob';
@@ -17,6 +18,20 @@ export default function AttendanceScreen({ navigation }: any) {
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<CheckInState>(CheckInJob.getState());
+  // Speedometer photo + km (start of day before clock-in, end of day before
+  // clock-out). null = not loaded yet / offline: the server still enforces it.
+  const [odo, setOdo] = useState<{ required: boolean; check_in: OdoReading | null; check_out: OdoReading | null } | null>(null);
+  const loadOdo = async () => {
+    try {
+      const o: any = await apiClient.request('/odometer/today', 'GET', 'check_in', undefined, { queue: false });
+      setOdo(o);
+    } catch {
+      /* offline: do not block here */
+    }
+  };
+  useEffect(() => { void loadOdo(); }, []);
+  const needStart = !!odo?.required && !odo.check_in;
+  const needEnd = !!odo?.required && !odo.check_out;
 
   useEffect(() => {
     const unsub = CheckInJob.subscribe((j) => setJob(j));
@@ -124,11 +139,19 @@ export default function AttendanceScreen({ navigation }: any) {
   // Check-in runs in CheckInJob so it keeps going if the officer leaves this
   // screen; this screen only mirrors its progress.
   const handleCheckIn = () => {
+    if (needStart) {
+      Alert.alert('Speedometer needed', 'Upload the speedometer photo and km first, then clock in.');
+      return;
+    }
     void CheckInJob.start();
   };
 
   const handleCheckOut = async () => {
     if (busy) return;
+    if (needEnd) {
+      Alert.alert('Speedometer needed', 'Upload the end-of-day speedometer photo and km first, then clock out.');
+      return;
+    }
     setBusy(true);
     try {
       // Field and sales officers file today's closure BEFORE ending the
@@ -177,6 +200,7 @@ export default function AttendanceScreen({ navigation }: any) {
 
       setIsCheckedIn(false);
       setCheckInTime(null);
+      void loadOdo();
       await LocationService.stopTracking();
       void flushSavedPings(); // send anything saved while the signal was gone
       showSubmitResult(res, 'Checked Out Successfully', 'Shift completed. Live location tracking stopped.');
@@ -195,7 +219,7 @@ export default function AttendanceScreen({ navigation }: any) {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={{ flex: 1, backgroundColor: color.screenBg }} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>Shift Management</Text>
       
       <View style={styles.statusCard}>
@@ -214,8 +238,16 @@ export default function AttendanceScreen({ navigation }: any) {
         )}
       </View>
 
+      {!loadingStatus && odo?.required && (
+        <OdometerCard
+          kind={isCheckedIn ? 'check_out' : 'check_in'}
+          existing={isCheckedIn ? odo.check_out : odo.check_in}
+          onSubmitted={loadOdo}
+        />
+      )}
+
       {loadingStatus ? null : !isCheckedIn ? (
-        <TouchableOpacity style={[styles.btnCheckIn, checkingIn && styles.btnBusy]} onPress={handleCheckIn} disabled={checkingIn}>
+        <TouchableOpacity style={[styles.btnCheckIn, (checkingIn || needStart) && styles.btnBusy]} onPress={handleCheckIn} disabled={checkingIn}>
           {checkingIn ? (
             <View style={{ alignItems: 'center' }}>
               <ActivityIndicator color={color.white} />
@@ -224,7 +256,7 @@ export default function AttendanceScreen({ navigation }: any) {
           ) : <Text style={styles.btnText}>Clock In (Start Duty)</Text>}
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity style={[styles.btnCheckOut, busy && styles.btnBusy]} onPress={handleCheckOut} disabled={busy}>
+        <TouchableOpacity style={[styles.btnCheckOut, (busy || needEnd) && styles.btnBusy]} onPress={handleCheckOut} disabled={busy}>
           {busy ? <ActivityIndicator color={color.white} /> : <Text style={styles.btnText}>Clock Out (End Duty)</Text>}
         </TouchableOpacity>
       )}
@@ -237,13 +269,13 @@ export default function AttendanceScreen({ navigation }: any) {
       <TouchableOpacity style={styles.btnBack} onPress={() => navigation.goBack()}>
         <Text style={styles.btnBackText}>Go Back</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: color.screenBg,
     padding: spacing.xxl,
     justifyContent: 'center',

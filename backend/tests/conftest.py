@@ -9,6 +9,7 @@ import os
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-unit-tests-only")
 os.environ.setdefault("POSTGRES_PASSWORD", "test-password")
 os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("ODOMETER_REQUIRED", "false")
 
 
 # --- Async connection-pool isolation between tests ---

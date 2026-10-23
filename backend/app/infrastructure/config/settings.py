@@ -105,6 +105,12 @@ class Settings(BaseSettings):
     # by the same daily job.
     closure_retention_days: int = Field(default=60)
 
+    # Speedometer photos + km at check-in / check-out: kept this many days,
+    # then deleted (with the file) by the same daily job.
+    odometer_retention_days: int = Field(default=60)
+    # Officers must submit the speedometer photo and km to check in and out.
+    odometer_required: bool = Field(default=True)
+
     # --- Place names for the route timeline ---
     # Any OpenStreetMap-compatible reverse-geocoding URL. The public
     # Nominatim service allows one request a second and asks for a

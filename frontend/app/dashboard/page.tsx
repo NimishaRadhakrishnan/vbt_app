@@ -19,6 +19,7 @@ import { tokenStorage } from "@/lib/api/token-storage";
 import { useAuth } from "@/lib/auth-context";
 import { computeLiveOfficers, countActive as countActiveOfficers, formatSpeed, LiveOfficer } from "@/lib/officerStatus";
 import dynamic from "next/dynamic";
+import OdometerModal from "@/components/OdometerModal";
 import SectionTabs from "@/components/SectionTabs";
 import { findActive, hrefFor, navForRole, searchNav } from "@/lib/navigation";
 import type { NavTab } from "@/lib/navigation";
@@ -1390,6 +1391,21 @@ export default function Dashboard() {
     }
   };
 
+  // Speedometer photo + km: asked before check-in and before check-out.
+  const [odoPrompt, setOdoPrompt] = useState<{ kind: "check_in" | "check_out"; retry: () => void } | null>(null);
+  const ensureOdometer = async (kind: "check_in" | "check_out", retry: () => void): Promise<boolean> => {
+    try {
+      const o: any = await apiFetch("/odometer/today");
+      if (o?.required && !o[kind]) {
+        setOdoPrompt({ kind, retry });
+        return false;
+      }
+    } catch {
+      // Could not check: the server still enforces it on check-in/out.
+    }
+    return true;
+  };
+
   const handleWebCheckIn = async (skipConsentGate = false) => {
     // Gate client-side on the consent status we already fetched, so the
     // officer sees an actual disclosure screen instead of a silent 403.
@@ -1428,6 +1444,7 @@ export default function Dashboard() {
       }
     }
 
+    if (!(await ensureOdometer("check_in", () => handleWebCheckIn(true)))) return;
     setIsCheckingIn(true);
     try {
       const getPosition = (): Promise<GeolocationPosition> => {
@@ -1507,6 +1524,7 @@ export default function Dashboard() {
     } catch (err) {
       console.warn("Could not verify day closure before check-out", err);
     }
+    if (!(await ensureOdometer("check_out", () => handleWebCheckOut()))) return;
     if (!window.confirm("Check out for today? You will not be able to check in again until tomorrow.")) return;
     setIsCheckingOut(true);
     try {
@@ -5347,6 +5365,13 @@ export default function Dashboard() {
           modal overlay, so this gate confirms the requirement and sends
           them to the real "work-doc" tab rather than duplicating the form
           inline - one copy of the field set, not two. */}
+      {odoPrompt && (
+        <OdometerModal
+          kind={odoPrompt.kind}
+          onCancel={() => setOdoPrompt(null)}
+          onDone={() => { const r = odoPrompt.retry; setOdoPrompt(null); r(); }}
+        />
+      )}
       {showLogoutGateModal && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
