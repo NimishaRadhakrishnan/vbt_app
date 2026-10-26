@@ -42,7 +42,7 @@ from app.application.services.option_description_service import (
     validate_option_description, option_requires_description, clear_if_not_required,
 )
 from app.infrastructure.config.company_time import (
-    company_today, company_now, is_weekly_working_day, warning_threshold_passed,
+    company_today, company_now, company_tz, is_weekly_working_day, warning_threshold_passed,
 )
 from app.infrastructure.database.session import get_db_session
 from app.infrastructure.storage.local_file_storage import save_upload
@@ -170,6 +170,87 @@ async def _clear_deleted_closure(session: AsyncSession, officer_id: uuid.UUID, d
     if row:
         await session.execute(text("DELETE FROM custom_field_answers WHERE record_id = :id").bindparams(id=row.id))
         await session.execute(text("DELETE FROM day_closures WHERE id = :id").bindparams(id=row.id))
+
+
+async def _todays_visits(session: AsyncSession, user_id: uuid.UUID) -> list[dict]:
+    from datetime import time as _time, timedelta as _td
+    start = datetime.combine(company_today(), _time.min, tzinfo=company_tz())
+    rows = (await session.execute(
+        text("""SELECT v.id, v.start_time, f.name AS farmer_name, f.village
+                FROM visits v LEFT JOIN farmers f ON f.id = v.farmer_id
+                WHERE v.user_id = :u AND v.visit_type = 'farmer'
+                  AND v.start_time >= :s AND v.start_time < :e
+                ORDER BY v.start_time"""),
+        {"u": user_id, "s": start, "e": start + _td(days=1)},
+    )).all()
+    return [{"id": str(r.id), "time": r.start_time.astimezone(company_tz()).strftime("%H:%M"),
+             "farmer_name": r.farmer_name, "village": r.village} for r in rows]
+
+
+@router.get("/today-visits")
+async def todays_visits(
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> list[dict]:
+    """Field visits this officer already logged today, so day closure can
+    reuse them instead of asking for the same visits again."""
+    return await _todays_visits(session, current_user.user_id)
+
+
+@router.post("/from-visits", response_model=DayClosureStatusResponse, status_code=status.HTTP_201_CREATED)
+async def close_day_from_visits(
+    current_user: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DayClosureStatusResponse:
+    """Close the day using the visits already logged today. Nothing is
+    entered twice: the closure just points at today's latest visit."""
+    if current_user.role == "field_officer" and current_user.work_mode == "sales":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your day closure is the dealer (sales) closure. Ask your admin if this should change.",
+        )
+    today = company_today()
+    await _clear_deleted_closure(session, current_user.user_id, today)
+    existing = (await session.execute(
+        text("SELECT id, visit_id, closure_type FROM day_closures WHERE officer_id = :o AND date = :d")
+        .bindparams(o=current_user.user_id, d=today)
+    )).mappings().first()
+    add_to_existing = bool(
+        existing and existing["visit_id"] is None and existing["closure_type"] == "sales_activity"
+        and current_user.work_mode == "both"
+    )
+    visits = await _todays_visits(session, current_user.user_id)
+    if existing and not add_to_existing:
+        vid = existing["visit_id"]
+        detail = await _assemble_visit_detail(vid, session) if vid else None
+        return DayClosureStatusResponse(
+            closed_today=True, closure_id=existing["id"], visit_id=vid,
+            farmer_name=detail.get("farmer_name") if detail else None,
+            village=detail.get("village") if detail else None,
+            crop_name=detail.get("crop_name") if detail else None,
+        )
+    if not visits:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No visit logged today yet. Enter your visit to close the day.")
+    visit_id = uuid.UUID(visits[-1]["id"])
+    if add_to_existing:
+        closure_id = existing["id"]
+        await session.execute(
+            text("UPDATE day_closures SET visit_id = :v, closure_type = 'both' WHERE id = :i").bindparams(v=visit_id, i=closure_id)
+        )
+    else:
+        closure_id = uuid.uuid4()
+        await session.execute(
+            text("INSERT INTO day_closures (id, officer_id, date, visit_id, created_at) VALUES (:id, :o, :d, :v, :n)")
+            .bindparams(id=closure_id, o=current_user.user_id, d=today, v=visit_id, n=datetime.now(timezone.utc))
+        )
+    await session.commit()
+    detail = await _assemble_visit_detail(visit_id, session)
+    return DayClosureStatusResponse(
+        closed_today=True, closure_id=closure_id, visit_id=visit_id,
+        farmer_name=detail.get("farmer_name") if detail else None,
+        village=detail.get("village") if detail else None,
+        crop_name=detail.get("crop_name") if detail else None,
+    )
 
 
 @router.post("/no-activity", status_code=status.HTTP_201_CREATED)

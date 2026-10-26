@@ -132,6 +132,27 @@ export default function DayClosureForm({
   adminOfficerId?: string;
 }) {
   const districtNames = useDistricts(DISTRICTS);
+  // Visits already logged today are reused for the closure, not entered again.
+  const [todayVisits, setTodayVisits] = useState<any[]>([]);
+  const [addAnother, setAddAnother] = useState(false);
+  const [closingFromVisits, setClosingFromVisits] = useState(false);
+  useEffect(() => {
+    if (adminOfficerId) return;
+    apiFetch<any[]>("/day-closure/today-visits").then((v) => setTodayVisits(Array.isArray(v) ? v : [])).catch(() => {});
+  }, [adminOfficerId]);
+  const closeWithTodaysVisits = async () => {
+    setClosingFromVisits(true);
+    try {
+      await apiFetch("/day-closure/from-visits", { method: "POST" });
+      onSubmitted();
+    } catch (err: any) {
+      const msg = err.message || "Could not close the day.";
+      setFormError(msg);
+      onError?.(msg);
+    } finally {
+      setClosingFromVisits(false);
+    }
+  };
   // Master data
   const [cropCategories, setCropCategories] = useState<Option[]>([]);
   const [crops, setCrops] = useState<CropOption[]>([]);
@@ -465,6 +486,33 @@ export default function DayClosureForm({
       setSubmitting(false);
     }
   };
+
+  if (!adminOfficerId && todayVisits.length > 0 && !addAnother) {
+    return (
+      <div className="space-y-4 max-w-xl">
+        <h3 className="text-lg font-bold text-slate-900">
+          You already logged {todayVisits.length} visit{todayVisits.length > 1 ? "s" : ""} today
+        </h3>
+        <p className="text-sm text-slate-500">No need to enter them again. Close the day with these visits.</p>
+        {formError && <div className="p-3 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200">{formError}</div>}
+        <ul className="space-y-2">
+          {todayVisits.map((v) => (
+            <li key={v.id} className="p-3 rounded-lg border border-slate-100 bg-white text-sm">
+              <span className="font-bold text-slate-800">{v.farmer_name || "Farmer"}</span>
+              <span className="text-slate-500"> · {v.village ? `${v.village} · ` : ""}{v.time}</span>
+            </li>
+          ))}
+        </ul>
+        <button type="button" onClick={closeWithTodaysVisits} disabled={closingFromVisits}
+          className="w-full py-3 bg-green-700 hover:bg-green-800 text-white font-bold rounded-lg text-sm disabled:opacity-60">
+          {closingFromVisits ? "Closing…" : "Close the day with these visits"}
+        </button>
+        <button type="button" onClick={() => setAddAnother(true)} className="w-full text-sm font-semibold text-green-700">
+          Add another visit (a different farmer)
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

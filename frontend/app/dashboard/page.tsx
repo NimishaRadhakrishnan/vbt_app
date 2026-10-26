@@ -1392,12 +1392,17 @@ export default function Dashboard() {
   };
 
   // Speedometer photo + km: asked before check-in and before check-out.
-  const [odoPrompt, setOdoPrompt] = useState<{ kind: "check_in" | "check_out"; retry: () => void } | null>(null);
+  const [odoPrompt, setOdoPrompt] = useState<{ kind: "check_in" | "check_out"; retry: () => void; optional: boolean } | null>(null);
+  const odoSkipped = useRef<Record<string, boolean>>({});
   const ensureOdometer = async (kind: "check_in" | "check_out", retry: () => void): Promise<boolean> => {
     try {
       const o: any = await apiFetch("/odometer/today");
-      if (o?.required && !o[kind]) {
-        setOdoPrompt({ kind, retry });
+      if (odoSkipped.current[kind]) {
+        odoSkipped.current[kind] = false;
+        return true;
+      }
+      if (o?.enabled && !o[kind]) {
+        setOdoPrompt({ kind, retry, optional: !o.required });
         return false;
       }
     } catch {
@@ -5369,6 +5374,7 @@ export default function Dashboard() {
         <OdometerModal
           kind={odoPrompt.kind}
           onCancel={() => setOdoPrompt(null)}
+          onSkip={odoPrompt.optional ? () => { odoSkipped.current[odoPrompt.kind] = true; const r = odoPrompt.retry; setOdoPrompt(null); r(); } : undefined}
           onDone={() => { const r = odoPrompt.retry; setOdoPrompt(null); r(); }}
         />
       )}

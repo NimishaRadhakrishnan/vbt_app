@@ -107,6 +107,11 @@ class DailyVisitTrackerSubmitRequest(BaseModel):
     # draft's job ends the moment its data becomes a real visit).
     draft_id: Optional[uuid.UUID] = None
 
+    # By default a second visit to the SAME farmer by the same officer on the
+    # same day is refused (it is almost always a double entry, e.g. a visit
+    # logged in the day and entered again at day closure).
+    allow_duplicate_visit: bool = False
+
     # --- Step 1: Visit Details ---
     latitude: float = Field(ge=-90.0, le=90.0)
     longitude: float = Field(ge=-180.0, le=180.0)

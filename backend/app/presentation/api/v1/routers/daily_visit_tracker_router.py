@@ -154,6 +154,20 @@ async def submit_daily_visit(
         if not existing.first():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Farmer not found.")
         farmer_id = payload.farmer_id
+        if not payload.allow_duplicate_visit:
+            from app.infrastructure.config.company_time import company_today as _ct, company_tz as _tz
+            _start = datetime.combine(_ct(), datetime.min.time(), tzinfo=_tz())
+            dup = (await session.execute(
+                text("""SELECT v.start_time, f.name FROM visits v JOIN farmers f ON f.id = v.farmer_id
+                        WHERE v.user_id = :u AND v.farmer_id = :f AND v.visit_type = 'farmer'
+                          AND v.start_time >= :s AND v.start_time < :e LIMIT 1"""),
+                {"u": current_user.user_id, "f": farmer_id, "s": _start, "e": _start + timedelta(days=1)},
+            )).first()
+            if dup:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"You already logged a visit to {dup.name} today. It is already counted, so there is no need to enter it again.",
+                )
 
     # --- Trial stock re-validation (section 22/34) - same query as
     # GET /trial/my-stock, re-run server-side immediately before the

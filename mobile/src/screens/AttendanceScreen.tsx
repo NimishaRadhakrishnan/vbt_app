@@ -20,7 +20,7 @@ export default function AttendanceScreen({ navigation }: any) {
   const [job, setJob] = useState<CheckInState>(CheckInJob.getState());
   // Speedometer photo + km (start of day before clock-in, end of day before
   // clock-out). null = not loaded yet / offline: the server still enforces it.
-  const [odo, setOdo] = useState<{ required: boolean; check_in: OdoReading | null; check_out: OdoReading | null } | null>(null);
+  const [odo, setOdo] = useState<{ enabled: boolean; required: boolean; check_in: OdoReading | null; check_out: OdoReading | null } | null>(null);
   const loadOdo = async () => {
     try {
       const o: any = await apiClient.request('/odometer/today', 'GET', 'check_in', undefined, { queue: false });
@@ -238,10 +238,11 @@ export default function AttendanceScreen({ navigation }: any) {
         )}
       </View>
 
-      {!loadingStatus && odo?.required && (
+      {!loadingStatus && odo?.enabled && (
         <OdometerCard
           kind={isCheckedIn ? 'check_out' : 'check_in'}
           existing={isCheckedIn ? odo.check_out : odo.check_in}
+          required={odo.required}
           onSubmitted={loadOdo}
         />
       )}

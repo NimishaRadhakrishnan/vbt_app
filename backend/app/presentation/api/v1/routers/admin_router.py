@@ -1298,6 +1298,7 @@ async def admin_create_day_closure(
         user_id=officer.id, email=officer.email, full_name=officer.full_name,
         role=officer.role, is_active=True, employee_id=officer.employee_id,
     )
+    payload = payload.model_copy(update={"allow_duplicate_visit": True})
     visit_result = await submit_daily_visit(
         payload=payload, current_user=officer_as_current_user, session=session, farmer_use_case=farmer_use_case,
     )

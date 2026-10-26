@@ -8,8 +8,8 @@ export type OdoReading = { id: string; kind: string; km: number; is_late: boolea
 
 // Speedometer photo + the km shown on it. Once at check-in, once at check-out.
 export default function OdometerCard({
-  kind, existing, onSubmitted,
-}: { kind: 'check_in' | 'check_out'; existing: OdoReading | null; onSubmitted: () => void }) {
+  kind, existing, onSubmitted, required = false,
+}: { kind: 'check_in' | 'check_out'; existing: OdoReading | null; onSubmitted: () => void; required?: boolean }) {
   const [uri, setUri] = useState<string | null>(null);
   const [km, setKm] = useState('');
   const [busy, setBusy] = useState(false);
@@ -51,11 +51,15 @@ export default function OdometerCard({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>{morning ? 'Start of day: speedometer' : 'End of day: speedometer'}</Text>
+      <Text style={styles.title}>{morning ? 'Start of day: speedometer' : 'End of day: speedometer'}{required ? '' : ' (optional)'}</Text>
       <Text style={styles.sub}>
-        {morning
-          ? 'Take a photo of the speedometer and type the km shown. Needed before you clock in.'
-          : 'Take a photo of the speedometer and type the km shown. Needed before you clock out (please do this before 6 PM).'}
+        {required
+          ? (morning
+            ? 'Take a photo of the speedometer and type the km shown. Needed before you clock in.'
+            : 'Take a photo of the speedometer and type the km shown. Needed before you clock out (please do this before 6 PM).')
+          : (morning
+            ? 'Optional. Take a photo of the speedometer and type the km shown. You can clock in without it.'
+            : 'Optional. Take a photo of the speedometer and type the km shown (before 6 PM). You can clock out without it.')}
       </Text>
       {uri ? <Image source={{ uri }} style={styles.preview} resizeMode="cover" /> : null}
       <TouchableOpacity style={styles.btnPhoto} onPress={capture} disabled={busy}>

@@ -76,7 +76,8 @@ async def my_today(current_user: CurrentUser, session: Annotated[AsyncSession, D
         text("SELECT * FROM odometer_readings WHERE user_id = :u AND reading_date = :d"),
         {"u": current_user.user_id, "d": company_today()},
     )).all()
-    out = {"required": bool(get_settings().odometer_required and current_user.role != "admin"),
+    out = {"enabled": current_user.role != "admin",
+           "required": bool(get_settings().odometer_required and current_user.role != "admin"),
            "check_in": None, "check_out": None}
     for r in rows:
         out[r.kind] = _row(r)

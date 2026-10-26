@@ -108,8 +108,9 @@ class Settings(BaseSettings):
     # Speedometer photos + km at check-in / check-out: kept this many days,
     # then deleted (with the file) by the same daily job.
     odometer_retention_days: int = Field(default=60)
-    # Officers must submit the speedometer photo and km to check in and out.
-    odometer_required: bool = Field(default=True)
+    # Speedometer photo + km is OPTIONAL by default. Set ODOMETER_REQUIRED=true
+    # to make officers submit it before checking in and out.
+    odometer_required: bool = Field(default=False)
 
     # --- Place names for the route timeline ---
     # Any OpenStreetMap-compatible reverse-geocoding URL. The public

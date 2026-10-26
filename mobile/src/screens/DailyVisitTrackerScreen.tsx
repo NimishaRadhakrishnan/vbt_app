@@ -92,6 +92,30 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
       .catch((err) => console.warn('Failed to load custom fields', err));
   }, []);
 
+  // Day closure: visits already logged today are reused, never entered again.
+  const [todayVisits, setTodayVisits] = useState<any[] | null>(null);
+  const [addAnother, setAddAnother] = useState(false);
+  const [closingFromVisits, setClosingFromVisits] = useState(false);
+  useEffect(() => {
+    if (!isDayClosureMode || adminOfficerId || resumeDraftId) return;
+    apiClient.request('/day-closure/today-visits', 'GET', 'plan_submit', undefined, { queue: false })
+      .then((v: any) => setTodayVisits(Array.isArray(v) ? v : []))
+      .catch(() => setTodayVisits([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const closeWithTodaysVisits = async () => {
+    setClosingFromVisits(true);
+    try {
+      const res: any = await apiClient.request('/day-closure/from-visits', 'POST', 'visit_tracker_submit');
+      showSubmitResult(res, 'Closure Submitted', "Today's closure has been recorded with the visits you already logged.");
+      navigation.goBack();
+    } catch (err: any) {
+      Alert.alert('Could Not Close', err.message || 'Please try again.');
+    } finally {
+      setClosingFromVisits(false);
+    }
+  };
+
   // --- Step 1 state ---
   const [visitDate] = useState(new Date());
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
@@ -909,6 +933,46 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
         <ActivityIndicator size="large" color={color.primary} />
         <Text style={styles.loadingDraftText}>Loading draft…</Text>
       </View>
+    );
+  }
+
+  if (isDayClosureMode && !adminOfficerId && !resumeDraftId && todayVisits === null) {
+    return (
+      <View style={styles.loadingDraftContainer}>
+        <ActivityIndicator size="large" color={color.primary} />
+        <Text style={styles.loadingDraftText}>Checking today&apos;s visits…</Text>
+      </View>
+    );
+  }
+
+  if (isDayClosureMode && !adminOfficerId && !resumeDraftId && todayVisits && todayVisits.length > 0 && !addAnother) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.xxl }}>
+        <Text style={{ fontSize: font.heading, fontWeight: fontWeight.bold, color: color.primary, marginBottom: 8 }}>
+          You already logged {todayVisits.length} visit{todayVisits.length > 1 ? 's' : ''} today
+        </Text>
+        <Text style={{ color: color.textSecondary, marginBottom: spacing.lg }}>
+          No need to enter them again. Close the day with these visits.
+        </Text>
+        {todayVisits.map((v: any) => (
+          <View key={v.id} style={{ backgroundColor: color.white, borderRadius: radius.md, padding: spacing.md, marginBottom: 8, borderWidth: 1, borderColor: color.border }}>
+            <Text style={{ fontWeight: fontWeight.bold, color: color.textPrimary }}>{v.farmer_name || 'Farmer'}</Text>
+            <Text style={{ color: color.textSecondary, fontSize: 12 }}>{v.village ? `${v.village} · ` : ''}{v.time}</Text>
+          </View>
+        ))}
+        <TouchableOpacity
+          style={{ backgroundColor: color.primary, borderRadius: radius.md, padding: spacing.lg, alignItems: 'center', marginTop: spacing.md, opacity: closingFromVisits ? 0.6 : 1 }}
+          onPress={closeWithTodaysVisits}
+          disabled={closingFromVisits}
+        >
+          {closingFromVisits ? <ActivityIndicator color={color.white} /> : (
+            <Text style={{ color: color.white, fontWeight: fontWeight.bold, fontSize: font.title }}>Close the day with these visits</Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity style={{ padding: spacing.lg, alignItems: 'center' }} onPress={() => setAddAnother(true)}>
+          <Text style={{ color: color.primary, fontWeight: fontWeight.bold }}>Add another visit (a different farmer)</Text>
+        </TouchableOpacity>
+      </ScrollView>
     );
   }
 
