@@ -949,10 +949,10 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.xxl }}>
         <Text style={{ fontSize: font.heading, fontWeight: fontWeight.bold, color: color.primary, marginBottom: 8 }}>
-          You already logged {todayVisits.length} visit{todayVisits.length > 1 ? 's' : ''} today
+          Farmers you met today ({todayVisits.length})
         </Text>
         <Text style={{ color: color.textSecondary, marginBottom: spacing.lg }}>
-          No need to enter them again. Close the day with these visits.
+          These visits are already recorded. Did you meet any other farmer today?
         </Text>
         {todayVisits.map((v: any) => (
           <View key={v.id} style={{ backgroundColor: color.white, borderRadius: radius.md, padding: spacing.md, marginBottom: 8, borderWidth: 1, borderColor: color.border }}>
@@ -966,11 +966,11 @@ export default function DailyVisitTrackerScreen({ navigation, route }: any) {
           disabled={closingFromVisits}
         >
           {closingFromVisits ? <ActivityIndicator color={color.white} /> : (
-            <Text style={{ color: color.white, fontWeight: fontWeight.bold, fontSize: font.title }}>Close the day with these visits</Text>
+            <Text style={{ color: color.white, fontWeight: fontWeight.bold, fontSize: font.title }}>Yes, these are all - close the day</Text>
           )}
         </TouchableOpacity>
         <TouchableOpacity style={{ padding: spacing.lg, alignItems: 'center' }} onPress={() => setAddAnother(true)}>
-          <Text style={{ color: color.primary, fontWeight: fontWeight.bold }}>Add another visit (a different farmer)</Text>
+          <Text style={{ color: color.primary, fontWeight: fontWeight.bold }}>No, I met another farmer - enter the details</Text>
         </TouchableOpacity>
       </ScrollView>
     );

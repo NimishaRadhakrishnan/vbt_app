@@ -491,9 +491,9 @@ export default function DayClosureForm({
     return (
       <div className="space-y-4 max-w-xl">
         <h3 className="text-lg font-bold text-slate-900">
-          You already logged {todayVisits.length} visit{todayVisits.length > 1 ? "s" : ""} today
+          Farmers you met today ({todayVisits.length})
         </h3>
-        <p className="text-sm text-slate-500">No need to enter them again. Close the day with these visits.</p>
+        <p className="text-sm text-slate-500">These visits are already recorded. Did you meet any other farmer today?</p>
         {formError && <div className="p-3 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200">{formError}</div>}
         <ul className="space-y-2">
           {todayVisits.map((v) => (
@@ -505,10 +505,10 @@ export default function DayClosureForm({
         </ul>
         <button type="button" onClick={closeWithTodaysVisits} disabled={closingFromVisits}
           className="w-full py-3 bg-green-700 hover:bg-green-800 text-white font-bold rounded-lg text-sm disabled:opacity-60">
-          {closingFromVisits ? "Closing…" : "Close the day with these visits"}
+          {closingFromVisits ? "Closing…" : "Yes, these are all - close the day"}
         </button>
         <button type="button" onClick={() => setAddAnother(true)} className="w-full text-sm font-semibold text-green-700">
-          Add another visit (a different farmer)
+          No, I met another farmer - enter the details
         </button>
       </div>
     );
