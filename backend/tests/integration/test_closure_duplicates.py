@@ -61,3 +61,23 @@ async def test_today_visits_reused_for_closure_and_duplicates_blocked(client):
     async with AsyncSessionLocal() as s:
         n = (await s.execute(text("SELECT count(*) FROM day_closures WHERE officer_id = :u AND date = (now() at time zone 'Asia/Kolkata')::date"), {"u": uid})).scalar_one()
         assert n == 1
+
+
+async def test_farmer_registered_in_a_visit_is_pinned_on_the_map(client):
+    async with AsyncSessionLocal() as s:
+        await s.execute(text("UPDATE users SET device_id = NULL, login_status='active' WHERE email = :e"), {"e": EMAIL})
+        await s.commit()
+    r = await client.post("/api/v1/auth/login", json={"email": EMAIL, "password": "Password123!", "device_id": "dev-dup"})
+    h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    phone = "7" + uuid.uuid4().hex[:9].translate(str.maketrans("abcdef", "123456"))
+    visit = {"latitude": 11.1, "longitude": 77.2, "farm_size_value": 1.0, "farm_size_unit": "cents",
+             "farming_type": "conventional", "crop_status": "healthy", "config_version": 1, "custom_field_answers": {},
+             "new_farmer": {"name": "Pin Test", "phone": phone, "village": "V", "taluk": "T", "district": "D", "crop": "C", "cents": 1.0}}
+    r = await client.post("/api/v1/visits/daily-tracker/submit", headers=h, json=visit)
+    assert r.status_code == 201, r.text
+    async with AsyncSessionLocal() as s:
+        row = (await s.execute(text("SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng FROM farmers WHERE phone = :p"), {"p": phone})).first()
+        await s.execute(text("DELETE FROM visits WHERE farmer_id IN (SELECT id FROM farmers WHERE phone = :p)"), {"p": phone})
+        await s.execute(text("DELETE FROM farmers WHERE phone = :p"), {"p": phone})
+        await s.commit()
+    assert row and abs(row.lat - 11.1) < 1e-6 and abs(row.lng - 77.2) < 1e-6

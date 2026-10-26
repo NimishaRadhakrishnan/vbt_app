@@ -140,6 +140,9 @@ async def submit_daily_visit(
                 district=payload.new_farmer.district,
                 crop=payload.new_farmer.crop,
                 cents=payload.new_farmer.cents,
+                # The farmer is met where the officer is: pin them on the map.
+                location_lat=payload.latitude if (payload.latitude or payload.longitude) else None,
+                location_lng=payload.longitude if (payload.latitude or payload.longitude) else None,
                 created_by=current_user.user_id,
             )
         except ValueError as e:
