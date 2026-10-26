@@ -828,6 +828,16 @@ export default function Dashboard() {
       setActiveLocations(data || []);
       setDataLoadError("");
       setLastSyncedAt(Date.now());
+      // Farmer and dealer pins follow the same refresh, so a farmer or dealer
+      // that was deleted (or added) elsewhere disappears (or appears) here
+      // without reloading the page. Failures keep the pins already shown.
+      try {
+        const [fs, ds]: any[] = await Promise.all([apiFetch("/farmers/search"), apiFetch("/dealers/search")]);
+        setFarmers((fs || []).map((f: any) => ({ ...f, lat: f.location_lat, lng: f.location_lng })));
+        setDealers(ds || []);
+      } catch {
+        /* keep current pins */
+      }
     } catch (err: any) {
       console.error("Failed to fetch active locations:", err);
       let errorMessage = "Network error — check your connection or CORS settings.";
