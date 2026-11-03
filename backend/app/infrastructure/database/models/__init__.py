@@ -15,6 +15,12 @@ from app.infrastructure.database.models.expense_model import ExpenseModel
 from app.infrastructure.database.models.territory_model import TerritoryModel
 from app.infrastructure.database.models.daily_work_report_model import DailyWorkReportModel
 
+from app.infrastructure.database.models.kpi_model import (
+    KpiItemModel, KpiWeightSetModel, IncentiveRuleSetModel, GradeBandModel, KpiPeriodModel,
+    MonthWeightModel, GoalModel, SalesFigureModel, FocusProductPlanModel,
+    PerformanceSnapshotModel, IncentiveStatementModel, KpiAuditLogModel,
+)
+
 
 __all__ = [
     "UserModel",
@@ -38,4 +44,16 @@ __all__ = [
     "ExpenseModel",
     "TerritoryModel",
     "DailyWorkReportModel",
+    "KpiItemModel",
+    "KpiWeightSetModel",
+    "IncentiveRuleSetModel",
+    "GradeBandModel",
+    "KpiPeriodModel",
+    "MonthWeightModel",
+    "GoalModel",
+    "SalesFigureModel",
+    "FocusProductPlanModel",
+    "PerformanceSnapshotModel",
+    "IncentiveStatementModel",
+    "KpiAuditLogModel",
 ]
