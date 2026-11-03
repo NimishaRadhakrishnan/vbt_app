@@ -29,6 +29,7 @@ from app.presentation.api.v1.routers.hr_policy_router import router as hr_policy
 from app.presentation.api.v1.routers.enquiry_router import router as enquiry_router
 from app.presentation.api.v1.routers.day_closure_router import router as day_closure_router
 from app.presentation.api.v1.routers.kpi_router import router as kpi_router
+from app.presentation.api.v1.routers.kpi_admin_router import router as kpi_admin_router
 from app.presentation.api.v1.routers.day_closure_config_router import router as day_closure_config_router
 from app.presentation.api.v1.routers.custom_field_router import router as custom_field_router
 from app.presentation.api.v1.routers.enum_option_router import router as enum_option_router
@@ -70,6 +71,7 @@ api_v1_router.include_router(hr_policy_router)
 api_v1_router.include_router(enquiry_router)
 api_v1_router.include_router(day_closure_router)
 api_v1_router.include_router(kpi_router)
+api_v1_router.include_router(kpi_admin_router)
 api_v1_router.include_router(day_closure_config_router)
 api_v1_router.include_router(custom_field_router)
 api_v1_router.include_router(enum_option_router)
