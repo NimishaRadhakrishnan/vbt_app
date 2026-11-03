@@ -8,30 +8,41 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("scheduler")
 
-# 2 AM IST is 20:30 UTC
-TARGET_HOUR_UTC = 20
-TARGET_MINUTE_UTC = 30
+# (hour, minute) in UTC -> script. IST is UTC+5:30.
+#   00:30 IST = 19:00 UTC  KPI nightly recalculation (before the retention run)
+#   02:00 IST = 20:30 UTC  retention purge
+JOBS = [
+    (19, 0, "scripts/kpi_nightly_job.py"),
+    (20, 30, "scripts/gps_retention_job.py"),
+]
 
-async def schedule_loop():
-    logger.info("Retention scheduler started. Will run daily at 02:00 IST (20:30 UTC).")
-    while True:
-        now = datetime.now(timezone.utc)
-        target = now.replace(hour=TARGET_HOUR_UTC, minute=TARGET_MINUTE_UTC, second=0, microsecond=0)
-        
-        # If it's already past 20:30 UTC today, schedule for tomorrow
+
+def _next_run(now: datetime):
+    best = None
+    for hour, minute, script in JOBS:
+        target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if now >= target:
             target += timedelta(days=1)
-            
-        sleep_seconds = (target - now).total_seconds()
-        logger.info(f"Next run scheduled at {target.isoformat()} (in {sleep_seconds:.0f} seconds)")
-        
-        await asyncio.sleep(sleep_seconds)
-        
-        logger.info("Time reached. Executing gps_retention_job.py...")
+        if best is None or target < best[0]:
+            best = (target, script)
+    return best
+
+
+async def schedule_loop():
+    logger.info("Scheduler started: KPI recalculation 00:30 IST, retention 02:00 IST.")
+    while True:
+        target, script = _next_run(datetime.now(timezone.utc))
+        sleep_seconds = (target - datetime.now(timezone.utc)).total_seconds()
+        logger.info(f"Next run: {script} at {target.isoformat()} (in {sleep_seconds:.0f} seconds)")
+        await asyncio.sleep(max(sleep_seconds, 0))
+
+        logger.info(f"Time reached. Executing {script}...")
         try:
-            subprocess.run(["python", "scripts/gps_retention_job.py"], check=True)
+            subprocess.run(["python", script], check=True)
         except Exception as e:
-            logger.error(f"Error running retention job: {e}")
+            logger.error(f"Error running {script}: {e}")
+        await asyncio.sleep(1)   # step past the minute so the same job is not picked twice
+
 
 if __name__ == "__main__":
     asyncio.run(schedule_loop())

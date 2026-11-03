@@ -73,6 +73,23 @@ async def _gps_retention_loop() -> None:
         await asyncio.sleep(_RETENTION_INTERVAL_SECONDS)
 
 
+_KPI_QUEUE_INTERVAL_SECONDS = 30
+
+
+async def _kpi_queue_loop() -> None:
+    """Drains the KPI recalculation queue so officers' goal screens are
+    current within about a minute of an entry. Same single-process
+    assumption as the loops above; a failed pass is logged and retried."""
+    from app.infrastructure.cache.kpi_queue import drain_once
+
+    while True:
+        try:
+            await drain_once()
+        except Exception:
+            logger.exception("kpi_queue_pass_failed")
+        await asyncio.sleep(_KPI_QUEUE_INTERVAL_SECONDS)
+
+
 _INSECURE_JWT_SECRETS = {
     "change-me-to-a-random-64-char-hex-string",
     "test-secret-key-for-unit-tests-only",
@@ -136,10 +153,11 @@ async def lifespan(app: FastAPI):
     # it isn't silently forgotten when/if that scaling happens.
     sweep_task = asyncio.create_task(_stale_location_sweep_loop())
     retention_task = asyncio.create_task(_gps_retention_loop())
+    kpi_task = asyncio.create_task(_kpi_queue_loop())
 
     yield
 
-    for task in (sweep_task, retention_task):
+    for task in (sweep_task, retention_task, kpi_task):
         task.cancel()
         try:
             await task

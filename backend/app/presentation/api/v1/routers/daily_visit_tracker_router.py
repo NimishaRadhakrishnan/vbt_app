@@ -15,6 +15,8 @@ every satellite table from migration 202608250001.
 
 from __future__ import annotations
 
+from app.infrastructure.cache.kpi_queue import enqueue_with_manager
+
 import logging
 import uuid
 import json
@@ -499,6 +501,7 @@ async def submit_daily_visit(
     )
 
     await session.commit()
+    await enqueue_with_manager(session, current_user.user_id)
 
     return DailyVisitTrackerSubmitResponse(visit_id=visit_id, farmer_id=farmer_id, created_at=now)
 

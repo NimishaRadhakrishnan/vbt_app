@@ -26,6 +26,8 @@ server-side hook to intercept.
 
 from __future__ import annotations
 
+from app.infrastructure.cache.kpi_queue import enqueue_with_manager
+
 import uuid
 from datetime import date, datetime, timezone
 from typing import Annotated, Optional
@@ -244,6 +246,7 @@ async def close_day_from_visits(
             .bindparams(id=closure_id, o=current_user.user_id, d=today, v=visit_id, n=datetime.now(timezone.utc))
         )
     await session.commit()
+    await enqueue_with_manager(session, current_user.user_id)
     detail = await _assemble_visit_detail(visit_id, session)
     return DayClosureStatusResponse(
         closed_today=True, closure_id=closure_id, visit_id=visit_id,
@@ -318,6 +321,7 @@ async def submit_no_activity_closure(
         )
     )
     await session.commit()
+    await enqueue_with_manager(session, current_user.user_id)
     return {
         "closure_id": str(closure_id),
         "closure_type": "no_activity",
@@ -479,6 +483,7 @@ async def submit_day_closure(
             )
         )
     await session.commit()
+    await enqueue_with_manager(session, current_user.user_id)
 
     detail = await _assemble_visit_detail(visit_result.visit_id, session)
     farmer_name = detail.get("farmer_name") if detail else None
@@ -790,6 +795,7 @@ async def submit_sales_day_closure(
     )
 
     await session.commit()
+    await enqueue_with_manager(session, current_user.user_id)
 
     result = await session.execute(
         text(f"SELECT {_SALES_SELECT} {_SALES_FROM} WHERE d.closure_id = :cid").bindparams(cid=closure_id)

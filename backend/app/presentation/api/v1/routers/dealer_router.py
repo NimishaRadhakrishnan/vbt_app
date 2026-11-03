@@ -4,6 +4,8 @@ Dealer and Inventory Router endpoints.
 
 from __future__ import annotations
 
+from app.infrastructure.cache.kpi_queue import enqueue_with_manager
+
 import uuid
 from datetime import date
 from typing import Optional, Annotated
@@ -365,6 +367,7 @@ async def place_order(
         await session.commit()
         amount_paid = payload.initial_payment_amount
 
+    await enqueue_with_manager(session, current_user.user_id)
     return _to_order_response(result, amount_paid=amount_paid)
 
 

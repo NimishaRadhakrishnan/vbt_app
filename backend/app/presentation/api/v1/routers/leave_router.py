@@ -10,6 +10,8 @@ handled as a policy question later.
 
 from __future__ import annotations
 
+from app.infrastructure.cache.kpi_queue import enqueue_with_manager
+
 import uuid
 from datetime import datetime, timezone, date as date_cls
 from typing import Annotated, Optional
@@ -182,6 +184,7 @@ async def decide_leave_request(
         )
     )
     await session.commit()
+    await enqueue_with_manager(session, existing_row.officer_id)
 
     await notification_repo.add(
         Notification(
