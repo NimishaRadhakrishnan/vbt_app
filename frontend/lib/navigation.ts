@@ -51,6 +51,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Home",
     tabs: [
       { id: "today", label: "Today", aliases: ["Overview", "Dashboard"], roles: ALL, target: { kind: "tab", id: "overview" } },
+      { id: "my-goals", label: "My Goals", aliases: ["Targets", "Incentive", "Goals"], roles: OFFICERS, target: { kind: "route", path: "/dashboard/my-goals" } },
       {
         id: "progress",
         label: "Progress",

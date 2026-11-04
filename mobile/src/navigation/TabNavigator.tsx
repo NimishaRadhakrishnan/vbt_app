@@ -8,6 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import AttendanceScreen from '../screens/AttendanceScreen';
 import WeeklyPlanScreen from '../screens/WeeklyPlanScreen';
 import KpiSummaryScreen from '../screens/KpiSummaryScreen';
+import MyGoalsScreen from '../screens/MyGoalsScreen';
 import DailyVisitTrackerScreen from '../screens/DailyVisitTrackerScreen';
 import MyVisitsScreen from '../screens/MyVisitsScreen';
 import MyVisitDetailScreen from '../screens/MyVisitDetailScreen';
@@ -139,6 +140,7 @@ function renderPushedScreens(Stack: ReturnType<typeof createStackNavigator>, acc
     <>
       <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ title: 'Shift Check-In' }} />
       <Stack.Screen name="WeeklyPlan" component={WeeklyPlanScreen} options={{ title: 'Weekly Plan' }} />
+      <Stack.Screen name="MyGoals" component={MyGoalsScreen} options={{ title: 'My Goals' }} />
       <Stack.Screen name="KpiSummary" component={KpiSummaryScreen} options={{ title: 'My KPIs' }} />
       <Stack.Screen name="Visit" component={VisitScreen} options={{ title: 'Quick Check-In' }} />
       {isFieldOrOversight && <Stack.Screen name="Farmer" component={FarmerScreen} options={{ title: 'Register Farmer' }} />}

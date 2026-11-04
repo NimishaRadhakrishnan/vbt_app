@@ -12,6 +12,7 @@ import { color, font, fontWeight, spacing, radius } from '../theme';
 import DashboardScreen from './DashboardScreen';
 import AdminHomeScreen from './admin/AdminHomeScreen';
 import KpiSummaryScreen from './KpiSummaryScreen';
+import MyGoalsScreen from './MyGoalsScreen';
 import MyTrackingScreen from './MyTrackingScreen';
 import TasksScreen from './TasksScreen';
 import WeeklyPlanScreen from './WeeklyPlanScreen';
@@ -125,6 +126,10 @@ function TabBody({ tabId, role, navigation, onDone }: { tabId: string; role: str
       // Admins and managers get the team overview; the officer dashboard is
       // made of the officer's own targets and visits.
       const C = as(isOversight ? AdminHomeScreen : DashboardScreen);
+      return <C navigation={navigation} />;
+    }
+    case 'my-goals': {
+      const C = as(MyGoalsScreen);
       return <C navigation={navigation} />;
     }
     case 'progress': {

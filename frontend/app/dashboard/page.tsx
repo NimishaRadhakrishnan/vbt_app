@@ -17,6 +17,7 @@ import PhotoGallery from "@/components/PhotoViewer";
 import PasswordInput from "@/components/PasswordInput";
 import { tokenStorage } from "@/lib/api/token-storage";
 import { useAuth } from "@/lib/auth-context";
+import MyGoalsCard from "@/components/kpi/MyGoalsCard";
 import { computeLiveOfficers, countActive as countActiveOfficers, formatSpeed, LiveOfficer } from "@/lib/officerStatus";
 import dynamic from "next/dynamic";
 import OdometerModal from "@/components/OdometerModal";
@@ -2308,6 +2309,7 @@ export default function Dashboard() {
               state - nothing invented, nothing decorative. */}
           {activeTab === "overview" && (
             <div className="max-w-3xl mx-auto space-y-5">
+              {user?.role === "field_officer" && <MyGoalsCard />}
               {user?.role === "admin" || user?.role === "manager" ? (
                 <>
                   <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-100">

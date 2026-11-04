@@ -6,6 +6,7 @@ import { useDataFetch } from '../hooks/useDataFetch';
 import { ErrorState, StaleDataBanner } from '../components/FetchStates';
 import { color, font, fontWeight, spacing, radius } from '../theme';
 import { roleName } from '../utils/roles';
+import MyGoalsCard from '../components/kpi/MyGoalsCard';
 
 type MomentumMe = {
   monthly_tasks_completed: number;
@@ -118,6 +119,7 @@ export default function DashboardScreen({ navigation }: any) {
           {workMode === 'field' ? ' · Field mode' : workMode === 'sales' ? ' · Sales mode' : ''}
         </Text>
       </View>
+      <MyGoalsCard onOpen={() => navigation.navigate('MyGoals')} />
 
       {/* Productivity widget */}
       <View style={styles.widgetCard}>
