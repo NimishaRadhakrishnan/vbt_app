@@ -146,7 +146,7 @@ export function MyBest() {
   );
 }
 
-type PastRow = { start: string; score: number | null; grade: string | null; statement_status: string | null; final_amount_paise: number | null; waiting_for_figures: boolean };
+type PastRow = { period_id: string; start: string; score: number | null; grade: string | null; statement_status: string | null; final_amount_paise: number | null; waiting_for_figures: boolean };
 export function PastList({ period }: { period: 'month' | 'quarter' }) {
   const { data } = useDataFetch<{ periods: PastRow[] }>(() => apiClient.request(`/kpi/me/past?period=${period}`, 'GET', 'plan_submit'), [period]);
   if (!data) return <Text style={s.smallMuted}>Loading…</Text>;
@@ -158,7 +158,7 @@ export function PastList({ period }: { period: 'month' | 'quarter' }) {
           <Text style={s.body}>{r.start.slice(0, 7)}</Text>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={s.bold}>{r.score == null ? '–' : `${num(r.score)} marks`}{r.grade ? ` · Grade ${r.grade}` : ''}</Text>
-            {r.final_amount_paise != null && <Text style={[s.small, { color: C.done }]}>{rupees(r.final_amount_paise)}{r.statement_status === 'paid' ? ' paid' : ''}</Text>}
+            {r.final_amount_paise != null && r.statement_status ? <Text style={[s.small, { color: C.done }]}>{rupees(r.final_amount_paise)} · {({ draft: 'Closed', approved: 'Approved', paid: 'Paid' } as Record<string, string>)[r.statement_status] ?? r.statement_status}</Text> : null}
             {r.waiting_for_figures && <Text style={s.smallMuted}>Sales figures were not in</Text>}
           </View>
         </View>

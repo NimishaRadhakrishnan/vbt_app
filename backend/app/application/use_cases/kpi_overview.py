@@ -331,13 +331,13 @@ async def best_months(s: AsyncSession, officer_id: uuid.UUID) -> list[dict]:
 async def past(s: AsyncSession, officer_id: uuid.UUID, kind: str) -> list[dict]:
     today = company_today()
     rows = (await s.execute(text("""
-        SELECT DISTINCT ON (p.id) p.start_date, p.end_date, p.status, ps.score, ps.grade, ps.sales_level, ps.collection_level,
+        SELECT DISTINCT ON (p.id) p.id AS period_id, p.start_date, p.end_date, p.status, ps.score, ps.grade, ps.sales_level, ps.collection_level,
                ps.final_incentive_paise, ps.waiting_for_figures, ps.snapshot_date, st.status AS statement, st.final_amount_paise
         FROM kpi_period p JOIN performance_snapshot ps ON ps.period_id = p.id AND ps.officer_id = :o
         LEFT JOIN incentive_statement st ON st.period_id = p.id AND st.officer_id = :o
         WHERE p.type = :k AND p.end_date < :t
         ORDER BY p.id, ps.snapshot_date DESC"""), {"o": officer_id, "k": kind, "t": today})).all()
-    out = [{"start": r.start_date, "end": r.end_date, "closed": r.status == "closed",
+    out = [{"period_id": str(r.period_id), "start": r.start_date, "end": r.end_date, "closed": r.status == "closed",
             "score": float(r.score) if r.score is not None else None, "grade": r.grade,
             "sales_level": r.sales_level, "collection_level": r.collection_level,
             # money is shown only once the admin has closed the period and issued the statement

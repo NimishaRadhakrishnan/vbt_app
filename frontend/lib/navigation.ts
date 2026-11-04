@@ -135,6 +135,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: "history", label: "History", aliases: ["Movement History", "Historical Route Replay"], roles: OVERSIGHT, target: { kind: "tab", id: "route-history" } },
       { id: "attendance", label: "Attendance", aliases: ["Attendance Log"], roles: OVERSIGHT, target: { kind: "tab", id: "attendance" } },
       { id: "speedometer", label: "Speedometer", aliases: ["Odometer", "Vehicle km", "Meter photo"], roles: OVERSIGHT, target: { kind: "route", path: "/dashboard/speedometer" } },
+      { id: "team-goals", label: "Team Goals", aliases: ["Team overview", "Incentive statements", "Statements"], roles: OVERSIGHT, target: { kind: "route", path: "/dashboard/team-goals" } },
       { id: "goals", label: "Goals", aliases: ["Targets", "KPI", "Incentive", "Goals & Incentive"], roles: ["admin"], target: { kind: "route", path: "/dashboard/goals" } },
       { id: "login-requests", label: "Login Requests", aliases: ["Device change", "Login issues", "Phone change"], roles: ["admin"], target: { kind: "route", path: "/dashboard/login-requests" } },
       { id: "people", label: "People", aliases: ["User Management", "Users"], roles: ["admin"], target: { kind: "tab", id: "users" } },

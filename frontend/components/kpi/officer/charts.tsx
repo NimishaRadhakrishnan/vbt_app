@@ -149,9 +149,31 @@ export function MyBest() {
   );
 }
 
-type PastRow = { start: string; end: string; closed: boolean; score: number | null; grade: string | null; statement_status: string | null; final_amount_paise: number | null; waiting_for_figures: boolean };
+type PastRow = { period_id: string; start: string; end: string; closed: boolean; score: number | null; grade: string | null; statement_status: string | null; final_amount_paise: number | null; waiting_for_figures: boolean };
+const STATE_WORD: Record<string, string> = { draft: "Closed", approved: "Approved", paid: "Paid" };
+
+function StatementModal({ periodId, onClose }: { periodId: string; onClose: () => void }) {
+  const [d, setD] = useState<{ sections: { title: string; rows: string[][]; table?: boolean }[] } | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => { apiFetch<any>(`/kpi/me/statement?period_id=${periodId}`).then(setD).catch(() => setErr("Your statement is not ready yet.")); }, [periodId]);
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between"><p className="font-bold text-slate-800">My statement</p><button onClick={onClose} className="text-sm font-semibold text-primary-700">Close</button></div>
+        {err && <p className="text-sm text-amber-700">{err}</p>}
+        {d?.sections.map((s) => (
+          <div key={s.title}><p className="text-sm font-semibold text-slate-700 mb-1">{s.title}</p>
+            <table className="w-full text-sm border border-slate-100"><tbody>{s.rows.map((r, i) => (
+              <tr key={i} className={s.table && i === 0 ? "bg-emerald-50 font-semibold" : "border-t border-slate-50"}>
+                {r.map((c, j) => <td key={j} className={`px-2 py-1 ${j === 0 ? "" : "text-right"}`}>{c}</td>)}</tr>))}</tbody></table></div>))}
+      </div>
+    </div>
+  );
+}
+
 export function PastList({ period }: { period: "month" | "quarter" }) {
   const [rows, setRows] = useState<PastRow[] | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
   useEffect(() => { apiFetch<{ periods: PastRow[] }>(`/kpi/me/past?period=${period}`).then((d) => setRows(d.periods)).catch(() => setRows([])); }, [period]);
   if (!rows) return <p className="text-sm text-slate-400">Loading…</p>;
   if (!rows.length) return <p className="text-sm text-slate-500">Nothing yet. Finished {period}s will be listed here.</p>;
@@ -162,11 +184,15 @@ export function PastList({ period }: { period: "month" | "quarter" }) {
           <span className="text-slate-700">{new Date(r.start).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}{period === "quarter" ? " quarter" : ""}</span>
           <span className="text-right">
             <b>{r.score == null ? "–" : `${num(r.score)} marks`}</b>{r.grade && <span className="ml-1 text-slate-500">· Grade {r.grade}</span>}
-            {r.final_amount_paise != null && <span className="block text-xs" style={{ color: C.done }}>{rupees(r.final_amount_paise)}{r.statement_status === "paid" ? " paid" : ""}</span>}
+            {r.final_amount_paise != null && r.statement_status && (
+              <button className="block ml-auto text-xs underline" style={{ color: C.done }} onClick={() => setOpen(r.period_id)}>
+                {rupees(r.final_amount_paise)} · {STATE_WORD[r.statement_status] ?? r.statement_status}
+              </button>)}
             {r.waiting_for_figures && <span className="block text-xs text-slate-500">Sales figures were not in</span>}
           </span>
         </div>
       ))}
+      {open && <StatementModal periodId={open} onClose={() => setOpen(null)} />}
     </div>
   );
 }
