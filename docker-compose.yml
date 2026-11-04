@@ -48,6 +48,9 @@ services:
       POSTGRES_PORT: 5432
       REDIS_HOST: redis
     command: ["python", "scripts/retention_scheduler.py"]
+    volumes:
+      # the 01:30 data-stage job shrinks old photos in place
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

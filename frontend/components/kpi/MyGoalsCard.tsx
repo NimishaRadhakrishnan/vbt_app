@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch } from "@/lib/api/client";
 import { C, Overview, Ring, colorOf, elapsedShare, getOverview, itemLine, rupees, status } from "./officer/common";
 
 /** Officer Dashboard card: one ring per goal, one line of advice, incentive so far. */
@@ -18,6 +19,11 @@ export default function MyGoalsCard() {
   if (!o) return <div className="bg-white rounded-2xl border border-slate-100 p-5 text-sm text-slate-400">Loading your goals…</div>;
 
   const el = elapsedShare(o.period);
+  const dismiss = () => {
+    const id = o.nudge?.id;
+    setO({ ...o, nudge: null });
+    if (id) apiFetch(`/notifications/${id}/read`, { method: "POST" }).catch(() => undefined);
+  };
   const block = tab === "sales" ? o.sales : o.field;
   const items = (block?.items ?? []).filter((i) => !i.skipped && i.goal > 0);
   const sales = o.sales;
@@ -27,6 +33,12 @@ export default function MyGoalsCard() {
         <h3 className="text-base font-bold text-slate-800">My Goals · this month</h3>
         <Link href="/dashboard/my-goals" className="text-sm font-semibold text-primary-700">See all</Link>
       </div>
+      {o.nudge && (
+        <div className="mb-3 flex items-start justify-between gap-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
+          <p className="text-sm text-blue-900">{o.nudge.message}</p>
+          <button onClick={dismiss} className="text-xs font-semibold text-blue-700 shrink-0">Got it</button>
+        </div>
+      )}
       {o.mode === "both" && (
         <div className="flex gap-2 mb-3">
           {(["field", "sales"] as const).map((k) => (

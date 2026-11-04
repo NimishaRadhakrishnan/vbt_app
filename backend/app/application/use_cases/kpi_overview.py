@@ -177,6 +177,8 @@ async def overview(s: AsyncSession, officer_id: uuid.UUID, kind: str) -> dict:
                    "working_days_left": work_left},
         "mode": officer.work_mode if officer else "both", "ready": row is not None,
     }
+    from app.application.use_cases.kpi_nudges import latest_unread
+    out["nudge"] = await latest_unread(s, officer_id)
     if row is None:
         out["advice"] = "Your goals will show here once the office has set them."
         return out

@@ -8,6 +8,7 @@ import { C, Overview, Ring, colorOf, elapsedShare, itemLine, rupees, status } fr
 /** Dashboard card: one ring per goal, one line of advice, incentive so far (Sales). */
 export default function MyGoalsCard({ onOpen }: { onOpen: () => void }) {
   const [tab, setTab] = useState<'field' | 'sales' | null>(null);
+  const [gone, setGone] = useState(false);
   const { data: o, error } = useDataFetch<Overview>(() => apiClient.request('/kpi/me/overview?period=month', 'GET', 'plan_submit'), []);
   if (error && !o) return null;                    // rest of the dashboard still works
   if (!o) return null;
@@ -21,6 +22,14 @@ export default function MyGoalsCard({ onOpen }: { onOpen: () => void }) {
         <Text style={s.title}>My Goals · this month</Text>
         <TouchableOpacity onPress={onOpen}><Text style={s.link}>See all</Text></TouchableOpacity>
       </View>
+      {o.nudge && !gone && (
+        <View style={s.nudge}>
+          <Text style={[s.body, { flex: 1 }]}>{o.nudge.message}</Text>
+          <TouchableOpacity onPress={() => { setGone(true); void apiClient.request(`/notifications/${o.nudge!.id}/read`, 'POST', 'task_action').catch(() => undefined); }}>
+            <Text style={s.link}>Got it</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {o.mode === 'both' && (
         <View style={s.pills}>
           {(['field', 'sales'] as const).map((k) => (
@@ -57,6 +66,7 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
   title: { fontSize: font.subtitle, fontWeight: fontWeight.bold, color: color.textPrimary },
   link: { color: color.primary, fontWeight: fontWeight.semibold },
+  nudge: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, backgroundColor: '#e3f2fd', borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.sm },
   pills: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   pill: { paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: color.screenBg },
   pillOn: { backgroundColor: color.primary },

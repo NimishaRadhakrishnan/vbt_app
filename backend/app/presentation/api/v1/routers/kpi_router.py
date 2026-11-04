@@ -14,6 +14,7 @@ import uuid
 from datetime import date
 from typing import Optional
 
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.application.use_cases import kpi_overview as ov
@@ -43,6 +44,20 @@ async def my_overview(current_user: CurrentUser, period: str = Query("month", pa
     _officer_only(current_user)
     async with AsyncSessionLocal() as s:
         return await ov.overview(s, current_user.user_id, period)
+
+
+class PushToken(BaseModel):
+    token: str
+    platform: Optional[str] = None
+
+
+@router.post("/me/push-token", status_code=204)
+async def register_push_token(body: PushToken, current_user: CurrentUser):
+    """The phone app registers its push token here (needs a build with notifications enabled)."""
+    _officer_only(current_user)
+    from app.application.use_cases.kpi_nudges import register_token
+    async with AsyncSessionLocal() as s:
+        await register_token(s, current_user.user_id, body.token, body.platform)
 
 
 @router.get("/me/series")

@@ -14,7 +14,7 @@ export type Ladder = {
 } | null;
 export type Overview = {
   period: { type: "month" | "quarter"; start: string; end: string; status: string; days_total: number; days_left: number; working_days_left: number };
-  mode: "field" | "sales" | "both"; ready: boolean; advice: string; calculated_at?: string;
+  mode: "field" | "sales" | "both"; ready: boolean; advice: string; calculated_at?: string; nudge?: { id: string; message: string } | null;
   field?: { score: number; items: Item[]; trial_funnel: { visited: number; agreed_demo: number; trials: number; paid: number; waiting: number } };
   sales?: {
     score: number; grade: string | null; grade_label: string | null; items: Item[]; waiting_for_figures: boolean;
