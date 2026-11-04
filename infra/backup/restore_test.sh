@@ -31,7 +31,16 @@ if [ -n "$RESTORE_TARGET_URL" ]; then
 else
   docker run -d --name "$NAME" -e POSTGRES_USER="$PG_USER" -e POSTGRES_PASSWORD=restore-test -e POSTGRES_DB="$PG_DB" "$PG_IMAGE" >/dev/null \
     || { log "RESTORE TEST FAILED: could not start the scratch database"; exit 1; }
-  for _ in $(seq 1 40); do docker exec "$NAME" pg_isready -U "$PG_USER" >/dev/null 2>&1 && break; sleep 2; done
+  # The PostGIS image starts a temporary server to set itself up, shuts it down, then starts the real one.
+  # pg_isready passes on the temporary server, so wait until "ready to accept connections" has appeared twice.
+  READY=0
+  for _ in $(seq 1 90); do
+    [ "$(docker logs "$NAME" 2>&1 | grep -c 'ready to accept connections')" -ge 2 ] && { READY=1; break; }
+    [ "$(docker inspect -f '{{.State.Running}}' "$NAME" 2>/dev/null)" = true ] || break
+    sleep 2
+  done
+  [ "$READY" = 1 ] || { log "RESTORE TEST FAILED: the scratch database did not start: $(docker logs --tail 3 "$NAME" 2>&1 | tr '\n' ' ')"; exit 1; }
+  sleep 2
   dump | docker exec -i "$NAME" psql -U "$PG_USER" -d "$PG_DB" -v ON_ERROR_STOP=0 -q >/dev/null 2>"$BACKUP_DIR/restore-errors.txt"
   Q() { docker exec "$NAME" psql -U "$PG_USER" -d "$PG_DB" -tAc "$1"; }
 fi
